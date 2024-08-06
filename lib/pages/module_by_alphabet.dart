@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-//import 'package:path_provider/path_provider.dart';
-//import 'package:permission_handler/permission_handler.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class ModuleByAlphabet extends StatefulWidget {
   final String letter;
@@ -108,41 +108,44 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
   }
 
   // Get Permissions
-  // Future<bool> checkAndRequestStoragePermission() async {
-  //   var status = await Permission.storage.status;
-  //   if (!status.isGranted) {
-  //     status = await Permission.storage.request();
-  //   }
-  //   return status.isGranted;
-  // }
+  Future<bool> checkAndRequestStoragePermission() async {
+    var status = await Permission.storage.status;
+    if (!status.isGranted) {
+      status = await Permission.storage.request();
+    }
+    return status.isGranted;
+  }
 
   // Download the Module
-  // Future<void> downloadModule(String url, String fileName) async {
-  //   //bool hasPermission = await checkAndRequestStoragePermission();
-  //   //print("Has Permission: $hasPermission");
-  //   if (true) {
-  //     final directory = await getExternalStorageDirectory(); // Get the External Storage Directory (Android)
-  //     final filePath = '${directory!.path}/$fileName';
-  //     final file = File(filePath);
-  //
-  //     try {
-  //       final response = await http.get(Uri.parse(url));
-  //       await file.writeAsBytes(response.bodyBytes);
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(content: Text('Downloaded $fileName')),
-  //       );
-  //     } catch (e) {
-  //       ScaffoldMessenger.of(context).showSnackBar(
-  //         SnackBar(content: Text('Error downloading $fileName')),
-  //       );
-  //     }
-  //   } else {
-  //     // openAppSettings();
-  //     ScaffoldMessenger.of(context).showSnackBar(
-  //       SnackBar(content: Text('Permission denied')),
-  //     );
-  //   }
-  // }
+  Future<void> downloadModule(String url, String fileName) async {
+    bool hasPermission = await checkAndRequestStoragePermission();
+    print("Has Permission: $hasPermission");
+    if (true) {
+      final directory = await getExternalStorageDirectory(); // Get the External Storage Directory (Android)
+      final filePath = '${directory!.path}/$fileName';
+      final file = File(filePath);
+
+      try {
+        final response = await http.get(Uri.parse(url));
+        await file.writeAsBytes(response.bodyBytes);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Downloaded $fileName')),
+        );
+        print('Directory: ${directory.path}');
+        print('File Path: $filePath');
+
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error downloading $fileName')),
+        );
+      }
+    } else {
+      openAppSettings();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Permission denied')),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -182,7 +185,7 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                         return InkWell(
                           onTap: () async {
                             print("Downloading ${moduleData[index].downloadLink}");
-                            //await downloadModule(moduleData[index].downloadLink!, "${moduleData[index].name!}.zip");
+                            await downloadModule(moduleData[index].downloadLink!, "${moduleData[index].name!}.zip");
                           },
                           child: ListTile(
                             title: Text(moduleData[index].name!),
