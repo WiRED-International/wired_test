@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '.././utils/functions.dart';
+import 'package:archive/archive_io.dart';
+import 'module_library.dart';
 
 class ModuleByAlphabet extends StatefulWidget {
   final String letter;
@@ -134,6 +137,31 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
         print('Directory: ${directory.path}');
         print('File Path: $filePath');
 
+        // Unzip the downloaded file
+        final bytes = file.readAsBytesSync();
+        final archive = ZipDecoder().decodeBytes(bytes);
+
+        for (var file in archive) {
+          final filename = file.name;
+          final filePath = '${directory.path}/$filename';
+          print('Processing file: $filename at path: $filePath');
+
+          if (file.isFile) {
+            final data = file.content as List<int>;
+            File(filePath)
+              ..createSync(recursive: true)
+              ..writeAsBytesSync(data);
+          } else {
+            Directory(filePath).createSync(recursive: true);
+            print('Directory created: $filePath');
+          }
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unzipped $fileName')),
+        );
+        print('Unzipped to: ${directory.path}');
+
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error downloading $fileName')),
@@ -146,6 +174,8 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
       );
     }
   }
+
+
 
   @override
   void initState() {
@@ -182,10 +212,22 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                     return ListView.builder(
                       itemCount: moduleData.length,
                       itemBuilder: (context, index) {
+                        final module = moduleData[index];
+                        final moduleName = module.name ?? "Unknown Module";
+                        final downloadLink = module.downloadLink ?? "No Link available";
                         return InkWell(
                           onTap: () async {
                             print("Downloading ${moduleData[index].downloadLink}");
-                            await downloadModule(moduleData[index].downloadLink!, "${moduleData[index].name!}.zip");
+                            if (moduleData[index].downloadLink != null) {
+                              String fileName = "$moduleName.zip";
+                              await downloadModule(downloadLink, fileName);
+                              //Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary(moduleName: moduleName)));
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('No download link found for ${moduleData[index].name}')),
+                              );
+                            }
+
                           },
                           child: ListTile(
                             title: Text(moduleData[index].name!),
