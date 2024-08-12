@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'pages/search.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
