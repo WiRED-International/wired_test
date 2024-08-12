@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
+import '.././utils/webview_screen.dart';
 
 class ModuleLibrary extends StatefulWidget {
   final String moduleName;
@@ -33,7 +34,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                   width: 2,
                 ),
               ),
-              //child: Text(widget.moduleName),
+              child: WebViewScreen(),
             ),
           ],
         ),

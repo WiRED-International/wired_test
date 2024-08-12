@@ -221,7 +221,7 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                             if (moduleData[index].downloadLink != null) {
                               String fileName = "$moduleName.zip";
                               await downloadModule(downloadLink, fileName);
-                              //Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary(moduleName: moduleName)));
+                              Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary(moduleName: moduleName)));
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(content: Text('No download link found for ${moduleData[index].name}')),
