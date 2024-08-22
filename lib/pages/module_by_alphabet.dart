@@ -8,12 +8,13 @@ import 'package:permission_handler/permission_handler.dart';
 import '.././utils/functions.dart';
 import 'package:archive/archive_io.dart';
 import 'module_library.dart';
+import 'module_info.dart';
 
 class ModuleByAlphabet extends StatefulWidget {
   final String letter;
   final String letterId;
 
-  ModuleByAlphabet({required this.letter, required this.letterId});
+  ModuleByAlphabet({required this.letter, required this.letterId,});
 
   @override
   _ModuleByAlphabetState createState() => _ModuleByAlphabetState();
@@ -23,7 +24,7 @@ class ModuleByAlphabet extends StatefulWidget {
 
 class Modules {
   String? name;
-  //String? description;
+  String? description;
   //String? topics;
   //String? version;
   String? downloadLink;
@@ -38,7 +39,7 @@ class Modules {
 
   Modules({
     this.name,
-    //this.description,
+    this.description,
     //this.topics,
     //this.version,
     this.downloadLink,
@@ -52,7 +53,7 @@ class Modules {
 
   Modules.fromJson(Map<String, dynamic> json)
     : name = json['name'] as String,
-      //description = json['description'] as String,
+      description = json['description'] as String,
       //topics = json['topics'] as String,
       //version = json['version'] as String,
       downloadLink = json['downloadLink'] as String,
@@ -66,7 +67,7 @@ class Modules {
 
   Map<String, dynamic> toJson() => {
     'name': name,
-    //'description': description,
+    'description': description,
     //'topics': topics,
     //'version': version,
     'downloadLink': downloadLink,
@@ -215,13 +216,14 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                         final module = moduleData[index];
                         final moduleName = module.name ?? "Unknown Module";
                         final downloadLink = module.downloadLink ?? "No Link available";
+                        final moduleDescription = module.description ?? "No Description available";
                         return InkWell(
                           onTap: () async {
                             print("Downloading ${moduleData[index].downloadLink}");
                             if (moduleData[index].downloadLink != null) {
                               String fileName = "$moduleName.zip";
                               await downloadModule(downloadLink, fileName);
-                              Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary(moduleName: moduleName)));
+                              Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleInfo(moduleName: moduleName, moduleDescription: moduleDescription)));
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(content: Text('No download link found for ${moduleData[index].name}')),
