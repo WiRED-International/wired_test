@@ -20,8 +20,6 @@ class ModuleByAlphabet extends StatefulWidget {
   _ModuleByAlphabetState createState() => _ModuleByAlphabetState();
 }
 
-
-
 class Modules {
   String? name;
   String? description;
@@ -219,11 +217,11 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                         final moduleDescription = module.description ?? "No Description available";
                         return InkWell(
                           onTap: () async {
-                            print("Downloading ${moduleData[index].downloadLink}");
+                            //print("Downloading ${moduleData[index].downloadLink}");
                             if (moduleData[index].downloadLink != null) {
-                              String fileName = "$moduleName.zip";
-                              await downloadModule(downloadLink, fileName);
-                              Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleInfo(moduleName: moduleName, moduleDescription: moduleDescription)));
+                              // String fileName = "$moduleName.zip";
+                              // await downloadModule(downloadLink, fileName);
+                              Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleInfo(moduleName: moduleName, moduleDescription: moduleDescription, downloadLink: downloadLink)));
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(content: Text('No download link found for ${moduleData[index].name}')),
@@ -233,7 +231,7 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                           },
                           child: ListTile(
                             title: Text(moduleData[index].name!),
-                            subtitle: Text(moduleData[index].downloadLink!),
+                            //subtitle: Text(moduleData[index].downloadLink!),
                           ),
                         );
                       },

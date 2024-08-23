@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
@@ -9,6 +10,16 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'download_confirm.dart';
 
+class ModuleInfo extends StatefulWidget {
+  final String moduleName;
+  final String moduleDescription;
+  final String? downloadLink;
+
+  ModuleInfo({required this.moduleName, required this.moduleDescription, this.downloadLink});
+
+  @override
+  _ModuleInfoState createState() => _ModuleInfoState();
+}
 
 class Modules {
   String? name;
@@ -42,40 +53,35 @@ class Modules {
   Modules.fromJson(Map<String, dynamic> json)
       : name = json['name'] as String,
         description = json['description'] as String,
-        //topics = json['topics'] as String,
-        //version = json['version'] as String,
+  //topics = json['topics'] as String,
+  //version = json['version'] as String,
         downloadLink = json['downloadLink'] as String,
-        //launchFile = json['launchFile'] as String,
-        //packageSize = json['packageSize'] as String,
-        //letters = json['letters'] as String;
+  //launchFile = json['launchFile'] as String,
+  //packageSize = json['packageSize'] as String,
+  //letters = json['letters'] as String;
         letters = (json['letters'] as List<dynamic>?)?.map((e) => e as String).toList();
-        //credits = json['credits'] as String,
-        //module_name = json['module_name'] as String,
-        //id = json['id'] as String;
+  //credits = json['credits'] as String,
+  //module_name = json['module_name'] as String,
+  //id = json['id'] as String;
 
   Map<String, dynamic> toJson() => {
-        'name': name,
-        'description': description,
-        //'topics': topics,
-        //'version': version,
-        'downloadLink': downloadLink,
-        //'launchFile': launchFile,
-        //'packageSize': packageSize,
-        'letters': letters,
-        //'credits': credits,
-        //'module_name': module_name,
-        //'id': id,
-      };
+    'name': name,
+    'description': description,
+    //'topics': topics,
+    //'version': version,
+    'downloadLink': downloadLink,
+    //'launchFile': launchFile,
+    //'packageSize': packageSize,
+    'letters': letters,
+    //'credits': credits,
+    //'module_name': module_name,
+    //'id': id,
+  };
 }
 
-class ModuleInfo extends StatelessWidget {
-
-  ModuleInfo({required this.moduleName, required this.moduleDescription});
-
+class _ModuleInfoState extends State<ModuleInfo> {
   late Future<Modules> futureModule;
   late List<Modules> moduleData = [];
-  final String moduleName;
-  final String moduleDescription;
 
 
   // Get the Module Data
@@ -104,6 +110,76 @@ class ModuleInfo extends StatelessWidget {
   //   }
   //   return moduleData;
   // }
+
+  // Get Permissions
+  Future<bool> checkAndRequestStoragePermission() async {
+    var status = await Permission.storage.status;
+    if (!status.isGranted) {
+      status = await Permission.storage.request();
+    }
+    return status.isGranted;
+  }
+
+  // Download the Module
+  Future<void> downloadModule(String url, String fileName) async {
+    bool hasPermission = await checkAndRequestStoragePermission();
+    print("Has Permission: $hasPermission");
+    if (true) {
+      final directory = await getExternalStorageDirectory(); // Get the External Storage Directory (Android)
+      final filePath = '${directory!.path}/$fileName';
+      final file = File(filePath);
+
+      try {
+        final response = await http.get(Uri.parse(url));
+        await file.writeAsBytes(response.bodyBytes);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Downloaded $fileName')),
+        );
+        print('Directory: ${directory.path}');
+        print('File Path: $filePath');
+
+        // Unzip the downloaded file
+        final bytes = file.readAsBytesSync();
+        final archive = ZipDecoder().decodeBytes(bytes);
+
+        for (var file in archive) {
+          final filename = file.name;
+          final filePath = '${directory.path}/$filename';
+          print('Processing file: $filename at path: $filePath');
+
+          if (file.isFile) {
+            final data = file.content as List<int>;
+            File(filePath)
+              ..createSync(recursive: true)
+              ..writeAsBytesSync(data);
+          } else {
+            Directory(filePath).createSync(recursive: true);
+            print('Directory created: $filePath');
+          }
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unzipped $fileName')),
+        );
+        print('Unzipped to: ${directory.path}');
+
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error downloading $fileName')),
+        );
+      }
+    } else {
+      openAppSettings();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Permission denied')),
+      );
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -166,7 +242,7 @@ class ModuleInfo extends StatelessWidget {
                     ),
                     const SizedBox(height: 30,),
                     Text(
-                      moduleName,
+                      widget.moduleName,
                       style: const TextStyle(
                         fontSize: 36,
                         fontWeight: FontWeight.w500,
@@ -194,7 +270,7 @@ class ModuleInfo extends StatelessWidget {
                                       fontWeight: FontWeight.w500,
                                       color: Colors.black,
                                     ),
-                                    moduleDescription,
+                                    widget.moduleDescription,
                                   ),
                                 ],
                               ),
@@ -230,9 +306,17 @@ class ModuleInfo extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: GestureDetector(
-                        onTap: () {
-                          print("Download");
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => DownloadConfirm(moduleName: moduleName)));
+                        onTap: () async {
+                          print("Downloading ${widget.downloadLink}");
+                          if (widget.downloadLink != null) {
+                            String fileName = "$widget.moduleName.zip";
+                            await downloadModule(widget.downloadLink!, fileName);
+                            Navigator.push(context, MaterialPageRoute(builder: (context) => DownloadConfirm(moduleName: widget.moduleName)));
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('No download link found for ${widget.moduleName}')),
+                            );
+                          }
                         },
                         child: Container(
                           height: 60,
