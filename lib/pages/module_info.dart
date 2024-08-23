@@ -7,6 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:archive/archive_io.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_svg/flutter_svg.dart';
+import 'download_confirm.dart';
 
 
 class Modules {
@@ -165,13 +166,12 @@ class ModuleInfo extends StatelessWidget {
                     ),
                     const SizedBox(height: 30,),
                     Text(
+                      moduleName,
                       style: const TextStyle(
                         fontSize: 36,
                         fontWeight: FontWeight.w500,
                         color: Color(0xFF0070C0),
                       ),
-                      moduleName,
-
                     ),
                     const SizedBox(height: 20,),
                     Stack(
@@ -232,10 +232,11 @@ class ModuleInfo extends StatelessWidget {
                       child: GestureDetector(
                         onTap: () {
                           print("Download");
+                          Navigator.push(context, MaterialPageRoute(builder: (context) => DownloadConfirm(moduleName: moduleName)));
                         },
                         child: Container(
                           height: 60,
-                          width: 228,
+                          width: 223,
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             gradient: const LinearGradient(
