@@ -163,6 +163,20 @@ class _ModuleInfoState extends State<ModuleInfo> {
         );
         print('Unzipped to: ${directory.path}');
 
+        // Delete the zip file
+        try {
+          await file.delete();
+          print('Zip file deleted: $filePath');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Unzipped and deleted $fileName')),
+          );
+        } catch (e) {
+          print('Error deleting zip file: $e');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error deleting $fileName')),
+          );
+        }
+
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error downloading $fileName')),
@@ -174,6 +188,7 @@ class _ModuleInfoState extends State<ModuleInfo> {
         SnackBar(content: Text('Permission denied')),
       );
     }
+
   }
 
   @override
