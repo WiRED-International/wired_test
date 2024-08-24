@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import 'module_library.dart';
+
 class DownloadConfirm extends StatefulWidget {
   //const DownloadConfirm({Key? key}) : super(key: key);
   const DownloadConfirm({super.key, required this.moduleName});
@@ -99,7 +101,7 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                       child: GestureDetector(
                         onTap: () {
                           print("My Library");
-                          //Navigator.push(context, MaterialPageRoute(builder: (context) => DownloadConfirm(moduleName: moduleName)));
+                          Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
                         },
                         child: Container(
                           height: 60,
