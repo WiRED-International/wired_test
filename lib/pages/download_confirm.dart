@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
+import '../utils/custom_app_bar.dart';
 import 'module_library.dart';
 
 class DownloadConfirm extends StatefulWidget {
@@ -35,37 +36,11 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.transparent,
-                      ),
-                      child: Row(
-                        //mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.pop(context);
-                            },
-                            child: Row(
-                              children: [
-                                SvgPicture.asset(
-                                  'assets/icons/chevron_left.svg',
-                                  height: 28,
-                                  width: 28,
-                                ),
-                                const Text(
-                                  "Back",
-                                  style: TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.black,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                    //Imported from utils/custom_app_bar.dart
+                    CustomAppBar(
+                      onBackPressed: () {
+                        Navigator.pop(context);
+                      },
                     ),
                     const SizedBox(height:50,),
                     const Text(
