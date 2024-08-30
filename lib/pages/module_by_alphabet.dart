@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '.././utils/functions.dart';
 import 'package:archive/archive_io.dart';
+import '../utils/custom_app_bar.dart';
 import 'module_library.dart';
 import 'module_info.dart';
 
@@ -185,67 +186,123 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text("By Alphabet ${widget.letter}"),
-      ),
-      body: Center(
-        child: Column(
-          children: [
-            Text("Search by"),
-            Text("Alphabet: ${widget.letter}"),
-            Container(
-              height: 400,
-              width: 400,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: Colors.blue,
-                  width: 2,
-                ),
-              ),
-              child: FutureBuilder<List<Modules>>(
-                future: futureModules,
-                builder: (context, snapshot) {
-                  if (snapshot.hasData) {
-                    return ListView.builder(
-                      itemCount: moduleData.length,
-                      itemBuilder: (context, index) {
-                        final module = moduleData[index];
-                        final moduleName = module.name ?? "Unknown Module";
-                        final downloadLink = module.downloadLink ?? "No Link available";
-                        final moduleDescription = module.description ?? "No Description available";
-                        return InkWell(
-                          onTap: () async {
-                            //print("Downloading ${moduleData[index].downloadLink}");
-                            if (moduleData[index].downloadLink != null) {
-                              // String fileName = "$moduleName.zip";
-                              // await downloadModule(downloadLink, fileName);
-                              Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleInfo(moduleName: moduleName, moduleDescription: moduleDescription, downloadLink: downloadLink)));
-                            } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('No download link found for ${moduleData[index].name}')),
-                              );
-                            }
-
-                          },
-                          child: ListTile(
-                            title: Text(moduleData[index].name!),
-                            //subtitle: Text(moduleData[index].downloadLink!),
-                          ),
-                        );
-                      },
-                    );
-                  } else if (snapshot.hasError) {
-                    return Text('Error: ${snapshot.error}');
-                  } else {
-                    return const CircularProgressIndicator();
-                  }
-                },
+      body: Stack(
+        children: <Widget>[
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0xFFFFF0DC),
+                  Color(0xFFF9EBD9),
+                  Color(0xFFFFC888),
+                ],
               ),
             ),
-          ],
+            child: SafeArea(
+          child: Center(
+            child: Column(
+              children: [
+                //Imported from utils/custom_app_bar.dart
+                CustomAppBar(
+                  onBackPressed: () {
+                    Navigator.pop(context);
+                  },
+                ),
+                Container(
+                  child: Column(
+                    children: [
+                      const Text(
+                        "Search by",
+                        style: TextStyle(
+                          fontSize: 36,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF0070C0),
+                        ),
+                      ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text(
+                            "Alphabet: ",
+                            style: TextStyle(
+                              fontSize: 36,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF0070C0),
+                            ),
+                          ),
+                          Text(
+                            widget.letter,
+                            style: const TextStyle(
+                              fontSize: 36,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF548235),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                Container(
+                  height: 400,
+                  width: 400,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: Colors.blue,
+                      width: 2,
+                    ),
+                  ),
+                  child: FutureBuilder<List<Modules>>(
+                    future: futureModules,
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData) {
+                        return ListView.builder(
+                          itemCount: moduleData.length,
+                          itemBuilder: (context, index) {
+                            final module = moduleData[index];
+                            final moduleName = module.name ?? "Unknown Module";
+                            final downloadLink = module.downloadLink ?? "No Link available";
+                            final moduleDescription = module.description ?? "No Description available";
+                            return InkWell(
+                              onTap: () async {
+                                //print("Downloading ${moduleData[index].downloadLink}");
+                                if (moduleData[index].downloadLink != null) {
+                                  // String fileName = "$moduleName.zip";
+                                  // await downloadModule(downloadLink, fileName);
+                                  Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleInfo(moduleName: moduleName, moduleDescription: moduleDescription, downloadLink: downloadLink)));
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('No download link found for ${moduleData[index].name}')),
+                                  );
+                                }
+
+                              },
+                              child: ListTile(
+                                title: Text(moduleData[index].name!),
+                                //subtitle: Text(moduleData[index].downloadLink!),
+                              ),
+                            );
+                          },
+                        );
+                      } else if (snapshot.hasError) {
+                        return Text('Error: ${snapshot.error}');
+                      } else {
+                        return const CircularProgressIndicator();
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
+      ),
+    ],
       ),
     );
   }
