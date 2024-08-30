@@ -1,8 +1,15 @@
 import 'package:flutter/material.dart';
+// import 'package:flutter/rendering.dart';
 
 import 'pages/search.dart';
 
 void main() {
+  // Enable debug paint
+  // debugPaintSizeEnabled = true; // Shows the boundaries of your widgets
+  // debugPaintBaselinesEnabled = true; // Shows baselines for text
+  // debugPaintLayerBordersEnabled = true; // Shows the borders of layers
+  // debugPaintPointersEnabled = true; // Shows the touch points
+  // debugRepaintRainbowEnabled = true; // Shows repaint areas with a rainbow effect
   WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }

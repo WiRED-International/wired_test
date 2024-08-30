@@ -82,6 +82,9 @@ class Modules {
 class _ModuleInfoState extends State<ModuleInfo> {
   late Future<Modules> futureModule;
   late List<Modules> moduleData = [];
+  final GlobalKey _moduleNameKey = GlobalKey();
+
+  double topPadding = 0;
 
 
   // Get the Module Data
@@ -194,6 +197,37 @@ class _ModuleInfoState extends State<ModuleInfo> {
   @override
   void initState() {
     super.initState();
+    // Use addPostFrameCallback to get the height after the first build
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final RenderBox renderBox = _moduleNameKey.currentContext?.findRenderObject() as RenderBox;
+      final double moduleNameHeight = renderBox.size.height;
+      print('Module Name Container Height: $moduleNameHeight');
+      // Use addPostFrameCallback to get the height after the first build
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (_moduleNameKey.currentContext?.findRenderObject() != null) {
+          final RenderBox renderBox = _moduleNameKey.currentContext!.findRenderObject() as RenderBox;
+          final double moduleNameHeight = renderBox.size.height;
+
+          // Calculate the top padding based on the module name container height
+          setState(() {
+            if (moduleNameHeight == 60) {
+              topPadding = 145;
+            } else if (moduleNameHeight == 150) {
+              topPadding = 231;
+            } else {
+              topPadding = 180;
+            }
+          });
+
+          // Print the module name height and calculated topPadding
+          print('Module Name Container Height: $moduleNameHeight');
+          print('Calculated Top Padding: $topPadding');
+        } else {
+          // Handle the case where the RenderBox is not yet available
+          print('RenderBox is not available.');
+        }
+      });
+    });
   }
 
   @override
@@ -220,169 +254,240 @@ class _ModuleInfoState extends State<ModuleInfo> {
               ),
             ),
             child: SafeArea(
-              child: Center(
-                child: Column(
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.transparent,
-                      ),
-                      child: Row(
-                        //mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.pop(context);
-                            },
-                            child: Row(
-                              children: [
-                                SvgPicture.asset(
-                                  'assets/icons/chevron_left.svg',
-                                  height: 28,
-                                  width: 28,
-                                ),
-                                const Text(
-                                  "Back",
-                                  style: TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.black,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 30,),
-                    Text(
-                      widget.moduleName,
-                      style: const TextStyle(
-                        fontSize: 36,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF0070C0),
-                      ),
-                    ),
-                    const SizedBox(height: 20,),
-                    Stack(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // Calculate the available height for the description container
+                  double availableHeight = constraints.maxHeight - 230;
+
+                  return Center(
+                    child: Column(
                       children: [
                         Container(
-                          height: 600,
-                          width: 400,
                           decoration: BoxDecoration(
                             color: Colors.transparent,
-                            borderRadius: BorderRadius.circular(10),
                           ),
-                          child: SingleChildScrollView(
-                            child: Padding(
-                              padding: const EdgeInsets.only(bottom: 50),
-                              child: Column(
-                                children: [
-                                  Text(
-                                    style: const TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black,
+                          child: Row(
+                            //mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              GestureDetector(
+                                onTap: () {
+                                  Navigator.pop(context);
+                                },
+                                child: Row(
+                                  children: [
+                                    SvgPicture.asset(
+                                      'assets/icons/chevron_left.svg',
+                                      height: 28,
+                                      width: 28,
                                     ),
-                                    widget.moduleDescription,
-                                  ),
-                                ],
+                                    const Text(
+                                      "Back",
+                                      style: TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.black,
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                            ),
+                            ],
                           ),
                         ),
-                        Positioned(
-                          bottom: 0,
-                          left: 0,
-                          right: 0,
-                          child: IgnorePointer(
-                            child: Container(
-                                height: 60,
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    stops: [0.0, 1.0],
-                                    colors: [
-                                      // Colors.transparent,
-                                      // Color(0xFFFFF0DC),
-                                      //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                                      Color(0xFFFDD6A7).withOpacity(0.0),
-                                      Color(0xFFFDD6A7),
-                                    ],
-                                  ),
-                                )
+                        const SizedBox(height: 30,),
+                        // Module Name Container
+                        Container(
+                          key: _moduleNameKey,
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                          constraints: BoxConstraints(
+                            minHeight: 60, // Minimum height for the container
+                            maxHeight: 150, // Maximum height for longer titles
+                          ),
+                          child: Text(
+                            widget.moduleName,
+                            style: const TextStyle(
+                              fontSize: 36,
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF0070C0),
                             ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(height: 20,),
+
+                        // Module Description Container
+                        Flexible(
+                          child: Stack(
+                            children: [
+                              Positioned(
+                                //top: MediaQuery.of(context).size.width / 50, // Adjust this value based on your layout
+                                left: MediaQuery
+                                    .of(context)
+                                    .size
+                                    .width / 11,
+                                right: MediaQuery
+                                    .of(context)
+                                    .size
+                                    .width / 11,
+                                bottom: 230,
+                                child: Container(
+                                  height: availableHeight,
+                                  width: 400,
+                                  decoration: BoxDecoration(
+                                    color: Colors.transparent,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: SingleChildScrollView(
+                                    child: Padding(
+                                      padding: EdgeInsets.only(
+                                          bottom: 50,
+                                          top: topPadding,
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            widget.moduleDescription,
+                                            style: const TextStyle(
+                                              fontSize: 24,
+                                              fontWeight: FontWeight.w500,
+                                              color: Colors.black,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              // Container for gradient text fade
+                              Positioned(
+                                bottom: 230,
+                                left: 0,
+                                right: 0,
+                                child: IgnorePointer(
+                                  child: Container(
+                                      height: 80,
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                          stops: [0.0, 5.0],
+                                          colors: [
+                                            // Colors.transparent,
+                                            // Color(0xFFFFF0DC),
+                                            //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                                            Color(0xFFFCDBB3).withOpacity(0.0),
+                                            Color(0xFFFCDBB3),
+                                          ],
+                                        ),
+                                      )
+                                  ),
+                                ),
+                              ),
+
+                              // Download Button
+                              Positioned(
+                                bottom: 130,
+                                left: MediaQuery
+                                    .of(context)
+                                    .size
+                                    .width / 4.2,
+                                right: MediaQuery
+                                    .of(context)
+                                    .size
+                                    .width / 4.2,
+                                child: Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: GestureDetector(
+                                    onTap: () async {
+                                      print(
+                                          "Downloading ${widget.downloadLink}");
+                                      if (widget.downloadLink != null) {
+                                        String fileName = "$widget.moduleName.zip";
+                                        await downloadModule(
+                                            widget.downloadLink!, fileName);
+                                        Navigator.push(context,
+                                            MaterialPageRoute(
+                                                builder: (context) =>
+                                                    DownloadConfirm(
+                                                        moduleName: widget
+                                                            .moduleName)));
+                                      } else {
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          SnackBar(content: Text(
+                                              'No download link found for ${widget
+                                                  .moduleName}')),
+                                        );
+                                      }
+                                    },
+                                    child: Container(
+                                      height: 60,
+                                      // width: MediaQuery.of(context).size.width / 2,
+                                      //alignment: Alignment.center,
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [
+                                            Color(0xFF0070C0),
+                                            Color(0xFF00C1FF),
+                                            Color(0xFF0070C0),
+                                          ], // Your gradient colors
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                        ),
+                                        borderRadius: BorderRadius.circular(30),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(
+                                                0.5),
+                                            spreadRadius: 1,
+                                            blurRadius: 5,
+                                            offset: const Offset(1,
+                                                3), // changes position of shadow
+                                          ),
+                                        ],
+                                      ),
+                                      child: Padding(
+                                        padding: EdgeInsets.all(8.0),
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment
+                                              .center,
+                                          children: [
+                                            const Padding(
+                                              padding: EdgeInsets.only(
+                                                  left: 10),
+                                              child: Text(
+                                                "Download",
+                                                style: TextStyle(
+                                                  fontSize: 32,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 10,),
+                                            SvgPicture.asset(
+                                              'assets/icons/download_icon.svg',
+                                              height: 42,
+                                              width: 42,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              )
+                            ],
                           ),
                         ),
                       ],
                     ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: GestureDetector(
-                        onTap: () async {
-                          print("Downloading ${widget.downloadLink}");
-                          if (widget.downloadLink != null) {
-                            String fileName = "$widget.moduleName.zip";
-                            await downloadModule(widget.downloadLink!, fileName);
-                            Navigator.push(context, MaterialPageRoute(builder: (context) => DownloadConfirm(moduleName: widget.moduleName)));
-                          } else {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('No download link found for ${widget.moduleName}')),
-                            );
-                          }
-                        },
-                        child: Container(
-                          height: 60,
-                          width: 223,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF0070C0), Color(0xFF00C1FF), Color(0xFF0070C0),], // Your gradient colors
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                            ),
-                            borderRadius: BorderRadius.circular(30),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.5),
-                                spreadRadius: 1,
-                                blurRadius: 5,
-                                offset: const Offset(1, 3), // changes position of shadow
-                              ),
-                            ],
-                          ),
-                          child: Padding(
-                            padding: EdgeInsets.all(8.0),
-                            child: Row(
-                              children: [
-                                const Padding(
-                                  padding: EdgeInsets.only(left: 10),
-                                  child: Text(
-                                    "Download",
-                                    style: TextStyle(
-                                      fontSize: 32,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 10,),
-                                SvgPicture.asset(
-                                'assets/icons/download_icon.svg',
-                                height: 42,
-                                width: 42,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    )
-                  ],
-                ),
-              ),
+                  );
+                }
+    ),
             ),
           ),
           Positioned(

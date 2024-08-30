@@ -67,7 +67,7 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                         ],
                       ),
                     ),
-                    const SizedBox(height: 50,),
+                    const SizedBox(height:50,),
                     const Text(
                       "You have downloaded the following module:",
                       style: TextStyle(
@@ -77,16 +77,24 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 70,),
-                    Text(
-                      widget.moduleName,
-                      style: const TextStyle(
-                        fontSize: 42,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF0070C0),
+                    const SizedBox(height: 30,),
+                    Container(
+                      height: 150,
+                      width: double.infinity,
+                      alignment: Alignment.center,
+                      child: Center(
+                        child: Text(
+                          widget.moduleName,
+                          style: const TextStyle(
+                            fontSize: 36,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF0070C0),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 70,),
+                    const SizedBox(height: 60,),
                     const Text(
                       "View module in",
                       style: TextStyle(
