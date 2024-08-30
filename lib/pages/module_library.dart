@@ -24,6 +24,7 @@ class ModuleFile {
 
 class _ModuleLibraryState extends State<ModuleLibrary> {
   late Future<List<ModuleFile>> futureModules;
+  List<ModuleFile> modules = [];
 
   @override
   void initState() {
@@ -35,15 +36,78 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
     final directory = await getExternalStorageDirectory();
     if (directory != null) {
       // Get all files from the directory
-      return directory
-          .listSync()
-          .whereType<File>()
-          .map((file) => ModuleFile(file: file, path: file.path))
-          .toList();
+      setState(() {
+        modules = directory
+            .listSync()
+            .whereType<File>()
+            .map((file) => ModuleFile(file: file, path: file.path))
+            .toList();
+      });
+      // check this later
+      return modules;
     } else {
       return [];
     }
   }
+
+  Future<void> deleteFileAndAssociatedDirectory(String fileName) async {
+    try {
+      final directory = await getExternalStorageDirectory();
+      if (directory == null) {
+        return;
+      }
+      // Define the path to the file
+      final filePath = '${directory.path}/$fileName';
+
+      // Read the htm file
+      final file = File(filePath);
+      print('attempting to delete file: $filePath');
+      if (!await file.exists()) {
+        print('File not found: $filePath');
+        return;
+      }
+
+      final fileContent = await file.readAsString();
+      print('File content read successfully: ${fileContent.substring(0, 150)}...');
+
+      // Use RegEx to find the path to the directory
+      final regEx = RegExp(r'files/(\d+(-[a-zA-Z0-9]+)?)/');
+      final match = regEx.firstMatch(fileContent);
+      print('match: $match');
+      if (match != null) {
+        final directoryName = match.group(1);
+        final directoryPath = '${directory.path}/files/$directoryName';
+        print('directoryPath resolved to: $directoryPath');
+
+        // Delete HTM file
+        await file.delete();
+        print('Deleted file: $filePath');
+
+        // Delete directory
+        final dir = Directory(directoryPath);
+        if (await dir.exists()) {
+          await dir.delete(recursive: true);
+          print('Deleted directory: $directoryPath');
+
+        } else {
+          print('Directory not found: $directoryPath');
+        }
+
+        // Update the state to remove the deleted file from the list
+        setState(() {
+          modules.removeWhere((module) => module.path == filePath);
+        });
+
+      } else if (match == null) {
+        print('No match found in file: $filePath');
+        return;
+      }
+    } catch (e) {
+      print('Error deleting file or directory: $e');
+      return;
+    }
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -281,7 +345,8 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                                                   ),
                                                   child: GestureDetector(
                                                     onTap: () {
-                                                      // Handle file tap here if needed
+                                                      print("Delete tapped");
+                                                      deleteFileAndAssociatedDirectory(moduleFile.file.path.split('/').last);
                                                     },
                                                     child: const Column(
                                                       children: [
