@@ -8,6 +8,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '.././utils/functions.dart';
 import 'package:archive/archive_io.dart';
 import '../utils/custom_app_bar.dart';
+import '../utils/custom_nav_bar.dart';
 import 'module_library.dart';
 import 'module_info.dart';
 
@@ -245,63 +246,127 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                     ],
                   ),
                 ),
-
-                Container(
-                  height: 400,
-                  width: 400,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: Colors.blue,
-                      width: 2,
+                const SizedBox(height: 10),
+                Stack(
+                  children: [
+                    Container(
+                    height: 650,
+                    width: 400,
+                    decoration: BoxDecoration(
+                      color: Colors.transparent,
+                    ),
+                    child: FutureBuilder<List<Modules>>(
+                      future: futureModules,
+                      builder: (context, snapshot) {
+                        if (snapshot.hasData) {
+                          return ListView.builder(
+                            itemCount: moduleData.length + 1, // Increase the item count by 1 to account for the SizedBox as the last item
+                            itemBuilder: (context, index) {
+                              if (index == moduleData.length) {
+                                // This is the last item (the SizedBox or Container)
+                                return const SizedBox(
+                                  height: 160,
+                                );
+                              }
+                              final module = moduleData[index];
+                              final moduleName = module.name ?? "Unknown Module";
+                              final downloadLink = module.downloadLink ?? "No Link available";
+                              final moduleDescription = module.description ?? "No Description available";
+                              return Column(
+                                children: [
+                                  InkWell(
+                                    onTap: () async {
+                                      //print("Downloading ${moduleData[index].downloadLink}");
+                                      if (moduleData[index].downloadLink != null) {
+                                        // String fileName = "$moduleName.zip";
+                                        // await downloadModule(downloadLink, fileName);
+                                        Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleInfo(moduleName: moduleName, moduleDescription: moduleDescription, downloadLink: downloadLink)));
+                                      } else {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('No download link found for ${moduleData[index].name}')),
+                                        );
+                                      }
+                                    },
+                                    child: Center(
+                                      child: ListTile(
+                                        title: Text(
+                                          moduleData[index].name!,
+                                          style: const TextStyle(
+                                            fontSize: 24,
+                                            fontWeight: FontWeight.w500,
+                                            color: Color(0xFF0070C0),
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const Divider(
+                                    color: Colors.grey,
+                                    height: 1,
+                                  ),
+                                ],
+                              );
+                            },
+                          );
+                        } else if (snapshot.hasError) {
+                          return Text('Error: ${snapshot.error}');
+                        } else {
+                          return const CircularProgressIndicator();
+                        }
+                      },
                     ),
                   ),
-                  child: FutureBuilder<List<Modules>>(
-                    future: futureModules,
-                    builder: (context, snapshot) {
-                      if (snapshot.hasData) {
-                        return ListView.builder(
-                          itemCount: moduleData.length,
-                          itemBuilder: (context, index) {
-                            final module = moduleData[index];
-                            final moduleName = module.name ?? "Unknown Module";
-                            final downloadLink = module.downloadLink ?? "No Link available";
-                            final moduleDescription = module.description ?? "No Description available";
-                            return InkWell(
-                              onTap: () async {
-                                //print("Downloading ${moduleData[index].downloadLink}");
-                                if (moduleData[index].downloadLink != null) {
-                                  // String fileName = "$moduleName.zip";
-                                  // await downloadModule(downloadLink, fileName);
-                                  Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleInfo(moduleName: moduleName, moduleDescription: moduleDescription, downloadLink: downloadLink)));
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('No download link found for ${moduleData[index].name}')),
-                                  );
-                                }
-
-                              },
-                              child: ListTile(
-                                title: Text(moduleData[index].name!),
-                                //subtitle: Text(moduleData[index].downloadLink!),
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: IgnorePointer(
+                        child: Container(
+                            height: 150,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                stops: [0.0, 1.0],
+                                colors: [
+                                  // Colors.transparent,
+                                  // Color(0xFFFFF0DC),
+                                  //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                                  Color(0xFFFED09A).withOpacity(0.0),
+                                  Color(0xFFFED09A),
+                                ],
                               ),
-                            );
-                          },
-                        );
-                      } else if (snapshot.hasError) {
-                        return Text('Error: ${snapshot.error}');
-                      } else {
-                        return const CircularProgressIndicator();
-                      }
-                    },
-                  ),
+                            )
+                        ),
+                      ),
+                    ),
+                ],
                 ),
               ],
             ),
           ),
         ),
       ),
+          Positioned(
+            bottom: 0,
+            left: 0,
+            right: 0,
+            child: CustomBottomNavBar(
+              onHomeTap: () {
+                print("Home");
+                //Navigator.push(context, MaterialPageRoute(builder: (context) => DownloadConfirm(moduleName: moduleName)));
+              },
+              onLibraryTap: () {
+                print("My Library");
+                Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
+              },
+              onHelpTap: () {
+                print("Help");
+                //Navigator.push(context, MaterialPageRoute(builder: (context) => Help()));
+              },
+            ),
+          ),
     ],
       ),
     );

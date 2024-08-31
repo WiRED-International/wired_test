@@ -8,7 +8,9 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:archive/archive_io.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_svg/flutter_svg.dart';
+import '../utils/custom_nav_bar.dart';
 import 'download_confirm.dart';
+import 'module_library.dart';
 
 class ModuleInfo extends StatefulWidget {
   final String moduleName;
@@ -490,49 +492,25 @@ class _ModuleInfoState extends State<ModuleInfo> {
     ),
             ),
           ),
+          // Bottom Nav Bar
           Positioned(
             bottom: 0,
             left: 0,
             right: 0,
-              child: Container(
-                color: Colors.transparent,
-                height: 70,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    GestureDetector(
-                      onTap: () => print("Home"),
-                      child: const Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.home, size: 36, color: Colors.black),
-                          Text("Home", style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w500))
-                        ],
-                      ),
-                    ),
-                    GestureDetector(
-                        onTap: () => print("My Library"),
-                        child: const Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.library_books, size: 36, color: Colors.black),
-                            Text("My Library", style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w500))
-                          ],
-                        ),
-                      ),
-                    GestureDetector(
-                      onTap: () => print("Help"),
-                      child: const Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.info, size: 36, color: Colors.black),
-                          Text("Help", style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w500))
-                        ],
-                      ),
-                    ),
-                  ],
-              )
-            ),
+              child: CustomBottomNavBar(
+                onHomeTap: () {
+                  print("Home");
+                  //Navigator.push(context, MaterialPageRoute(builder: (context) => DownloadConfirm(moduleName: moduleName)));
+                },
+                onLibraryTap: () {
+                  print("My Library");
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
+                },
+                onHelpTap: () {
+                  print("Help");
+                  //Navigator.push(context, MaterialPageRoute(builder: (context) => Help()));
+                },
+              ),
           ),
         ]
       ),
