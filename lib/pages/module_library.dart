@@ -6,6 +6,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:path_provider/path_provider.dart';
 import '.././utils/webview_screen.dart';
 import '../main.dart';
+import 'home_page.dart';
 
 
 class ModuleLibrary extends StatefulWidget {
@@ -180,7 +181,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                           child: Container(
                             height: 75,
                             color: Colors.white,
-                            child: Center(
+                            child: const Center(
                               child: Text(
                                 "Modules",
                                 style: TextStyle(
@@ -201,7 +202,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                           child: Container(
                             height: 75,
                             color: Colors.white,
-                            child: Center(
+                            child: const Center(
                               child: Text(
                                 "Resources",
                                 style: TextStyle(
