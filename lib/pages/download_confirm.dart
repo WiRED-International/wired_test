@@ -194,6 +194,7 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                   children: [
                     GestureDetector(
                       onTap: () => print("Home"),
+
                       child: const Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [

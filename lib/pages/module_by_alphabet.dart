@@ -9,6 +9,7 @@ import '.././utils/functions.dart';
 import 'package:archive/archive_io.dart';
 import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
+import 'home_page.dart';
 import 'module_library.dart';
 import 'module_info.dart';
 
@@ -355,7 +356,7 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
             child: CustomBottomNavBar(
               onHomeTap: () {
                 print("Home");
-                //Navigator.push(context, MaterialPageRoute(builder: (context) => DownloadConfirm(moduleName: moduleName)));
+                Navigator.push(context, MaterialPageRoute(builder: (context) => MyHomePage(title: 'WiRED International')));
               },
               onLibraryTap: () {
                 print("My Library");
