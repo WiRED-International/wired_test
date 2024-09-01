@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:wired_test/pages/home_page.dart';
+import 'package:wired_test/pages/topic_list.dart';
 
 import '../utils/button.dart';
 import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
 import 'by_alphabet.dart';
+import 'by_topic.dart';
 import 'module_library.dart';
 
 class Search extends StatefulWidget {
@@ -69,7 +71,7 @@ class _SearchState extends State<Search> {
                 CustomButton(
                   onTap: () {
                     print('Topic button pressed');
-                    //Navigator.push(context, MaterialPageRoute(builder: (context) => Search()));
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => ByTopic()));
                   },
                   gradientColors: [
                     Color(0xFF519921),
