@@ -23,14 +23,20 @@ class ModuleFile {
   ModuleFile({required this.file, required this.path});
 }
 
+enum DisplayType { modules, resources }
+
 class _ModuleLibraryState extends State<ModuleLibrary> {
   late Future<List<ModuleFile>> futureModules;
+  late Future<List<FileSystemEntity>> futureResources; // For PDF resources
   List<ModuleFile> modules = [];
+  List<FileSystemEntity> resources = []; // Store PDF files
+  DisplayType selectedType = DisplayType.modules; // To track whether Modules or Resources are selected
 
   @override
   void initState() {
     super.initState();
     futureModules = _fetchModules();
+    futureResources = _fetchResources(); // Fetch the resources
   }
 
   Future<List<ModuleFile>> _fetchModules() async {
@@ -46,6 +52,22 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
       });
       // check this later
       return modules;
+    } else {
+      return [];
+    }
+  }
+
+  Future<List<FileSystemEntity>> _fetchResources() async {
+    final directory = await getExternalStorageDirectory();
+    if (directory != null) {
+      setState(() {
+        resources = directory
+            .listSync()
+            .whereType<File>()
+            .where((file) => file.path.endsWith('.pdf')) // Only PDF files
+            .toList();
+      });
+      return resources;
     } else {
       return [];
     }
@@ -72,7 +94,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
       print('File content read successfully: ${fileContent.substring(0, 150)}...');
 
       // Use RegEx to find the path to the directory
-      final regEx = RegExp(r'files/(\d+(-[a-zA-Z0-9]+)?)/');
+      final regEx = RegExp(r'files/(\d+(-[a-zA-Z0-9]+-\d+)?|\d+[a-zA-Z0-9]+)/');
       final match = regEx.firstMatch(fileContent);
       print('match: $match');
       if (match != null) {
@@ -112,6 +134,8 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
 
   @override
   Widget build(BuildContext context) {
+    var screenWidth = MediaQuery.of(context).size.width;
+    var screenHeight = MediaQuery.of(context).size.height;
     return Scaffold(
 
       body: Stack(
@@ -132,37 +156,37 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
             child: Center(
               child: Column(
                 children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.transparent,
-                    ),
-                      child: Row(
-                        children: [
-                          GestureDetector(
-                            onTap: () {
-                              Navigator.pop(context);
-                            },
-                            child: Row(
-                              children: [
-                                SvgPicture.asset(
-                                  "assets/icons/chevron_left.svg",
-                                  width: 28,
-                                  height: 28,
-                                ),
-                                  const Text(
-                                    "Back",
-                                    style: TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.black,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                          ),
-                        ],
-                      ),
-                    ),
+                  // Container(
+                  //   decoration: BoxDecoration(
+                  //     color: Colors.transparent,
+                  //   ),
+                  //     child: Row(
+                  //       children: [
+                  //         GestureDetector(
+                  //           onTap: () {
+                  //             Navigator.pop(context);
+                  //           },
+                  //           child: Row(
+                  //             children: [
+                  //               SvgPicture.asset(
+                  //                 "assets/icons/chevron_left.svg",
+                  //                 width: 28,
+                  //                 height: 28,
+                  //               ),
+                  //                 const Text(
+                  //                   "Back",
+                  //                   style: TextStyle(
+                  //                     fontSize: 24,
+                  //                     fontWeight: FontWeight.w500,
+                  //                     color: Colors.black,
+                  //                   ),
+                  //                 ),
+                  //               ],
+                  //             ),
+                  //         ),
+                  //       ],
+                  //     ),
+                  //   ),
                     const SizedBox(height: 30,),
                   const Text(
                     "My Library",
@@ -174,23 +198,33 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                     textAlign: TextAlign.center,
                   ),
                   SizedBox(height: 20,),
+                  // Display the modules or resources
                   Container(
                     child: Row(
                       children: [
                         Expanded(
-                          child: Container(
-                            height: 75,
-                            color: Colors.white,
-                            child: const Center(
-                              child: Text(
-                                "Modules",
-                                style: TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black,
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  selectedType = DisplayType.modules;
+                                  });
+                                },
+                            child: Container(
+                              height: 75,
+                              color: selectedType == DisplayType.modules
+                                  ? Colors.white
+                                  : Colors.grey[300],
+                              child: const Center(
+                                child: Text(
+                                  "Modules",
+                                  style: TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.black,
+                                  ),
                                 ),
-                              ),
-                            )
+                              )
+                            ),
                           ),
                         ),
                         Container(
@@ -199,6 +233,12 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                           color: Colors.black,
                         ),
                         Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                selectedType = DisplayType.resources;
+                              });
+                            },
                           child: Container(
                             height: 75,
                             color: Colors.white,
@@ -213,16 +253,20 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                               ),
                             )
                           ),
-                        ),
+                          ),
+                          ),
                       ],
                     ),
                   ),
+                  // Display appropriate list based on selectedType
+                  // Continue here 9/5/2024
                   Padding(
                     padding: const EdgeInsets.only(top: 20),
                     child: Stack(
                       children: [
                         Container(
-                          height: 600,
+                          // height: 600,
+                          height: screenHeight * 0.6,
                         child: FutureBuilder<List<ModuleFile>>(
                           future: futureModules,
                           builder: (context, snapshot) {
@@ -239,7 +283,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                                   if (index == snapshot.data!.length) {
                                   // This is the last item (the SizedBox or Container)
                                     return const SizedBox(
-                                      height: 50,
+                                      height: 120,
                                     );
                                   }
                                   final moduleFile = snapshot.data![index];
@@ -386,13 +430,14 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                           },
                         ),
                       ),
+                        // Fade in the module list
                         Positioned(
                           bottom: 0,
                           left: 0,
                           right: 0,
                           child: IgnorePointer(
                             child: Container(
-                                height: 70,
+                                height: 120,
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
                                     begin: Alignment.topCenter,

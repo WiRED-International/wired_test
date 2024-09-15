@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:wired_test/pages/home_page.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 // import 'package:flutter/rendering.dart';
 
 import 'pages/search.dart';
@@ -22,6 +23,16 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      supportedLocales: [
+        const Locale('en', ''), // English
+        const Locale('zh', ''), // Mandarin (Chinese)
+        // Add other locales as needed
+      ],
+      localizationsDelegates: [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       title: 'WiRED International',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.white),

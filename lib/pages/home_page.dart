@@ -18,6 +18,9 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
+    var screenWidth = MediaQuery.of(context).size.width;
+    var screenHeight = MediaQuery.of(context).size.height;
+
     return Scaffold(
       body: Stack(
         children: <Widget>[
@@ -41,7 +44,8 @@ class _MyHomePageState extends State<MyHomePage> {
                       padding: const EdgeInsets.only(top: 0, bottom: 15),
                       child: Image.asset(
                           'assets/images/wired-logo.png',
-                          height: 88,
+                          //height: 88,
+                          height: screenHeight * 0.095,
                       ),
                     ),
                     const Text(
@@ -64,7 +68,8 @@ class _MyHomePageState extends State<MyHomePage> {
                     Padding(
                       padding: const EdgeInsets.all(18.0),
                       child: Container(
-                        height: 470,
+                        //height: 470,
+                        height: screenHeight * 0.45,
                         decoration: BoxDecoration(
                           color: Color(0xFFF9EBD9),
                           borderRadius: BorderRadius.circular(7),
@@ -86,69 +91,80 @@ class _MyHomePageState extends State<MyHomePage> {
                         ),
                       ),
                     ),
-                    SizedBox(height: 20),
+                    // SizedBox(
+                    //   //height: 20,
+                    //   height: screenHeight * 0.02,
+                    // ),
+                    Spacer(),
                     GestureDetector(
                       onTap: () async {
                         Navigator.push(context, MaterialPageRoute(builder: (context) => Search()));
                       },
                       child: Hero(
                         tag: 'search',
-                        child: Container(
-                          height: 60,
-                          width: 195,
-                          //alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [
-                                Color(0xFF0070C0),
-                                Color(0xFF00C1FF),
-                                Color(0xFF0070C0),
-                              ], // Your gradient colors
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                            ),
-                            borderRadius: BorderRadius.circular(30),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(
-                                    0.5),
-                                spreadRadius: 1,
-                                blurRadius: 5,
-                                offset: const Offset(1,
-                                    3), // changes position of shadow
+                        child: FractionallySizedBox(
+                          widthFactor: 0.4,
+                          child: Container(
+                            // height: 60,
+                            // width: 195,
+                            height: screenHeight * 0.06,
+                            //alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Color(0xFF0070C0),
+                                  Color(0xFF00C1FF),
+                                  Color(0xFF0070C0),
+                                ], // Your gradient colors
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
                               ),
-                            ],
-                          ),
-                          child: Padding(
-                            padding: EdgeInsets.all(8.0),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment
-                                  .center,
-                              children: [
-                                const Padding(
-                                  padding: EdgeInsets.only(
-                                      left: 5),
-                                  child: Text(
-                                    "Search",
-                                    style: TextStyle(
-                                      fontSize: 32,
-                                      fontWeight: FontWeight.w500,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 15,),
-                                SvgPicture.asset(
-                                  'assets/icons/search.svg',
-                                  height: 42,
-                                  width: 42,
+                              borderRadius: BorderRadius.circular(30),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(
+                                      0.5),
+                                  spreadRadius: 1,
+                                  blurRadius: 5,
+                                  offset: const Offset(1,
+                                      3), // changes position of shadow
                                 ),
                               ],
+                            ),
+                            child: Padding(
+                              padding: EdgeInsets.all(5.0),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Flexible(
+                                    child: FittedBox(
+                                      fit: BoxFit.fitWidth,
+                                      child: const Text(
+                                        "Search",
+                                        style: TextStyle(
+                                          fontSize: 32,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10,),
+                                  SvgPicture.asset(
+                                    'assets/icons/search.svg',
+                                    // height: 42,
+                                    // width: 42,
+                                    height: screenHeight * 0.04,
+                                    width: screenHeight * 0.04,
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
+                    SizedBox(height: screenHeight * 0.115)
                   ],
                 ),
               ),
