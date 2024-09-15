@@ -89,7 +89,9 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
   Future<List<Modules>> getModules() async {
     try {
       final response = await http.get(Uri.parse(
-          'https://obrpqbo4eb.execute-api.us-west-2.amazonaws.com/api/modules'));
+          'https://obrpqbo4eb.execute-api.us-west-2.amazonaws.com/api/modules'),
+          headers: {'Content-Type': 'application/json; charset=utf-8'},
+      );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         List<Modules> allModules = data.map<Modules>((e) => Modules.fromJson(e)).toList();
@@ -187,6 +189,9 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
 
   @override
   Widget build(BuildContext context) {
+    var screenWidth = MediaQuery.of(context).size.width;
+    var screenHeight = MediaQuery.of(context).size.height;
+
     return Scaffold(
       body: Stack(
         children: <Widget>[
@@ -251,8 +256,10 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                 Stack(
                   children: [
                     Container(
-                    height: 650,
-                    width: 400,
+                    // height: 650,
+                    // width: 400,
+                      height: screenHeight * 0.63,
+                      width: screenWidth * 1.0,
                     decoration: BoxDecoration(
                       color: Colors.transparent,
                     ),
@@ -294,6 +301,7 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                                           moduleData[index].name!,
                                           style: const TextStyle(
                                             fontSize: 24,
+                                            fontFamilyFallback: ['NotoSans', 'NotoSerif', 'Roboto', 'sans-serif'],
                                             fontWeight: FontWeight.w500,
                                             color: Color(0xFF0070C0),
                                           ),

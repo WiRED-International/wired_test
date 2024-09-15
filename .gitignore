@@ -46,3 +46,8 @@ assets
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# For google play store
+/android/key.properties
+/android/app/my-key.jks
+

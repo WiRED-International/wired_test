@@ -234,6 +234,8 @@ class _ModuleInfoState extends State<ModuleInfo> {
 
   @override
   Widget build(BuildContext context) {
+    var screenWidth = MediaQuery.of(context).size.width;
+    var screenHeight = MediaQuery.of(context).size.height;
     return Scaffold(
       // appBar: AppBar(
       //   //title: Text("title"),
@@ -331,7 +333,7 @@ class _ModuleInfoState extends State<ModuleInfo> {
                                     .of(context)
                                     .size
                                     .width / 11,
-                                bottom: 230,
+                                bottom: 220,
                                 child: Container(
                                   height: availableHeight,
                                   width: 400,
@@ -365,7 +367,7 @@ class _ModuleInfoState extends State<ModuleInfo> {
 
                               // Container for gradient text fade
                               Positioned(
-                                bottom: 230,
+                                bottom: 220,
                                 left: 0,
                                 right: 0,
                                 child: IgnorePointer(
@@ -391,7 +393,7 @@ class _ModuleInfoState extends State<ModuleInfo> {
 
                               // Download Button
                               Positioned(
-                                bottom: 130,
+                                bottom: 110,
                                 left: MediaQuery
                                     .of(context)
                                     .size
@@ -425,57 +427,61 @@ class _ModuleInfoState extends State<ModuleInfo> {
                                         );
                                       }
                                     },
-                                    child: Container(
-                                      height: 60,
-                                      // width: MediaQuery.of(context).size.width / 2,
-                                      //alignment: Alignment.center,
-                                      decoration: BoxDecoration(
-                                        gradient: const LinearGradient(
-                                          colors: [
-                                            Color(0xFF0070C0),
-                                            Color(0xFF00C1FF),
-                                            Color(0xFF0070C0),
-                                          ], // Your gradient colors
-                                          begin: Alignment.topCenter,
-                                          end: Alignment.bottomCenter,
-                                        ),
-                                        borderRadius: BorderRadius.circular(30),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withOpacity(
-                                                0.5),
-                                            spreadRadius: 1,
-                                            blurRadius: 5,
-                                            offset: const Offset(1,
-                                                3), // changes position of shadow
+                                    child: FractionallySizedBox(
+                                      widthFactor: 1.05,
+                                      child: Container(
+                                        //height: 60,
+                                        height: screenHeight * 0.085,
+                                        // width: MediaQuery.of(context).size.width / 2,
+                                        //alignment: Alignment.center,
+                                        decoration: BoxDecoration(
+                                          gradient: const LinearGradient(
+                                            colors: [
+                                              Color(0xFF0070C0),
+                                              Color(0xFF00C1FF),
+                                              Color(0xFF0070C0),
+                                            ], // Your gradient colors
+                                            begin: Alignment.topCenter,
+                                            end: Alignment.bottomCenter,
                                           ),
-                                        ],
-                                      ),
-                                      child: Padding(
-                                        padding: EdgeInsets.all(8.0),
-                                        child: Row(
-                                          mainAxisAlignment: MainAxisAlignment
-                                              .center,
-                                          children: [
-                                            const Padding(
-                                              padding: EdgeInsets.only(
-                                                  left: 10),
-                                              child: Text(
-                                                "Download",
-                                                style: TextStyle(
-                                                  fontSize: 32,
-                                                  fontWeight: FontWeight.w500,
-                                                  color: Colors.white,
-                                                ),
-                                              ),
-                                            ),
-                                            const SizedBox(width: 10,),
-                                            SvgPicture.asset(
-                                              'assets/icons/download_icon.svg',
-                                              height: 42,
-                                              width: 42,
+                                          borderRadius: BorderRadius.circular(30),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withOpacity(
+                                                  0.5),
+                                              spreadRadius: 1,
+                                              blurRadius: 5,
+                                              offset: const Offset(1,
+                                                  3), // changes position of shadow
                                             ),
                                           ],
+                                        ),
+                                        child: Padding(
+                                          padding: EdgeInsets.all(5.0),
+                                          child: Row(
+                                            mainAxisAlignment: MainAxisAlignment
+                                                .center,
+                                            children: [
+                                              const Padding(
+                                                padding: EdgeInsets.only(
+                                                    left: 10),
+                                                child: Text(
+                                                  "Download",
+                                                  style: TextStyle(
+                                                    fontSize: 32,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10,),
+                                              SvgPicture.asset(
+                                                'assets/icons/download_icon.svg',
+                                                height: 42,
+                                                width: 42,
+                                              ),
+                                            ],
+                                          ),
                                         ),
                                       ),
                                     ),

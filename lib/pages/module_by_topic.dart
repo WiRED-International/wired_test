@@ -111,6 +111,8 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
 
   @override
   Widget build(BuildContext context) {
+    var screenWidth = MediaQuery.of(context).size.width;
+    var screenHeight = MediaQuery.of(context).size.height;
     return Scaffold(
       body: Stack(
         children: <Widget>[
@@ -155,8 +157,10 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
                     Stack(
                       children: [
                         Container(
-                          height: 650,
-                          width: 400,
+                          // height: 650,
+                          // width: 400,
+                          height: screenHeight * 0.61,
+                          width: screenWidth * 1.0,
                           decoration: BoxDecoration(
                             color: Colors.transparent,
                           ),

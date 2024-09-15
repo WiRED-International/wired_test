@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:wired_test/pages/home_page.dart';
 
 import '../utils/custom_app_bar.dart';
 import 'module_library.dart';
@@ -16,6 +17,8 @@ class DownloadConfirm extends StatefulWidget {
 class _DownloadConfirmState extends State<DownloadConfirm> {
   @override
   Widget build(BuildContext context) {
+    var screenWidth = MediaQuery.of(context).size.width;
+    var screenHeight = MediaQuery.of(context).size.height;
     return Scaffold(
       body: Stack(
         children: <Widget>[
@@ -42,8 +45,10 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                         Navigator.pop(context);
                       },
                     ),
-                    const SizedBox(height:50,),
-                    const Text(
+                    SizedBox(
+                      height: screenHeight * 0.03,
+                    ),
+                    Text(
                       "You have downloaded the following module:",
                       style: TextStyle(
                         fontSize: 36,
@@ -52,7 +57,9 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                       ),
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 30,),
+                    SizedBox(
+                      height: screenHeight * 0.015,
+                    ),
                     Container(
                       height: 150,
                       width: double.infinity,
@@ -69,110 +76,115 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 60,),
-                    const Text(
-                      "View module in",
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w400,
-                        color: Colors.black,
-                      ),
-                      textAlign: TextAlign.center,
+                    SizedBox(
+                      height: screenHeight * 0.001,
                     ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 40),
-                      child: GestureDetector(
-                        onTap: () {
-                          print("My Library");
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
-                        },
-                        child: Container(
-                          height: 60,
-                          width: 200,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF519921), Color(0xFF93D221), Color(0xFF519921),], // Your gradient colors
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                            ),
-                            borderRadius: BorderRadius.circular(30),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.5),
-                                spreadRadius: 1,
-                                blurRadius: 5,
-                                offset: const Offset(1, 3), // changes position of shadow
-                              ),
-                            ],
-                          ),
-                          child: const Padding(
-                            padding: EdgeInsets.all(8.0),
-                            child: Center(
-                              child: Text(
-                                "My Library",
+                    Flexible(
+                      child: Container(
+                        height: screenHeight * 0.33,
+                        child: Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                "View module in",
                                 style: TextStyle(
                                   fontSize: 32,
                                   fontWeight: FontWeight.w400,
-                                  color: Colors.white,
+                                  color: Colors.black,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              GestureDetector(
+                                onTap: () {
+                                  print("My Library");
+                                  Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
+                                },
+                                child: Container(
+                                  height: 60,
+                                  width: 200,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFF519921), Color(0xFF93D221), Color(0xFF519921),], // Your gradient colors
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                    ),
+                                    borderRadius: BorderRadius.circular(30),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.5),
+                                        spreadRadius: 1,
+                                        blurRadius: 5,
+                                        offset: const Offset(1, 3), // changes position of shadow
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(8.0),
+                                    child: Center(
+                                      child: Text(
+                                        "My Library",
+                                        style: TextStyle(
+                                          fontSize: 32,
+                                          fontWeight: FontWeight.w400,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.only(top: 40),
-                      child:Text(
-                        "or return",
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.w400,
-                          color: Colors.black,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.only(top: 40),
-                      child: GestureDetector(
-                        onTap: () {
-                          print("Home");
-                          //Navigator.push(context, MaterialPageRoute(builder: (context) => DownloadConfirm(moduleName: moduleName)));
-                        },
-                        child: Container(
-                          height: 60,
-                          width: 200,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF0070C0), Color(0xFF00C1FF), Color(0xFF0070C0),], // Your gradient colors
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                            ),
-                            borderRadius: BorderRadius.circular(30),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.5),
-                                spreadRadius: 1,
-                                blurRadius: 5,
-                                offset: const Offset(1, 3), // changes position of shadow
-                              ),
-                            ],
-                          ),
-                          child: const Padding(
-                            padding: EdgeInsets.all(8.0),
-                            child: Center(
-                              child: Text(
-                                "Home",
+                              const Text(
+                                "or return",
                                 style: TextStyle(
                                   fontSize: 32,
                                   fontWeight: FontWeight.w400,
-                                  color: Colors.white,
+                                  color: Colors.black,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                              GestureDetector(
+                                onTap: () {
+                                  print("Home");
+                                  Navigator.push(context, MaterialPageRoute(builder: (context) => const MyHomePage()));
+                                },
+                                child: Container(
+                                  height: 60,
+                                  width: 200,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFF0070C0), Color(0xFF00C1FF), Color(0xFF0070C0),], // Your gradient colors
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                    ),
+                                    borderRadius: BorderRadius.circular(30),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.5),
+                                        spreadRadius: 1,
+                                        blurRadius: 5,
+                                        offset: const Offset(1, 3), // changes position of shadow
+                                      ),
+                                    ],
+                                  ),
+                                  child: const Padding(
+                                    padding: EdgeInsets.all(8.0),
+                                    child: Center(
+                                      child: Text(
+                                        "Home",
+                                        style: TextStyle(
+                                          fontSize: 32,
+                                          fontWeight: FontWeight.w400,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                 ),
                               ),
-                            ),
+                            ],
                           ),
                         ),
                       ),

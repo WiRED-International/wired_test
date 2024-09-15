@@ -92,6 +92,8 @@ class _TopicListState extends State<TopicList> {
 
   @override
   Widget build(BuildContext context) {
+    var screenWidth = MediaQuery.of(context).size.width;
+    var screenHeight = MediaQuery.of(context).size.height;
     return Scaffold(
       body: Stack(
         children: <Widget>[
@@ -136,8 +138,10 @@ class _TopicListState extends State<TopicList> {
                     Stack(
                       children: [
                         Container(
-                          height: 650,
-                          width: 400,
+                          // height: 650,
+                          // width: 400,
+                          height: screenHeight * 0.61,
+                          width: screenWidth * 1.0,
                           decoration: BoxDecoration(
                             color: Colors.transparent,
                           ),
