@@ -85,36 +85,8 @@ class _ModuleInfoState extends State<ModuleInfo> {
   late Future<Modules> futureModule;
   late List<Modules> moduleData = [];
   final GlobalKey _moduleNameKey = GlobalKey();
-
   double topPadding = 0;
-
-
-  // Get the Module Data
-  // Future<List<Modules>> getModules() async {
-  //   try {
-  //     final response = await http.get(Uri.parse(
-  //         'https://obrpqbo4eb.execute-api.us-west-2.amazonaws.com/api/modules'));
-  //     if (response.statusCode == 200) {
-  //       final data = jsonDecode(response.body);
-  //       List<Modules> allModules = data.map<Modules>((e) => Modules.fromJson(e)).toList();
-  //
-  //       // Filter modules by the letter
-  //       moduleData = allModules.where((module) => module.letters?.contains(letterId) ?? false).toList();
-  //
-  //       // change to lower case and Sort modules by name
-  //       moduleData.sort((a, b) => a.name!.toLowerCase().compareTo(b.name!.toLowerCase()));
-  //
-  //       debugPrint("Module Data: ${moduleData.length}");
-  //       return moduleData;
-  //     } else {
-  //       debugPrint("Failed to load modules");
-  //     }
-  //     return moduleData;
-  //   } catch (e) {
-  //     debugPrint("$e");
-  //   }
-  //   return moduleData;
-  // }
+  bool _isLoading = false;
 
   // Get Permissions
   Future<bool> checkAndRequestStoragePermission() async {
@@ -405,13 +377,23 @@ class _ModuleInfoState extends State<ModuleInfo> {
                                 child: Padding(
                                   padding: const EdgeInsets.only(top: 4),
                                   child: GestureDetector(
-                                    onTap: () async {
-                                      print(
-                                          "Downloading ${widget.downloadLink}");
+                                    onTap: _isLoading
+                                        ? null
+                                        :() async {
                                       if (widget.downloadLink != null) {
+
+                                        setState(() {
+                                          _isLoading = true;
+                                        });
+
                                         String fileName = "$widget.moduleName.zip";
                                         await downloadModule(
                                             widget.downloadLink!, fileName);
+
+                                        setState(() {
+                                          _isLoading = false;
+                                        });
+
                                         Navigator.push(context,
                                             MaterialPageRoute(
                                                 builder: (context) =>
@@ -462,18 +444,23 @@ class _ModuleInfoState extends State<ModuleInfo> {
                                             mainAxisAlignment: MainAxisAlignment
                                                 .center,
                                             children: [
-                                              const Padding(
-                                                padding: EdgeInsets.only(
-                                                    left: 10),
-                                                child: Text(
-                                                  "Download",
-                                                  style: TextStyle(
-                                                    fontSize: 32,
-                                                    fontWeight: FontWeight.w500,
-                                                    color: Colors.white,
-                                                  ),
-                                                ),
-                                              ),
+                                              _isLoading
+                                                  ? CircularProgressIndicator(
+                                                      color: Colors.white,
+                                                      strokeWidth: 3,
+                                                    )
+                                                  : const Padding(
+                                                      padding: EdgeInsets.only(
+                                                          left: 10),
+                                                      child: Text(
+                                                        "Download",
+                                                        style: TextStyle(
+                                                          fontSize: 32,
+                                                          fontWeight: FontWeight.w500,
+                                                          color: Colors.white,
+                                                        ),
+                                                      ),
+                                                    ),
                                               const SizedBox(width: 10,),
                                               SvgPicture.asset(
                                                 'assets/icons/download_icon.svg',

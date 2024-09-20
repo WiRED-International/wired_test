@@ -94,7 +94,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
       print('File content read successfully: ${fileContent.substring(0, 150)}...');
 
       // Use RegEx to find the path to the directory
-      final regEx = RegExp(r'files/(\d+(-[a-zA-Z0-9]+-\d+)?|\d+[a-zA-Z0-9]+)/');
+      final regEx = RegExp(r'files/(\d+(-[a-zA-Z0-9]+(-\d+)?|\d+[a-zA-Z0-9])?)/');
       final match = regEx.firstMatch(fileContent);
       print('match: $match');
       if (match != null) {
