@@ -15,6 +15,9 @@ class CustomBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    var screenWidth = MediaQuery.of(context).size.width;
+    var screenHeight = MediaQuery.of(context).size.height;
+
     return Container(
       color: Colors.transparent,
       height: 70,
@@ -23,31 +26,49 @@ class CustomBottomNavBar extends StatelessWidget {
         children: [
           GestureDetector(
             onTap: onHomeTap,
-            child: const Column(
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.home, size: 36, color: Colors.black),
-                Text("Home", style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w500)),
+                Text(
+                    "Home",
+                    style: TextStyle(
+                        color: Colors.black,
+                        fontSize: screenWidth * 0.044,
+                        fontWeight: FontWeight.w500,
+                    )),
               ],
             ),
           ),
           GestureDetector(
             onTap: onLibraryTap,
-            child: const Column(
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.library_books, size: 36, color: Colors.black),
-                Text("My Library", style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w500)),
+                Text(
+                    "My Library",
+                    style: TextStyle(
+                        color: Colors.black,
+                        fontSize: screenWidth * 0.044,
+                        fontWeight: FontWeight.w500,
+                    )),
               ],
             ),
           ),
           GestureDetector(
             onTap: onHelpTap,
-            child: const Column(
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.info, size: 36, color: Colors.black),
-                Text("Help", style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w500)),
+                Text(
+                    "Help",
+                    style: TextStyle(
+                        color: Colors.black,
+                        fontSize: screenWidth * 0.044,
+                        fontWeight: FontWeight.w500,
+                    )),
               ],
             ),
           ),

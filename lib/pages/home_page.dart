@@ -48,19 +48,19 @@ class _MyHomePageState extends State<MyHomePage> {
                           height: screenHeight * 0.095,
                       ),
                     ),
-                    const Text(
+                    Text(
                       'CME Module Library',
                       style: TextStyle(
-                        fontSize: 36,
+                        fontSize: screenWidth * 0.09,
                         fontWeight: FontWeight.w500,
                         color: Color.fromRGBO(0, 102, 179, 1),
                       ),
                     ),
                     const SizedBox(height: 10),
-                    const Text(
+                    Text(
                       'News and Updates',
                       style: TextStyle(
-                        fontSize: 36,
+                        fontSize: screenWidth * 0.08,
                         fontWeight: FontWeight.w500,
                         color: Color.fromRGBO(84, 130, 53, 1),
                       ),
@@ -78,12 +78,12 @@ class _MyHomePageState extends State<MyHomePage> {
                             width: 2,
                           ),
                         ),
-                        child: const Padding(
+                        child: Padding(
                           padding: EdgeInsets.all(15.0),
                           child: Text(
                             'Alerts, Notifications, and Messages',
                             style: TextStyle(
-                              fontSize: 32,
+                              fontSize: screenWidth * 0.06,
                               fontWeight: FontWeight.w500,
                               color: Colors.black,
                             ),
