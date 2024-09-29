@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:wired_test/pages/policy.dart';
 import '.././utils/functions.dart';
 import 'package:archive/archive_io.dart';
 import '../utils/custom_app_bar.dart';
@@ -220,10 +221,10 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                 Container(
                   child: Column(
                     children: [
-                      const Text(
+                      Text(
                         "Search by",
                         style: TextStyle(
-                          fontSize: 36,
+                          fontSize: screenWidth * 0.1,
                           fontWeight: FontWeight.w500,
                           color: Color(0xFF0070C0),
                         ),
@@ -231,18 +232,18 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Text(
+                          Text(
                             "Alphabet: ",
                             style: TextStyle(
-                              fontSize: 36,
+                              fontSize: screenWidth * 0.1,
                               fontWeight: FontWeight.w500,
                               color: Color(0xFF0070C0),
                             ),
                           ),
                           Text(
                             widget.letter,
-                            style: const TextStyle(
-                              fontSize: 36,
+                            style: TextStyle(
+                              fontSize: screenWidth * 0.1,
                               fontWeight: FontWeight.w500,
                               color: Color(0xFF548235),
                             ),
@@ -272,8 +273,8 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                             itemBuilder: (context, index) {
                               if (index == moduleData.length) {
                                 // This is the last item (the SizedBox or Container)
-                                return const SizedBox(
-                                  height: 160,
+                                return SizedBox(
+                                  height: screenHeight * 0.21,
                                 );
                               }
                               final module = moduleData[index];
@@ -299,8 +300,9 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                                       child: ListTile(
                                         title: Text(
                                           moduleData[index].name!,
-                                          style: const TextStyle(
-                                            fontSize: 24,
+                                          style: TextStyle(
+                                            //fontSize: 24,
+                                            fontSize: screenWidth * 0.0667,
                                             fontFamilyFallback: ['NotoSans', 'NotoSerif', 'Roboto', 'sans-serif'],
                                             fontWeight: FontWeight.w500,
                                             color: Color(0xFF0070C0),
@@ -332,7 +334,8 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                       right: 0,
                       child: IgnorePointer(
                         child: Container(
-                            height: 150,
+                            //height: 150,
+                            height: screenHeight * 0.2,
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 begin: Alignment.topCenter,
@@ -363,16 +366,13 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
             right: 0,
             child: CustomBottomNavBar(
               onHomeTap: () {
-                print("Home");
-                Navigator.push(context, MaterialPageRoute(builder: (context) => MyHomePage(title: 'WiRED International')));
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const MyHomePage(title: 'WiRED International')));
               },
               onLibraryTap: () {
-                print("My Library");
                 Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
               },
               onHelpTap: () {
-                print("Help");
-                //Navigator.push(context, MaterialPageRoute(builder: (context) => Help()));
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const Policy()));
               },
             ),
           ),

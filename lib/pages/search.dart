@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:wired_test/pages/home_page.dart';
+import 'package:wired_test/pages/policy.dart';
 import 'package:wired_test/pages/topic_list.dart';
 
 import '../utils/button.dart';
@@ -17,6 +18,9 @@ class Search extends StatefulWidget {
 class _SearchState extends State<Search> {
   @override
   Widget build(BuildContext context) {
+    var screenWidth = MediaQuery.of(context).size.width;
+    var screenHeight = MediaQuery.of(context).size.height;
+
     return Scaffold(
       body: Stack(
         children: [
@@ -41,19 +45,23 @@ class _SearchState extends State<Search> {
                     Navigator.pop(context);
                   },
                 ),
-                const SizedBox(height: 30),
-                const Hero(
+                SizedBox(
+                    height: screenHeight * 0.038,
+                ),
+                Hero(
                   tag: 'search',
                   child: Text(
                       'Search Modules',
                       style: TextStyle(
-                        fontSize: 36,
+                        fontSize: screenWidth * 0.1,
                         fontWeight: FontWeight.w500,
                         color: Color(0xFF0070C0),
                       ),
                   ),
                 ),
-                const SizedBox(height: 70),
+                SizedBox(
+                    height: screenHeight * 0.09,
+                ),
                 CustomButton(
                   onTap: () {
                     print('Alphabet button pressed');
@@ -67,7 +75,9 @@ class _SearchState extends State<Search> {
                   text: 'By Alphabet',
                   width: 240,
                 ),
-                const SizedBox(height: 70),
+                SizedBox(
+                    height: screenHeight * 0.09,
+                ),
                 CustomButton(
                   onTap: () {
                     print('Topic button pressed');
@@ -81,7 +91,9 @@ class _SearchState extends State<Search> {
                   text: 'By Topic',
                   width: 240,
                 ),
-                SizedBox(height: 70),
+                SizedBox(
+                    height: screenHeight * 0.09,
+                ),
                 CustomButton(
                   onTap: () {
                     print('Topic button pressed');
@@ -107,16 +119,13 @@ class _SearchState extends State<Search> {
             right: 0,
             child: CustomBottomNavBar(
               onHomeTap: () {
-                print("Home");
-                Navigator.push(context, MaterialPageRoute(builder: (context) => MyHomePage()));
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const MyHomePage()));
               },
               onLibraryTap: () {
-                print("My Library");
                 Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
               },
               onHelpTap: () {
-                print("Help");
-                //Navigator.push(context, MaterialPageRoute(builder: (context) => Help()));
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const Policy()));
               },
             ),
           ),

@@ -6,6 +6,7 @@ import '../pages/search.dart';
 import '../utils/button.dart';
 import '../utils/custom_nav_bar.dart';
 import 'module_library.dart';
+import 'policy.dart';
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, this.title});
@@ -42,10 +43,13 @@ class _MyHomePageState extends State<MyHomePage> {
                   children: <Widget>[
                     Padding(
                       padding: const EdgeInsets.only(top: 0, bottom: 15),
-                      child: Image.asset(
-                          'assets/images/wired-logo.png',
-                          //height: 88,
-                          height: screenHeight * 0.095,
+                      child: Semantics(
+                        label: 'Wired Logo',
+                        child: Image.asset(
+                            'assets/images/wired-logo.png',
+                            //height: 88,
+                            height: screenHeight * 0.095,
+                        ),
                       ),
                     ),
                     Text(
@@ -96,68 +100,76 @@ class _MyHomePageState extends State<MyHomePage> {
                     //   height: screenHeight * 0.02,
                     // ),
                     Spacer(),
-                    GestureDetector(
-                      onTap: () async {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => Search()));
-                      },
-                      child: Hero(
-                        tag: 'search',
-                        child: FractionallySizedBox(
-                          widthFactor: 0.4,
-                          child: Container(
-                            // height: 60,
-                            // width: 195,
-                            height: screenHeight * 0.06,
-                            //alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [
-                                  Color(0xFF0070C0),
-                                  Color(0xFF00C1FF),
-                                  Color(0xFF0070C0),
-                                ], // Your gradient colors
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                              ),
-                              borderRadius: BorderRadius.circular(30),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(
-                                      0.5),
-                                  spreadRadius: 1,
-                                  blurRadius: 5,
-                                  offset: const Offset(1,
-                                      3), // changes position of shadow
+                    Semantics(
+                      label: 'Search Button',
+                      hint: 'Tap to search for modules',
+                      child: GestureDetector(
+                        onTap: () async {
+                          Navigator.push(context, MaterialPageRoute(builder: (context) => Search()));
+                        },
+                        child: Hero(
+                          tag: 'search',
+                          child: FractionallySizedBox(
+                            widthFactor: 0.4,
+                            child: Container(
+                              height: screenHeight * 0.06,
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFF0070C0),
+                                    Color(0xFF00C1FF),
+                                    Color(0xFF0070C0),
+                                  ], // Your gradient colors
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
                                 ),
-                              ],
-                            ),
-                            child: Padding(
-                              padding: EdgeInsets.all(5.0),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Flexible(
-                                    child: FittedBox(
-                                      fit: BoxFit.fitWidth,
-                                      child: const Text(
-                                        "Search",
-                                        style: TextStyle(
-                                          fontSize: 32,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 10,),
-                                  SvgPicture.asset(
-                                    'assets/icons/search.svg',
-                                    // height: 42,
-                                    // width: 42,
-                                    height: screenHeight * 0.04,
-                                    width: screenHeight * 0.04,
+                                borderRadius: BorderRadius.circular(30),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.5),
+                                    spreadRadius: 1,
+                                    blurRadius: 5,
+                                    offset: const Offset(1, 3), // changes position of shadow
                                   ),
                                 ],
+                              ),
+                              child: LayoutBuilder(
+                                builder: (context, constraints) {
+                                  double buttonWidth = constraints.maxWidth;
+                                  double fontSize = buttonWidth * 0.2;
+                                  double padding = buttonWidth * 0.04;
+                                  double iconSize = buttonWidth * 0.2;
+                                  return Padding(
+                                    padding: EdgeInsets.all(padding),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Flexible(
+                                          child: FittedBox(
+                                            fit: BoxFit.fitWidth,
+                                            child: Text(
+                                              "Search",
+                                              style: TextStyle(
+                                                fontSize: fontSize,
+                                                fontWeight: FontWeight.w500,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(width: 10,),
+                                        Semantics(
+                                          label: 'Search Icon',
+                                          child: SvgPicture.asset(
+                                            'assets/icons/search.svg',
+                                            height: iconSize,
+                                            width: iconSize,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }
                               ),
                             ),
                           ),
@@ -177,16 +189,13 @@ class _MyHomePageState extends State<MyHomePage> {
             right: 0,
             child: CustomBottomNavBar(
               onHomeTap: () {
-                print("Home");
                 //Navigator.push(context, MaterialPageRoute(builder: (context) => DownloadConfirm(moduleName: moduleName)));
               },
               onLibraryTap: () {
-                print("My Library");
                 Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
               },
               onHelpTap: () {
-                print("Help");
-                //Navigator.push(context, MaterialPageRoute(builder: (context) => Help()));
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const Policy()));
               },
             ),
           ),

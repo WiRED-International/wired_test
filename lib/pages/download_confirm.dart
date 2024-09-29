@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:wired_test/pages/home_page.dart';
+import 'package:wired_test/pages/policy.dart';
 
 import '../utils/custom_app_bar.dart';
+import '../utils/custom_nav_bar.dart';
 import 'module_library.dart';
 
 class DownloadConfirm extends StatefulWidget {
@@ -51,7 +53,8 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                     Text(
                       "You have downloaded the following module:",
                       style: TextStyle(
-                        fontSize: 36,
+                        //fontSize: 36,
+                        fontSize: screenWidth * 0.08,
                         fontWeight: FontWeight.w500,
                         color: Color(0xFF548235),
                       ),
@@ -61,14 +64,16 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                       height: screenHeight * 0.015,
                     ),
                     Container(
-                      height: 150,
+                      //height: 150,
+                      height: screenHeight * 0.16,
                       width: double.infinity,
                       alignment: Alignment.center,
                       child: Center(
                         child: Text(
                           widget.moduleName,
-                          style: const TextStyle(
-                            fontSize: 36,
+                          style: TextStyle(
+                            //fontSize: 36,
+                            fontSize: screenWidth * 0.075,
                             fontWeight: FontWeight.w500,
                             color: Color(0xFF0070C0),
                           ),
@@ -77,7 +82,7 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                       ),
                     ),
                     SizedBox(
-                      height: screenHeight * 0.001,
+                      height: screenHeight * 0.04,
                     ),
                     Flexible(
                       child: Container(
@@ -86,10 +91,10 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text(
+                              Text(
                                 "View module in",
                                 style: TextStyle(
-                                  fontSize: 32,
+                                  fontSize: screenWidth * 0.072,
                                   fontWeight: FontWeight.w400,
                                   color: Colors.black,
                                 ),
@@ -101,8 +106,10 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                                   Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
                                 },
                                 child: Container(
-                                  height: 60,
-                                  width: 200,
+                                  //height: 60,
+                                  height: screenHeight * 0.062,
+                                  //width: 200,
+                                  width: screenWidth * 0.453,
                                   alignment: Alignment.center,
                                   decoration: BoxDecoration(
                                     gradient: const LinearGradient(
@@ -120,25 +127,24 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                                       ),
                                     ],
                                   ),
-                                  child: const Padding(
-                                    padding: EdgeInsets.all(8.0),
-                                    child: Center(
-                                      child: Text(
-                                        "My Library",
-                                        style: TextStyle(
-                                          fontSize: 32,
-                                          fontWeight: FontWeight.w400,
-                                          color: Colors.white,
-                                        ),
+                                  child: Center(
+                                    child: Text(
+                                      "My Library",
+                                      style: TextStyle(
+                                        //fontSize: 32,
+                                        fontSize: screenWidth * 0.0715,
+                                        fontWeight: FontWeight.w400,
+                                        color: Colors.white,
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                              const Text(
+                              Text(
                                 "or return",
                                 style: TextStyle(
-                                  fontSize: 32,
+                                  // fontSize: 32,
+                                  fontSize: screenWidth * 0.0715,
                                   fontWeight: FontWeight.w400,
                                   color: Colors.black,
                                 ),
@@ -146,12 +152,13 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                               ),
                               GestureDetector(
                                 onTap: () {
-                                  print("Home");
                                   Navigator.push(context, MaterialPageRoute(builder: (context) => const MyHomePage()));
                                 },
                                 child: Container(
-                                  height: 60,
-                                  width: 200,
+                                  //height: 60,
+                                  height: screenHeight * 0.062,
+                                  //width: 200,
+                                  width: screenWidth * 0.453,
                                   alignment: Alignment.center,
                                   decoration: BoxDecoration(
                                     gradient: const LinearGradient(
@@ -169,16 +176,14 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                                       ),
                                     ],
                                   ),
-                                  child: const Padding(
-                                    padding: EdgeInsets.all(8.0),
-                                    child: Center(
-                                      child: Text(
-                                        "Home",
-                                        style: TextStyle(
-                                          fontSize: 32,
-                                          fontWeight: FontWeight.w400,
-                                          color: Colors.white,
-                                        ),
+                                  child: Center(
+                                    child: Text(
+                                      "Home",
+                                      style: TextStyle(
+                                        // fontSize: 32,
+                                        fontSize: screenWidth * 0.0715,
+                                        fontWeight: FontWeight.w400,
+                                        color: Colors.white,
                                       ),
                                     ),
                                   ),
@@ -198,45 +203,16 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
             bottom: 0,
             left: 0,
             right: 0,
-            child: Container(
-                color: Colors.transparent,
-                height: 70,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    GestureDetector(
-                      onTap: () => print("Home"),
-
-                      child: const Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.home, size: 36, color: Colors.black),
-                          Text("Home", style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w500))
-                        ],
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => print("My Library"),
-                      child: const Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.library_books, size: 36, color: Colors.black),
-                          Text("My Library", style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w500))
-                        ],
-                      ),
-                    ),
-                    GestureDetector(
-                      onTap: () => print("Help"),
-                      child: const Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.info, size: 36, color: Colors.black),
-                          Text("Help", style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.w500))
-                        ],
-                      ),
-                    ),
-                  ],
-                )
+            child: CustomBottomNavBar(
+              onHomeTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const MyHomePage()));
+              },
+              onLibraryTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
+              },
+              onHelpTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const Policy()));
+              },
             ),
           ),
         ]
