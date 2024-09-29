@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:wired_test/pages/module_by_topic.dart';
+import 'package:wired_test/pages/policy.dart';
 import 'package:wired_test/pages/topic_list.dart';
 
 import '../utils/custom_app_bar.dart';
@@ -124,8 +125,8 @@ class _TopicListState extends State<TopicList> {
                         children: [
                           Text(
                             widget.category,
-                            style: const TextStyle(
-                              fontSize: 36,
+                            style: TextStyle(
+                              fontSize: screenWidth * 0.085,
                               fontWeight: FontWeight.w500,
                               color: Color(0xFF548235),
                             ),
@@ -188,8 +189,8 @@ class _TopicListState extends State<TopicList> {
                                             child: ListTile(
                                               title: Text(
                                                 topicName,
-                                                style: const TextStyle(
-                                                  fontSize: 32,
+                                                style: TextStyle(
+                                                  fontSize: screenWidth * 0.074,
                                                   fontWeight: FontWeight.w500,
                                                   color: Color(0xFF0070C0),
                                                 ),
@@ -247,16 +248,13 @@ class _TopicListState extends State<TopicList> {
             right: 0,
             child: CustomBottomNavBar(
               onHomeTap: () {
-                print("Home");
-                Navigator.push(context, MaterialPageRoute(builder: (context) => MyHomePage(title: 'WiRED International')));
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const MyHomePage()));
               },
               onLibraryTap: () {
-                print("My Library");
                 Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
               },
               onHelpTap: () {
-                print("Help");
-                //Navigator.push(context, MaterialPageRoute(builder: (context) => Help()));
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const Policy()));
               },
             ),
           ),

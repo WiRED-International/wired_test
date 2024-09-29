@@ -8,6 +8,9 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:archive/archive_io.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:wired_test/pages/home_page.dart';
+import 'package:wired_test/pages/policy.dart';
+import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
 import 'download_confirm.dart';
 import 'module_library.dart';
@@ -184,12 +187,15 @@ class _ModuleInfoState extends State<ModuleInfo> {
 
           // Calculate the top padding based on the module name container height
           setState(() {
-            if (moduleNameHeight == 60) {
-              topPadding = 145;
-            } else if (moduleNameHeight == 150) {
-              topPadding = 231;
+            if (moduleNameHeight > 55 && moduleNameHeight < 90) {
+              //topPadding = 145;
+              topPadding = MediaQuery.of(context).size.height * 0.15;
+            } else if (moduleNameHeight >= 155) {
+              //topPadding = 231;
+              topPadding = MediaQuery.of(context).size.height * 0.27;
             } else {
-              topPadding = 180;
+              //topPadding = 180;
+              topPadding = MediaQuery.of(context).size.height * 0.20;
             }
           });
 
@@ -209,12 +215,6 @@ class _ModuleInfoState extends State<ModuleInfo> {
     var screenWidth = MediaQuery.of(context).size.width;
     var screenHeight = MediaQuery.of(context).size.height;
     return Scaffold(
-      // appBar: AppBar(
-      //   //title: Text("title"),
-      //   backgroundColor: Color(0xFFFFF0DC),
-      //   elevation: 0,
-      //
-      // ),
       body: Stack(
         children: <Widget>[
           Container(
@@ -238,58 +238,37 @@ class _ModuleInfoState extends State<ModuleInfo> {
                   return Center(
                     child: Column(
                       children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.transparent,
-                          ),
-                          child: Row(
-                            //mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              GestureDetector(
-                                onTap: () {
-                                  Navigator.pop(context);
-                                },
-                                child: Row(
-                                  children: [
-                                    SvgPicture.asset(
-                                      'assets/icons/chevron_left.svg',
-                                      height: 28,
-                                      width: 28,
-                                    ),
-                                    const Text(
-                                      "Back",
-                                      style: TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.w500,
-                                        color: Colors.black,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
+                        CustomAppBar(
+                          onBackPressed: () {
+                            Navigator.pop(context);
+                          },
                         ),
-                        const SizedBox(height: 30,),
+                        SizedBox(
+                          //height: 30,
+                          height: screenHeight * 0.031,
+                        ),
                         // Module Name Container
                         Container(
                           key: _moduleNameKey,
                           padding: const EdgeInsets.symmetric(horizontal: 8.0),
                           constraints: BoxConstraints(
                             minHeight: 60, // Minimum height for the container
-                            maxHeight: 150, // Maximum height for longer titles
+                            maxHeight: 185, // Maximum height for longer titles
                           ),
                           child: Text(
                             widget.moduleName,
-                            style: const TextStyle(
-                              fontSize: 36,
+                            style: TextStyle(
+                              fontSize: screenWidth * 0.08,
                               fontWeight: FontWeight.w500,
                               color: Color(0xFF0070C0),
                             ),
                             textAlign: TextAlign.center,
                           ),
                         ),
-                        const SizedBox(height: 20,),
+                        SizedBox(
+                          //height: 20,
+                          height: screenHeight * 0.021,
+                        ),
 
                         // Module Description Container
                         Flexible(
@@ -305,13 +284,13 @@ class _ModuleInfoState extends State<ModuleInfo> {
                                     .of(context)
                                     .size
                                     .width / 11,
-                                bottom: 220,
+                                //bottom: 220,
+                                bottom: screenHeight * 0.226,
                                 child: Container(
                                   height: availableHeight,
-                                  width: 400,
+                                  //width: 400,
                                   decoration: BoxDecoration(
                                     color: Colors.transparent,
-                                    borderRadius: BorderRadius.circular(10),
                                   ),
                                   child: SingleChildScrollView(
                                     child: Padding(
@@ -324,8 +303,9 @@ class _ModuleInfoState extends State<ModuleInfo> {
                                         children: [
                                           Text(
                                             widget.moduleDescription,
-                                            style: const TextStyle(
-                                              fontSize: 24,
+                                            style: TextStyle(
+                                              //fontSize: 24,
+                                              fontSize: screenWidth * 0.0535,
                                               fontWeight: FontWeight.w500,
                                               color: Colors.black,
                                             ),
@@ -339,7 +319,8 @@ class _ModuleInfoState extends State<ModuleInfo> {
 
                               // Container for gradient text fade
                               Positioned(
-                                bottom: 220,
+                                //bottom: 220,
+                                bottom: screenHeight * 0.226,
                                 left: 0,
                                 right: 0,
                                 child: IgnorePointer(
@@ -365,7 +346,8 @@ class _ModuleInfoState extends State<ModuleInfo> {
 
                               // Download Button
                               Positioned(
-                                bottom: 110,
+                                //bottom: 110,
+                                bottom: screenHeight * 0.113,
                                 left: MediaQuery
                                     .of(context)
                                     .size
@@ -409,66 +391,58 @@ class _ModuleInfoState extends State<ModuleInfo> {
                                         );
                                       }
                                     },
-                                    child: FractionallySizedBox(
-                                      widthFactor: 1.05,
-                                      child: Container(
-                                        //height: 60,
-                                        height: screenHeight * 0.085,
-                                        // width: MediaQuery.of(context).size.width / 2,
-                                        //alignment: Alignment.center,
-                                        decoration: BoxDecoration(
-                                          gradient: const LinearGradient(
-                                            colors: [
-                                              Color(0xFF0070C0),
-                                              Color(0xFF00C1FF),
-                                              Color(0xFF0070C0),
-                                            ], // Your gradient colors
-                                            begin: Alignment.topCenter,
-                                            end: Alignment.bottomCenter,
+                                    child: Container(
+                                      width: screenWidth * 0.25,
+                                      height: screenHeight * 0.065,
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [
+                                            Color(0xFF0070C0),
+                                            Color(0xFF00C1FF),
+                                            Color(0xFF0070C0),
+                                          ], // Your gradient colors
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                        ),
+                                        borderRadius: BorderRadius.circular(30),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(
+                                                0.5),
+                                            spreadRadius: 1,
+                                            blurRadius: 5,
+                                            offset: const Offset(1,
+                                                3), // changes position of shadow
                                           ),
-                                          borderRadius: BorderRadius.circular(30),
-                                          boxShadow: [
-                                            BoxShadow(
-                                              color: Colors.black.withOpacity(
-                                                  0.5),
-                                              spreadRadius: 1,
-                                              blurRadius: 5,
-                                              offset: const Offset(1,
-                                                  3), // changes position of shadow
+                                        ],
+                                      ),
+                                      child: Center(
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          crossAxisAlignment: CrossAxisAlignment.center,
+                                          children: [
+                                            _isLoading
+                                                ? CircularProgressIndicator(
+                                                    color: Colors.white,
+                                                    strokeWidth: 3,
+                                                  )
+                                                : Text(
+                                                  "Download",
+                                                  style: TextStyle(
+                                                    fontSize: screenWidth * 0.071,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: Colors.white,
+                                                  ),
+                                                ),
+                                            const SizedBox(width: 7,),
+                                            SvgPicture.asset(
+                                              'assets/icons/download_icon.svg',
+                                               // height: 42,
+                                               // width: 42,
+                                              height: screenHeight * 0.0425,
+                                              width: screenWidth * 0.0425,
                                             ),
                                           ],
-                                        ),
-                                        child: Padding(
-                                          padding: EdgeInsets.all(5.0),
-                                          child: Row(
-                                            mainAxisAlignment: MainAxisAlignment
-                                                .center,
-                                            children: [
-                                              _isLoading
-                                                  ? CircularProgressIndicator(
-                                                      color: Colors.white,
-                                                      strokeWidth: 3,
-                                                    )
-                                                  : const Padding(
-                                                      padding: EdgeInsets.only(
-                                                          left: 10),
-                                                      child: Text(
-                                                        "Download",
-                                                        style: TextStyle(
-                                                          fontSize: 32,
-                                                          fontWeight: FontWeight.w500,
-                                                          color: Colors.white,
-                                                        ),
-                                                      ),
-                                                    ),
-                                              const SizedBox(width: 10,),
-                                              SvgPicture.asset(
-                                                'assets/icons/download_icon.svg',
-                                                height: 42,
-                                                width: 42,
-                                              ),
-                                            ],
-                                          ),
                                         ),
                                       ),
                                     ),
@@ -492,16 +466,13 @@ class _ModuleInfoState extends State<ModuleInfo> {
             right: 0,
               child: CustomBottomNavBar(
                 onHomeTap: () {
-                  print("Home");
-                  //Navigator.push(context, MaterialPageRoute(builder: (context) => DownloadConfirm(moduleName: moduleName)));
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const MyHomePage()));
                 },
                 onLibraryTap: () {
-                  print("My Library");
                   Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
                 },
                 onHelpTap: () {
-                  print("Help");
-                  //Navigator.push(context, MaterialPageRoute(builder: (context) => Help()));
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => const Policy()));
                 },
               ),
           ),

@@ -12,8 +12,16 @@ class CustomAppBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    var screenWidth = MediaQuery.of(context).size.width;
+    var screenHeight = MediaQuery.of(context).size.height;
+    double appBarHeight = screenHeight * 0.055;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      //height: appBarHeight,
+      padding: EdgeInsets.symmetric(
+          horizontal: screenWidth * 0.005,
+          vertical: screenHeight * 0.002,
+      ),
       color: Colors.transparent,
       child: Row(
         children: [
@@ -21,16 +29,21 @@ class CustomAppBar extends StatelessWidget {
             onTap: onBackPressed,
             child: Row(
               children: [
-                SvgPicture.asset(
-                  'assets/icons/chevron_left.svg',
-                  height: 28,
-                  width: 28,
+                Semantics(
+                  label: 'Back button',
+                  button: true,
+                  onTapHint: "Tap to go back to the previous page",
+                  child: SvgPicture.asset(
+                    'assets/icons/chevron_left.svg',
+                    height: screenHeight * 0.027,
+                    width: screenHeight * 0.027,
+                  ),
                 ),
-                const SizedBox(width: 8.0),
+                SizedBox(width: screenWidth * 0.0),
                 Text(
                   "Back",
-                  style: const TextStyle(
-                    fontSize: 24,
+                  style: TextStyle(
+                    fontSize: screenWidth * 0.054,
                     fontWeight: FontWeight.w500,
                     color: Colors.black,
                   ),

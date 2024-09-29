@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:wired_test/pages/policy.dart';
 
 import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
@@ -69,6 +70,10 @@ class _ByAlphabetState extends State<ByAlphabet> {
 
   @override
   Widget build(BuildContext context) {
+    var screenWidth = MediaQuery.of(context).size.width;
+    var screenHeight = MediaQuery.of(context).size.height;
+    final appBarHeight = screenHeight * 0.055;
+    final bottomNavBarHeight = screenHeight * 0.09;
     return Scaffold(
       body: Stack(
         children: [
@@ -94,10 +99,10 @@ class _ByAlphabetState extends State<ByAlphabet> {
                       },
                     ),
                     const SizedBox(height: 15),
-                    const Text(
+                    Text(
                       "Search by Alphabet",
                       style: TextStyle(
-                        fontSize: 36,
+                        fontSize: screenWidth * 0.08,
                         fontWeight: FontWeight.w500,
                         color: Color(0xFF0070C0),
                       ),
@@ -106,7 +111,7 @@ class _ByAlphabetState extends State<ByAlphabet> {
                     Expanded(
                       child: Padding(
                         padding: EdgeInsets.symmetric(
-                          horizontal: MediaQuery.of(context).size.width * 0.02,
+                          horizontal: screenWidth * 0.02,
                         ),
                         child: FutureBuilder<List<Album>>(
                           future: futureAlbums,
@@ -119,17 +124,17 @@ class _ByAlphabetState extends State<ByAlphabet> {
                               return const Center(child: Text('No Albums Found'));
                             } else {
                               albums = snapshot.data!;
-                              final screenWidth = MediaQuery.of(context).size.width;
+                              // final screenWidth = MediaQuery.of(context).size.width;
                               final crossAxisCount = (screenWidth / 100).floor();
-                              final availableHeight = MediaQuery.of(context).size.height - 300; // Adjust based on AppBar and BottomNavigationBar
+                              final availableHeight = screenHeight - (appBarHeight + bottomNavBarHeight + 285); // Adjust based on AppBar and BottomNavigationBar
                               final itemHeight = availableHeight / (albums.length / crossAxisCount).ceil();
-                              final childAspectRatio = screenWidth / (itemHeight * 4.1);
+                              final childAspectRatio = screenWidth / (itemHeight * 4.0);
 
                               return GridView.builder(
                                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: crossAxisCount,
-                                  mainAxisSpacing: 10,
-                                  crossAxisSpacing: 10,
+                                  mainAxisSpacing: screenWidth * 0.03,
+                                  crossAxisSpacing: screenWidth * 0.03,
                                   childAspectRatio: childAspectRatio,
                                 ),
                                 itemCount: albums.length,
@@ -162,7 +167,11 @@ class _ByAlphabetState extends State<ByAlphabet> {
                                       ),
                                       child: Text(
                                         albums[index].name,
-                                        style: const TextStyle(color: Colors.white, fontSize: 36),
+                                        style: TextStyle(
+                                            color: Colors.white,
+                                            //fontSize: 36,
+                                            fontSize: screenWidth * 0.09,
+                                        ),
                                       ),
                                     ),
                                   );
@@ -190,7 +199,7 @@ class _ByAlphabetState extends State<ByAlphabet> {
                 Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
               },
               onHelpTap: () {
-                // Help action here
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const Policy()));
               },
             ),
           ),

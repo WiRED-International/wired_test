@@ -20,40 +20,60 @@ class CustomBottomNavBar extends StatelessWidget {
 
     return Container(
       color: Colors.transparent,
-      height: 70,
+      height: screenHeight * 0.1,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          GestureDetector(
-            onTap: onHomeTap,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.home, size: 36, color: Colors.black),
-                Text(
+          Semantics(
+            label: 'Home button',
+            button: true,
+            onTapHint: "Tap to go to Home",
+            child: GestureDetector(
+              onTap: onHomeTap,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.home,
+                    size: screenWidth * 0.1,
+                    color: Colors.black,
+                  ),
+                  Text(
                     "Home",
                     style: TextStyle(
-                        color: Colors.black,
-                        fontSize: screenWidth * 0.044,
-                        fontWeight: FontWeight.w500,
-                    )),
-              ],
+                      color: Colors.black,
+                      fontSize: screenWidth * 0.044,
+                      fontWeight: FontWeight.w500,
+                    )
+                  ),
+                ],
+              ),
             ),
           ),
-          GestureDetector(
-            onTap: onLibraryTap,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.library_books, size: 36, color: Colors.black),
-                Text(
+          Semantics(
+            label: 'Library button',
+            button: true,
+            onTapHint: "Tap to go to Library",
+            child: GestureDetector(
+              onTap: onLibraryTap,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.library_books,
+                    size: screenWidth * 0.1,
+                    color: Colors.black,
+                  ),
+                  Text(
                     "My Library",
                     style: TextStyle(
-                        color: Colors.black,
-                        fontSize: screenWidth * 0.044,
-                        fontWeight: FontWeight.w500,
-                    )),
-              ],
+                      color: Colors.black,
+                      fontSize: screenWidth * 0.044,
+                      fontWeight: FontWeight.w500,
+                    )
+                  ),
+                ],
+              ),
             ),
           ),
           GestureDetector(
@@ -61,14 +81,19 @@ class CustomBottomNavBar extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.info, size: 36, color: Colors.black),
+                Icon(
+                  Icons.info,
+                  size: screenWidth * 0.1,
+                  color: Colors.black
+                ),
                 Text(
-                    "Help",
-                    style: TextStyle(
-                        color: Colors.black,
-                        fontSize: screenWidth * 0.044,
-                        fontWeight: FontWeight.w500,
-                    )),
+                  "Policy",
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: screenWidth * 0.044,
+                    fontWeight: FontWeight.w500,
+                  )
+                ),
               ],
             ),
           ),
