@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:wired_test/utils/functions.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 class CustomBottomNavBar extends StatelessWidget {
@@ -20,7 +21,7 @@ class CustomBottomNavBar extends StatelessWidget {
 
     return Container(
       color: Colors.transparent,
-      height: screenHeight * 0.1,
+      height: screenHeight * (isTablet(context) ? .14 : 0.1),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [

@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
-// import 'package:flutter/rendering.dart';
-
+import 'package:wired_test/utils/functions.dart';
 import '../pages/search.dart';
-import '../utils/button.dart';
 import '../utils/custom_nav_bar.dart';
 import 'module_library.dart';
 import 'policy.dart';
@@ -42,25 +40,26 @@ class _MyHomePageState extends State<MyHomePage> {
                 child: Column(
                   children: <Widget>[
                     Padding(
-                      padding: const EdgeInsets.only(top: 0, bottom: 15),
+                      padding: EdgeInsets.only(top: 0, bottom: screenHeight * (isTablet(context) ? 0.03 : 0.021)),
                       child: Semantics(
                         label: 'Wired Logo',
                         child: Image.asset(
                             'assets/images/wired-logo.png',
                             //height: 88,
-                            height: screenHeight * 0.095,
+                            height: screenHeight * (isTablet(context) ? 0.12 : 0.095),
                         ),
                       ),
                     ),
                     Text(
                       'CME Module Library',
                       style: TextStyle(
-                        fontSize: screenWidth * 0.09,
+                        //fontSize: screenWidth * 0.09,
+                        fontSize: screenWidth * (isTablet(context) ? (0.09) * .7 : 0.09),
                         fontWeight: FontWeight.w500,
-                        color: Color.fromRGBO(0, 102, 179, 1),
+                        color: const Color.fromRGBO(0, 102, 179, 1),
                       ),
                     ),
-                    const SizedBox(height: 10),
+                    SizedBox(height: screenHeight * 0.015),
                     Text(
                       'News and Updates',
                       style: TextStyle(
@@ -70,10 +69,15 @@ class _MyHomePageState extends State<MyHomePage> {
                       ),
                     ),
                     Padding(
-                      padding: const EdgeInsets.all(18.0),
+                      padding: EdgeInsets.only(
+                          top: screenHeight * 0.015,
+                          bottom: screenHeight * 0.04,
+                          left: screenWidth * (isTablet(context) ? 0.05 : 0.04),
+                          right: screenWidth * (isTablet(context) ? 0.05 : 0.04),
+                      ),
                       child: Container(
                         //height: 470,
-                        height: screenHeight * 0.45,
+                        height: screenHeight * (isTablet(context) ? 0.3 : 0.43),
                         decoration: BoxDecoration(
                           color: Color(0xFFF9EBD9),
                           borderRadius: BorderRadius.circular(7),
@@ -82,24 +86,27 @@ class _MyHomePageState extends State<MyHomePage> {
                             width: 2,
                           ),
                         ),
-                        child: Padding(
-                          padding: EdgeInsets.all(15.0),
-                          child: Text(
-                            'Alerts, Notifications, and Messages',
-                            style: TextStyle(
-                              fontSize: screenWidth * 0.06,
-                              fontWeight: FontWeight.w500,
-                              color: Colors.black,
+                        child: SingleChildScrollView(
+                          child: Padding(
+                            padding: EdgeInsets.only(
+                                top: screenHeight * 0.015,
+                                bottom: screenHeight * 0.015,
+                                left: screenWidth * 0.04,
+                                right: screenWidth * 0.04,
+                            ),
+                            child: Text(
+                              'Hello Testers! Welcome to WiRED\'s new mobile HealthMap app. Thank you for choosing to participate in this closed test. This does mean a lot to all of us here at WiRED. We ask that you please do not click on any button or link that says "Leave the test." We need all testers to remain opted in for 14 consecutive days. After the 14 days, you may leave the test if you wish. Once again, thank you so much for your participation in this test.',
+                              style: TextStyle(
+                                fontSize: screenWidth * (isTablet(context) ? (0.06) * .7 : 0.06),
+                                fontWeight: FontWeight.w500,
+                                color: Colors.black,
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                    // SizedBox(
-                    //   //height: 20,
-                    //   height: screenHeight * 0.02,
-                    // ),
-                    Spacer(),
+
                     Semantics(
                       label: 'Search Button',
                       hint: 'Tap to search for modules',
@@ -110,9 +117,9 @@ class _MyHomePageState extends State<MyHomePage> {
                         child: Hero(
                           tag: 'search',
                           child: FractionallySizedBox(
-                            widthFactor: 0.4,
+                            widthFactor: isTablet(context) ? 0.5 : 0.4,
                             child: Container(
-                              height: screenHeight * 0.06,
+                              height: screenHeight * (isTablet(context) ? 0.08 : 0.06),
                               decoration: BoxDecoration(
                                 gradient: const LinearGradient(
                                   colors: [
@@ -157,7 +164,7 @@ class _MyHomePageState extends State<MyHomePage> {
                                             ),
                                           ),
                                         ),
-                                        const SizedBox(width: 10,),
+                                        SizedBox(width: screenWidth * 0.025,),
                                         Semantics(
                                           label: 'Search Icon',
                                           child: SvgPicture.asset(

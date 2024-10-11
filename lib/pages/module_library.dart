@@ -75,6 +75,33 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
     }
   }
 
+  void _showDeleteConfirmation(String fileName) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text("Delete Module"),
+          content: Text("Are you sure you want to delete the module: $fileName?"),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close the modal
+              },
+              child: Text("Do not delete"),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close the modal
+                deleteFileAndAssociatedDirectory(fileName); // Call the delete function after confirmation
+              },
+              child: Text("Yes, delete"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<void> deleteFileAndAssociatedDirectory(String fileName) async {
     try {
       final directory = await getExternalStorageDirectory();
@@ -362,7 +389,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                                                 child: GestureDetector(
                                                   onTap: () {
                                                     print("Delete tapped");
-                                                    deleteFileAndAssociatedDirectory(moduleFile.file.path.split('/').last);
+                                                    _showDeleteConfirmation(moduleFile.file.path.split('/').last);
                                                   },
                                                   child: Column(
                                                     mainAxisAlignment: MainAxisAlignment.center, // Center vertically
