@@ -42,3 +42,18 @@ Future<void> openHtmlFile(String htmlFilePath) async {
     throw 'Could not launch $htmlFilePath';
   }
 }
+
+// Function to check if the device is a tablet
+bool isTablet(BuildContext context) {
+  var screenWidth = MediaQuery.of(context).size.width;
+  var screenHeight = MediaQuery.of(context).size.height;
+  return screenWidth > 600 || screenHeight > 600;
+}
+
+// Function to get responsive text style
+TextStyle responsiveTextStyle(BuildContext context, double baseSize) {
+  return TextStyle(
+    fontSize: isTablet(context) ? baseSize * 1.5 : baseSize, // Adjust font size for tablets
+  );
+}
+

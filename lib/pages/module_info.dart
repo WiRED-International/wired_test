@@ -14,6 +14,7 @@ import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
 import 'download_confirm.dart';
 import 'module_library.dart';
+import 'package:auto_size_text/auto_size_text.dart';
 
 class ModuleInfo extends StatefulWidget {
   final String moduleName;
@@ -175,40 +176,45 @@ class _ModuleInfoState extends State<ModuleInfo> {
   void initState() {
     super.initState();
     // Use addPostFrameCallback to get the height after the first build
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final RenderBox renderBox = _moduleNameKey.currentContext?.findRenderObject() as RenderBox;
-      final double moduleNameHeight = renderBox.size.height;
-      print('Module Name Container Height: $moduleNameHeight');
-      // Use addPostFrameCallback to get the height after the first build
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_moduleNameKey.currentContext?.findRenderObject() != null) {
-          final RenderBox renderBox = _moduleNameKey.currentContext!.findRenderObject() as RenderBox;
-          final double moduleNameHeight = renderBox.size.height;
-
-          // Calculate the top padding based on the module name container height
-          setState(() {
-            if (moduleNameHeight > 55 && moduleNameHeight < 90) {
-              //topPadding = 145;
-              topPadding = MediaQuery.of(context).size.height * 0.15;
-            } else if (moduleNameHeight >= 155) {
-              //topPadding = 231;
-              topPadding = MediaQuery.of(context).size.height * 0.27;
-            } else {
-              //topPadding = 180;
-              topPadding = MediaQuery.of(context).size.height * 0.20;
-            }
-          });
-
-          // Print the module name height and calculated topPadding
-          print('Module Name Container Height: $moduleNameHeight');
-          print('Calculated Top Padding: $topPadding');
-        } else {
-          // Handle the case where the RenderBox is not yet available
-          print('RenderBox is not available.');
-        }
-      });
-    });
+    // WidgetsBinding.instance.addPostFrameCallback((_) {
+    //   final RenderBox renderBox = _moduleNameKey.currentContext?.findRenderObject() as RenderBox;
+    //   final double moduleNameHeight = renderBox.size.height;
+    //   print('Module Name Container Height: $moduleNameHeight');
+    //   // Use addPostFrameCallback to get the height after the first build
+    //   WidgetsBinding.instance.addPostFrameCallback((_) {
+    //     if (_moduleNameKey.currentContext?.findRenderObject() != null) {
+    //       final RenderBox renderBox = _moduleNameKey.currentContext!.findRenderObject() as RenderBox;
+    //       final double moduleNameHeight = renderBox.size.height;
+    //       final double moduleNameWidth = renderBox.size.width;
+    //       final double aspectRatio = moduleNameWidth / moduleNameHeight;
+    //
+    //       // Calculate the top padding based on the module name container height
+    //       setState(() {
+    //         if (moduleNameHeight > 55 && moduleNameHeight < 90) {
+    //           //topPadding = 145;
+    //           topPadding = MediaQuery.of(context).size.height * 0.15;
+    //         } else if (moduleNameHeight >= 141) {
+    //           //topPadding = 231;
+    //           topPadding = MediaQuery.of(context).size.height * 0.23;
+    //         } else {
+    //           //topPadding = 180;
+    //           topPadding = MediaQuery.of(context).size.height * 0.19;
+    //         }
+    //       });
+    //
+    //       // Print the module name height and calculated topPadding
+    //       print('Module Name Container Height: $moduleNameHeight');
+    //       print('Module Name Container Width: $moduleNameWidth');
+    //
+    //       print('Calculated Top Padding: $topPadding');
+    //     } else {
+    //       // Handle the case where the RenderBox is not yet available
+    //       print('RenderBox is not available.');
+    //     }
+    //   });
+    // });
   }
+// Consider using AutoSizeText for the module name instead of RichText
 
   @override
   Widget build(BuildContext context) {
@@ -233,7 +239,7 @@ class _ModuleInfoState extends State<ModuleInfo> {
               child: LayoutBuilder(
                 builder: (context, constraints) {
                   // Calculate the available height for the description container
-                  double availableHeight = constraints.maxHeight - 230;
+                  //double availableHeight = constraints.maxHeight - 335;
 
                   return Center(
                     child: Column(
@@ -247,47 +253,17 @@ class _ModuleInfoState extends State<ModuleInfo> {
                           //height: 30,
                           height: screenHeight * 0.031,
                         ),
-                        // Module Name Container
-                        Container(
-                          key: _moduleNameKey,
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          constraints: BoxConstraints(
-                            minHeight: 60, // Minimum height for the container
-                            maxHeight: 185, // Maximum height for longer titles
-                          ),
-                          child: Text(
-                            widget.moduleName,
-                            style: TextStyle(
-                              fontSize: screenWidth * 0.08,
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF0070C0),
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                        SizedBox(
-                          //height: 20,
-                          height: screenHeight * 0.021,
-                        ),
 
                         // Module Description Container
                         Flexible(
                           child: Stack(
                             children: [
                               Positioned(
-                                //top: MediaQuery.of(context).size.width / 50, // Adjust this value based on your layout
-                                left: MediaQuery
-                                    .of(context)
-                                    .size
-                                    .width / 11,
-                                right: MediaQuery
-                                    .of(context)
-                                    .size
-                                    .width / 11,
-                                //bottom: 220,
-                                bottom: screenHeight * 0.226,
+                                left: screenWidth / 11,
+                                right: screenWidth / 11,
+                                bottom: screenHeight * 0.250,
                                 child: Container(
-                                  height: availableHeight,
+                                  height: screenHeight * 0.60,
                                   //width: 400,
                                   decoration: BoxDecoration(
                                     color: Colors.transparent,
@@ -298,19 +274,33 @@ class _ModuleInfoState extends State<ModuleInfo> {
                                           bottom: 50,
                                           top: topPadding,
                                       ),
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            widget.moduleDescription,
-                                            style: TextStyle(
-                                              //fontSize: 24,
-                                              fontSize: screenWidth * 0.0535,
-                                              fontWeight: FontWeight.w500,
-                                              color: Colors.black,
+                                      child: RichText(
+                                        textAlign: TextAlign.center,
+                                        text: TextSpan(
+                                          children: [
+                                            TextSpan(
+                                              text: '${widget.moduleName}\n',
+                                              style: TextStyle(
+                                                fontSize: 32.0,
+                                                fontWeight: FontWeight.w500,
+                                                color: Color(0xFF0070C0),
+                                              ),
                                             ),
-                                          ),
-                                        ],
+                                            WidgetSpan(
+                                              child: SizedBox(
+                                                height: screenHeight * 0.06,
+                                              ),
+                                            ),
+                                            TextSpan(
+                                              text: '${widget.moduleDescription}\n',
+                                              style: TextStyle(
+                                                fontSize: 24.0,
+                                                fontWeight: FontWeight.w500,
+                                                color: Colors.black,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                     ),
                                   ),
@@ -320,7 +310,7 @@ class _ModuleInfoState extends State<ModuleInfo> {
                               // Container for gradient text fade
                               Positioned(
                                 //bottom: 220,
-                                bottom: screenHeight * 0.226,
+                                bottom: screenHeight * 0.250,
                                 left: 0,
                                 right: 0,
                                 child: IgnorePointer(
@@ -336,7 +326,7 @@ class _ModuleInfoState extends State<ModuleInfo> {
                                             // Color(0xFFFFF0DC),
                                             //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
                                             Color(0xFFFCDBB3).withOpacity(0.0),
-                                            Color(0xFFFCDBB3),
+                                            Color(0xFFFDD8AD),
                                           ],
                                         ),
                                       )
@@ -347,15 +337,9 @@ class _ModuleInfoState extends State<ModuleInfo> {
                               // Download Button
                               Positioned(
                                 //bottom: 110,
-                                bottom: screenHeight * 0.113,
-                                left: MediaQuery
-                                    .of(context)
-                                    .size
-                                    .width / 4.2,
-                                right: MediaQuery
-                                    .of(context)
-                                    .size
-                                    .width / 4.2,
+                                bottom: screenHeight * 0.15,
+                                left: screenWidth / 4.2,
+                                right: screenWidth / 4.2,
                                 child: Padding(
                                   padding: const EdgeInsets.only(top: 4),
                                   child: GestureDetector(
