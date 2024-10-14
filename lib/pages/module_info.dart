@@ -12,6 +12,8 @@ import 'package:wired_test/pages/home_page.dart';
 import 'package:wired_test/pages/policy.dart';
 import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
+import '../utils/functions.dart';
+import '../utils/side_nav_bar.dart';
 import 'download_confirm.dart';
 import 'module_library.dart';
 import 'package:auto_size_text/auto_size_text.dart';
@@ -157,7 +159,6 @@ class _ModuleInfoState extends State<ModuleInfo> {
             SnackBar(content: Text('Error deleting $fileName')),
           );
         }
-
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error downloading $fileName')),
@@ -169,7 +170,6 @@ class _ModuleInfoState extends State<ModuleInfo> {
         SnackBar(content: Text('Permission denied')),
       );
     }
-
   }
 
   @override
@@ -214,254 +214,486 @@ class _ModuleInfoState extends State<ModuleInfo> {
     //   });
     // });
   }
+
 // Consider using AutoSizeText for the module name instead of RichText
 
   @override
   Widget build(BuildContext context) {
     var screenWidth = MediaQuery.of(context).size.width;
     var screenHeight = MediaQuery.of(context).size.height;
+    bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
     return Scaffold(
-      body: Stack(
-        children: <Widget>[
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xFFFFF0DC),
-                  Color(0xFFF9EBD9),
-                  Color(0xFFFFC888),
-                ],
-              ),
+      body: Row(
+        children: [
+          // Conditionally show the side navigation bar in landscape mode
+          if (isLandscape)
+            CustomSideNavBar(
+              onHomeTap: () {
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (context) => MyHomePage()));
+              },
+              onLibraryTap: () {
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (context) => ModuleLibrary()));
+              },
+              onHelpTap: () {
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (context) => const Policy()));
+              },
             ),
-            child: SafeArea(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  // Calculate the available height for the description container
-                  //double availableHeight = constraints.maxHeight - 335;
 
-                  return Center(
-                    child: Column(
-                      children: [
-                        CustomAppBar(
-                          onBackPressed: () {
-                            Navigator.pop(context);
-                          },
-                        ),
-                        SizedBox(
-                          //height: 30,
-                          height: screenHeight * 0.031,
-                        ),
-
-                        // Module Description Container
-                        Flexible(
-                          child: Stack(
-                            children: [
-                              Positioned(
-                                left: screenWidth / 11,
-                                right: screenWidth / 11,
-                                bottom: screenHeight * 0.250,
-                                child: Container(
-                                  height: screenHeight * 0.60,
-                                  //width: 400,
-                                  decoration: BoxDecoration(
-                                    color: Colors.transparent,
-                                  ),
-                                  child: SingleChildScrollView(
-                                    child: Padding(
-                                      padding: EdgeInsets.only(
-                                          bottom: 50,
-                                          top: topPadding,
-                                      ),
-                                      child: RichText(
-                                        textAlign: TextAlign.center,
-                                        text: TextSpan(
-                                          children: [
-                                            TextSpan(
-                                              text: '${widget.moduleName}\n',
-                                              style: TextStyle(
-                                                fontSize: 32.0,
-                                                fontWeight: FontWeight.w500,
-                                                color: Color(0xFF0070C0),
-                                              ),
-                                            ),
-                                            WidgetSpan(
-                                              child: SizedBox(
-                                                height: screenHeight * 0.06,
-                                              ),
-                                            ),
-                                            TextSpan(
-                                              text: '${widget.moduleDescription}\n',
-                                              style: TextStyle(
-                                                fontSize: 24.0,
-                                                fontWeight: FontWeight.w500,
-                                                color: Colors.black,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-
-                              // Container for gradient text fade
-                              Positioned(
-                                //bottom: 220,
-                                bottom: screenHeight * 0.250,
-                                left: 0,
-                                right: 0,
-                                child: IgnorePointer(
-                                  child: Container(
-                                      height: 80,
-                                      decoration: BoxDecoration(
-                                        gradient: LinearGradient(
-                                          begin: Alignment.topCenter,
-                                          end: Alignment.bottomCenter,
-                                          stops: [0.0, 5.0],
-                                          colors: [
-                                            // Colors.transparent,
-                                            // Color(0xFFFFF0DC),
-                                            //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                                            Color(0xFFFCDBB3).withOpacity(0.0),
-                                            Color(0xFFFDD8AD),
-                                          ],
-                                        ),
-                                      )
-                                  ),
-                                ),
-                              ),
-
-                              // Download Button
-                              Positioned(
-                                //bottom: 110,
-                                bottom: screenHeight * 0.15,
-                                left: screenWidth / 4.2,
-                                right: screenWidth / 4.2,
-                                child: Padding(
-                                  padding: const EdgeInsets.only(top: 4),
-                                  child: GestureDetector(
-                                    onTap: _isLoading
-                                        ? null
-                                        :() async {
-                                      if (widget.downloadLink != null) {
-
-                                        setState(() {
-                                          _isLoading = true;
-                                        });
-
-                                        String fileName = "$widget.moduleName.zip";
-                                        await downloadModule(
-                                            widget.downloadLink!, fileName);
-
-                                        setState(() {
-                                          _isLoading = false;
-                                        });
-
-                                        Navigator.push(context,
-                                            MaterialPageRoute(
-                                                builder: (context) =>
-                                                    DownloadConfirm(
-                                                        moduleName: widget
-                                                            .moduleName)));
-                                      } else {
-                                        ScaffoldMessenger.of(context)
-                                            .showSnackBar(
-                                          SnackBar(content: Text(
-                                              'No download link found for ${widget
-                                                  .moduleName}')),
-                                        );
-                                      }
-                                    },
-                                    child: Container(
-                                      width: screenWidth * 0.25,
-                                      height: screenHeight * 0.065,
-                                      decoration: BoxDecoration(
-                                        gradient: const LinearGradient(
-                                          colors: [
-                                            Color(0xFF0070C0),
-                                            Color(0xFF00C1FF),
-                                            Color(0xFF0070C0),
-                                          ], // Your gradient colors
-                                          begin: Alignment.topCenter,
-                                          end: Alignment.bottomCenter,
-                                        ),
-                                        borderRadius: BorderRadius.circular(30),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withOpacity(
-                                                0.5),
-                                            spreadRadius: 1,
-                                            blurRadius: 5,
-                                            offset: const Offset(1,
-                                                3), // changes position of shadow
-                                          ),
-                                        ],
-                                      ),
-                                      child: Center(
-                                        child: Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          crossAxisAlignment: CrossAxisAlignment.center,
-                                          children: [
-                                            _isLoading
-                                                ? CircularProgressIndicator(
-                                                    color: Colors.white,
-                                                    strokeWidth: 3,
-                                                  )
-                                                : Text(
-                                                  "Download",
-                                                  style: TextStyle(
-                                                    fontSize: screenWidth * 0.071,
-                                                    fontWeight: FontWeight.w500,
-                                                    color: Colors.white,
-                                                  ),
-                                                ),
-                                            const SizedBox(width: 7,),
-                                            SvgPicture.asset(
-                                              'assets/icons/download_icon.svg',
-                                               // height: 42,
-                                               // width: 42,
-                                              height: screenHeight * 0.0425,
-                                              width: screenWidth * 0.0425,
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              )
-                            ],
-                          ),
-                        ),
+          // Main content area (expanded to fill remaining space)
+          Expanded(
+            child: Stack(
+              children: <Widget>[
+                Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0xFFFFF0DC),
+                        Color(0xFFF9EBD9),
+                        Color(0xFFFFC888),
                       ],
                     ),
-                  );
-                }
-    ),
+                  ),
+                  child: SafeArea(
+                    child: Center(
+                      child: isLandscape ? _buildLandscapeLayout(
+                          screenWidth, screenHeight) : _buildPortraitLayout(
+                          screenWidth, screenHeight),
+                    ),
+                  ),
+                ),
+                // Conditionally show the bottom navigation bar in portrait mode
+                if (!isLandscape)
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: CustomBottomNavBar(
+                      onHomeTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => MyHomePage()),
+                        );
+                      },
+                      onLibraryTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (
+                            context) => ModuleLibrary()));
+                      },
+                      onHelpTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (
+                            context) => const Policy()));
+                      },
+                    ),
+                  ),
+              ],
             ),
           ),
-          // Bottom Nav Bar
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-              child: CustomBottomNavBar(
-                onHomeTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const MyHomePage()));
-                },
-                onLibraryTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
-                },
-                onHelpTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => const Policy()));
-                },
-              ),
-          ),
-        ]
+        ],
       ),
     );
   }
+
+  Widget _buildPortraitLayout(screenWidth, screenHeight) {
+    return Column(
+      children: [
+        CustomAppBar(
+          onBackPressed: () {
+            Navigator.pop(context);
+          },
+        ),
+        SizedBox(
+          //height: 30,
+          height: screenHeight * 0.031,
+        ),
+
+        // Module Description Container
+        Flexible(
+          child: Stack(
+            children: [
+              Positioned(
+                left: screenWidth / 11,
+                right: screenWidth / 11,
+                bottom: screenHeight * 0.250,
+                child: Container(
+                  height: screenHeight * 0.60,
+                  //width: 400,
+                  decoration: BoxDecoration(
+                    color: Colors.transparent,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        bottom: 50,
+                        top: topPadding,
+                      ),
+                      child: RichText(
+                        textAlign: TextAlign.center,
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: '${widget.moduleName}\n',
+                              style: TextStyle(
+                                fontSize: 32.0,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF0070C0),
+                              ),
+                            ),
+                            WidgetSpan(
+                              child: SizedBox(
+                                height: screenHeight * 0.06,
+                              ),
+                            ),
+                            TextSpan(
+                              text: '${widget.moduleDescription}\n',
+                              style: TextStyle(
+                                fontSize: 24.0,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // Container for gradient text fade
+              Positioned(
+                //bottom: 220,
+                bottom: screenHeight * 0.250,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  child: Container(
+                      height: 80,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          stops: [0.0, 5.0],
+                          colors: [
+                            // Colors.transparent,
+                            // Color(0xFFFFF0DC),
+                            //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                            Color(0xFFFCDBB3).withOpacity(0.0),
+                            Color(0xFFFDD8AD),
+                          ],
+                        ),
+                      )
+                  ),
+                ),
+              ),
+
+              // Download Button
+              Positioned(
+                //bottom: 110,
+                bottom: screenHeight * 0.15,
+                left: screenWidth / 4.2,
+                right: screenWidth / 4.2,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: GestureDetector(
+                    onTap: _isLoading
+                        ? null
+                        : () async {
+                      if (widget.downloadLink != null) {
+                        setState(() {
+                          _isLoading = true;
+                        });
+
+                        String fileName = "$widget.moduleName.zip";
+                        await downloadModule(
+                            widget.downloadLink!, fileName);
+
+                        setState(() {
+                          _isLoading = false;
+                        });
+
+                        Navigator.push(context,
+                            MaterialPageRoute(
+                                builder: (context) =>
+                                    DownloadConfirm(
+                                        moduleName: widget
+                                            .moduleName)));
+                      } else {
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(
+                          SnackBar(content: Text(
+                              'No download link found for ${widget
+                                  .moduleName}')),
+                        );
+                      }
+                    },
+                    child: Container(
+                      width: screenWidth * 0.25,
+                      height: screenHeight * 0.065,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [
+                            Color(0xFF0070C0),
+                            Color(0xFF00C1FF),
+                            Color(0xFF0070C0),
+                          ], // Your gradient colors
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                        borderRadius: BorderRadius.circular(30),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(
+                                0.5),
+                            spreadRadius: 1,
+                            blurRadius: 5,
+                            offset: const Offset(1,
+                                3), // changes position of shadow
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            _isLoading
+                                ? CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 3,
+                            )
+                                : Text(
+                              "Download",
+                              style: TextStyle(
+                                fontSize: screenWidth * 0.071,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 7,),
+                            SvgPicture.asset(
+                              'assets/icons/download_icon.svg',
+                              // height: 42,
+                              // width: 42,
+                              height: screenHeight * 0.0425,
+                              width: screenWidth * 0.0425,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLandscapeLayout(screenWidth, screenHeight) {
+    var baseSize = MediaQuery.of(context).size.shortestSide;
+    return Column(
+      children: [
+        CustomAppBar(
+          onBackPressed: () {
+            Navigator.pop(context);
+          },
+        ),
+        SizedBox(
+          //height: 30,
+          height: screenHeight * 0.031,
+        ),
+
+        // Module Description Container
+        Flexible(
+          child: Stack(
+            children: [
+              Positioned(
+                left: baseSize / (isTablet(context) ? 11 : 11),
+                right: baseSize / (isTablet(context) ? 11 : 11),
+                bottom: baseSize * (isTablet(context) ? 0.250 : 0.250),
+                child: Container(
+                  height: baseSize * (isTablet(context) ? 0.60 : 0.60),
+                  //width: 400,
+                  decoration: BoxDecoration(
+                    color: Colors.transparent,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        bottom: 50,
+                        top: topPadding,
+                      ),
+                      child: RichText(
+                        textAlign: TextAlign.center,
+                        text: TextSpan(
+                          children: [
+                            TextSpan(
+                              text: '${widget.moduleName}\n',
+                              style: TextStyle(
+                                //fontSize: 32.0,
+                                fontSize: baseSize * (isTablet(context) ? 0.052 : 0.052),
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF0070C0),
+                              ),
+                            ),
+                            WidgetSpan(
+                              child: SizedBox(
+                                height: screenHeight * 0.06,
+                              ),
+                            ),
+                            TextSpan(
+                              text: '${widget.moduleDescription}\n',
+                              style: TextStyle(
+                                fontSize: baseSize * (isTablet(context) ? 0.032 : 0.032),
+                                fontWeight: FontWeight.w500,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // Container for gradient text fade
+              Positioned(
+                //bottom: 220,
+                bottom: baseSize * (isTablet(context) ? 0.250 : 0.250),
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  child: Container(
+                      height: 80,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          stops: [0.0, 5.0],
+                          colors: [
+                            // Colors.transparent,
+                            // Color(0xFFFFF0DC),
+                            //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                            Color(0xFFFCDBB3).withOpacity(0.0),
+                            Color(0xFFFDD8AD),
+                          ],
+                        ),
+                      )
+                  ),
+                ),
+              ),
+
+              // Download Button
+              Positioned(
+                //bottom: 110,
+                bottom: baseSize * (isTablet(context) ? 0.1 : 0.1),
+                left: baseSize / (isTablet(context) ? 1.95 : 2.7),
+                right: baseSize / (isTablet(context) ? 1.95 : 2.7),
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: GestureDetector(
+                    onTap: _isLoading
+                        ? null
+                        : () async {
+                      if (widget.downloadLink != null) {
+                        setState(() {
+                          _isLoading = true;
+                        });
+
+                        String fileName = "$widget.moduleName.zip";
+                        await downloadModule(
+                            widget.downloadLink!, fileName);
+
+                        setState(() {
+                          _isLoading = false;
+                        });
+
+                        Navigator.push(context,
+                            MaterialPageRoute(
+                                builder: (context) =>
+                                    DownloadConfirm(
+                                        moduleName: widget
+                                            .moduleName)));
+                      } else {
+                        ScaffoldMessenger.of(context)
+                            .showSnackBar(
+                          SnackBar(content: Text(
+                              'No download link found for ${widget
+                                  .moduleName}')),
+                        );
+                      }
+                    },
+                    child: Container(
+                      width: baseSize * (isTablet(context) ? 0.25 : 0.25),
+                      height: baseSize * (isTablet(context) ? 0.1 : 0.1),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [
+                            Color(0xFF0070C0),
+                            Color(0xFF00C1FF),
+                            Color(0xFF0070C0),
+                          ], // Your gradient colors
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                        borderRadius: BorderRadius.circular(30),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(
+                                0.5),
+                            spreadRadius: 1,
+                            blurRadius: 5,
+                            offset: const Offset(1,
+                                3), // changes position of shadow
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            _isLoading
+                                ? CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 3,
+                            )
+                                : Text(
+                              "Download",
+                              style: TextStyle(
+                                fontSize: baseSize * (isTablet(context) ? 0.07 : 0.07),
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 7,),
+                            SvgPicture.asset(
+                              'assets/icons/download_icon.svg',
+                              // height: 42,
+                              // width: 42,
+                              height: baseSize * (isTablet(context) ? 0.0675 : 0.0425),
+                              width: baseSize * (isTablet(context) ? 0.0675 : 0.0425),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              )
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }
+

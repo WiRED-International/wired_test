@@ -18,10 +18,12 @@ class CustomBottomNavBar extends StatelessWidget {
   Widget build(BuildContext context) {
     var screenWidth = MediaQuery.of(context).size.width;
     var screenHeight = MediaQuery.of(context).size.height;
+    var baseSize = MediaQuery.of(context).size.shortestSide;
 
     return Container(
       color: Colors.transparent,
-      height: screenHeight * (isTablet(context) ? .14 : 0.1),
+      height: baseSize * (isTablet(context) ? .17 : 0.19),
+      //height: screenHeight * 0.1,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
@@ -36,14 +38,14 @@ class CustomBottomNavBar extends StatelessWidget {
                 children: [
                   Icon(
                     Icons.home,
-                    size: screenWidth * 0.1,
+                    size: baseSize * (isTablet(context) ? .07 : 0.1),
                     color: Colors.black,
                   ),
                   Text(
                     "Home",
                     style: TextStyle(
                       color: Colors.black,
-                      fontSize: screenWidth * 0.044,
+                      fontSize: baseSize * (isTablet(context) ? .028 : 0.044),
                       fontWeight: FontWeight.w500,
                     )
                   ),
@@ -62,14 +64,14 @@ class CustomBottomNavBar extends StatelessWidget {
                 children: [
                   Icon(
                     Icons.library_books,
-                    size: screenWidth * 0.1,
+                    size: baseSize * (isTablet(context) ? .07 : 0.1),
                     color: Colors.black,
                   ),
                   Text(
                     "My Library",
                     style: TextStyle(
                       color: Colors.black,
-                      fontSize: screenWidth * 0.044,
+                      fontSize: baseSize * (isTablet(context) ? .028 : 0.044),
                       fontWeight: FontWeight.w500,
                     )
                   ),
@@ -84,14 +86,14 @@ class CustomBottomNavBar extends StatelessWidget {
               children: [
                 Icon(
                   Icons.info,
-                  size: screenWidth * 0.1,
+                  size: baseSize * (isTablet(context) ? .07 : 0.1),
                   color: Colors.black
                 ),
                 Text(
                   "Policy",
                   style: TextStyle(
                     color: Colors.black,
-                    fontSize: screenWidth * 0.044,
+                    fontSize: baseSize * (isTablet(context) ? .028 : 0.044),
                     fontWeight: FontWeight.w500,
                   )
                 ),

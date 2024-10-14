@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:wired_test/utils/functions.dart';
 
 class CustomAppBar extends StatelessWidget {
   final VoidCallback onBackPressed;
@@ -14,6 +15,7 @@ class CustomAppBar extends StatelessWidget {
   Widget build(BuildContext context) {
     var screenWidth = MediaQuery.of(context).size.width;
     var screenHeight = MediaQuery.of(context).size.height;
+    var baseSize = MediaQuery.of(context).size.shortestSide;
     double appBarHeight = screenHeight * 0.055;
 
     return Container(
@@ -35,15 +37,15 @@ class CustomAppBar extends StatelessWidget {
                   onTapHint: "Tap to go back to the previous page",
                   child: SvgPicture.asset(
                     'assets/icons/chevron_left.svg',
-                    height: screenHeight * 0.027,
-                    width: screenHeight * 0.027,
+                    height: baseSize * (isTablet(context) ? 0.045 : 0.057),  // Use baseSize for consistency
+                    width: baseSize * (isTablet(context) ? 0.045 : 0.057),
                   ),
                 ),
                 SizedBox(width: screenWidth * 0.0),
                 Text(
                   "Back",
                   style: TextStyle(
-                    fontSize: screenWidth * 0.054,
+                    fontSize: baseSize * (isTablet(context) ? 0.045 : 0.065),
                     fontWeight: FontWeight.w500,
                     color: Colors.black,
                   ),
