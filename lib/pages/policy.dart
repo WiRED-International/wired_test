@@ -1,17 +1,16 @@
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:wired_test/utils/custom_nav_bar.dart';
 import '../utils/custom_app_bar.dart';
+import '../utils/functions.dart';
+import '../utils/side_nav_bar.dart';
 import 'home_page.dart';
 import 'module_library.dart';
 
 class Policy extends StatelessWidget {
   const Policy({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    var screenWidth = MediaQuery.of(context).size.width;
-    var screenHeight = MediaQuery.of(context).size.height;
     final privacyPolicy = ''' 
 Privacy Policy
 
@@ -50,133 +49,235 @@ We may update this Privacy Policy from time to time. Any changes will be reflect
 If you have any questions or concerns about this Privacy Policy, please contact us at seanbristol81@gmail.com.
 
     ''';
-    return Scaffold(
-      body: Stack(
-        children: <Widget>[
-          Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Color(0xFFFFF0DC),
-                  Color(0xFFF9EBD9),
-                  Color(0xFFFFC888),
-                ],
+    @override
+    Widget build(BuildContext context) {
+      var screenWidth = MediaQuery.of(context).size.width;
+      var screenHeight = MediaQuery.of(context).size.height;
+      bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+
+      return Scaffold(
+        body: SafeArea(
+          child: Stack(
+            children: [
+              Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0xFFFFF0DC),
+                      Color(0xFFF9EBD9),
+                      Color(0xFFFFC888),
+                    ],
+                  ),
+                ),
               ),
-            ),
-            child: SafeArea(
-                    child: Center(
-                      child: Column(
-                        children: [
-                          CustomAppBar(
-                            onBackPressed: () {
-                              Navigator.pop(context);
+              Column(
+                children: [
+                  // Custom AppBar
+                  CustomAppBar(
+                    onBackPressed: () {
+                      Navigator.pop(context);
+                    },
+                  ),
+                  // Expanded layout for the main content
+                  Expanded(
+                    child: Row(
+                      children: [
+                        if (isLandscape)
+                          CustomSideNavBar(
+                            onHomeTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => MyHomePage()),
+                              );
+                            },
+                            onLibraryTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(builder: (context) => ModuleLibrary()),
+                              );
+                            },
+                            onHelpTap: () {
+                              // Navigator.push(
+                              //   context,
+                              //   MaterialPageRoute(builder: (context) => const Policy()),
+                              // );
                             },
                           ),
-                          // Module Description Container
-                          Flexible(
-                            child: Stack(
-                              children: [
-                                Positioned(
-                                  //top: MediaQuery.of(context).size.width / 50, // Adjust this value based on your layout
-                                  left: MediaQuery
-                                      .of(context)
-                                      .size
-                                      .width / 15,
-                                  right: MediaQuery
-                                      .of(context)
-                                      .size
-                                      .width / 15,
-                                  //bottom: 140,
-                                  bottom: screenHeight * 0.14,
-                                  child: Container(
-                                    //height: 750,
-                                    height: screenHeight * 0.80,
-                                    width: 400,
-                                    decoration: BoxDecoration(
-                                      color: Colors.transparent,
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    child: SingleChildScrollView(
-                                      child: Padding(
-                                        padding: EdgeInsets.only(
-                                          bottom: 50,
-                                          top: 50,
-                                        ),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              privacyPolicy,
-                                              style: const TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w500,
-                                                color: Colors.black,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-
-                                // Container for gradient text fade
-                                Positioned(
-                                  //bottom: 140,
-                                  bottom: screenHeight * 0.14,
-                                  left: 0,
-                                  right: 0,
-                                  child: IgnorePointer(
-                                    child: Container(
-                                        height: 80,
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            begin: Alignment.topCenter,
-                                            end: Alignment.bottomCenter,
-                                            stops: [0.0, 5.0],
-                                            colors: [
-                                              // Colors.transparent,
-                                              // Color(0xFFFFF0DC),
-                                              //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                                              Color(0xFFFCDBB3).withOpacity(0.0),
-                                              Color(0xFFFED39F),
-                                            ],
-                                          ),
-                                        )
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
+                        // Main content area (expanded to fill remaining space)
+                        Expanded(
+                          child: Center(
+                            child: isLandscape
+                                ? _buildLandscapeLayout(context, screenWidth, screenHeight)
+                                : _buildPortraitLayout(context, screenWidth, screenHeight),
                           ),
-                        ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (!isLandscape)
+                    CustomBottomNavBar(
+                      onHomeTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => MyHomePage()),
+                        );
+                      },
+                      onLibraryTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => ModuleLibrary()),
+                        );
+                      },
+                      onHelpTap: () {
+                        // Navigator.push(
+                        //   context,
+                        //   MaterialPageRoute(builder: (context) => const Policy()),
+                        // );
+                      },
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Adjusted methods to pass `context`
+    Widget _buildPortraitLayout(BuildContext context, screenWidth, screenHeight) {
+      var baseSize = MediaQuery.of(context).size.shortestSide;
+      return Column(
+        children: [
+          // Module Description Container
+          Flexible(
+            child: Stack(
+              children: [
+                Positioned(
+                  left: MediaQuery.of(context).size.width / 15,
+                  right: MediaQuery.of(context).size.width / 15,
+                  bottom: baseSize * (isTablet(context) ? 0.08 : 0.08),
+                  child: Container(
+                    height: baseSize * (isTablet(context) ? 1.16 : 1.3),
+                    width: 400,
+                    decoration: BoxDecoration(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: SingleChildScrollView(
+                      child: Padding(
+                        padding: EdgeInsets.only(
+                            bottom: baseSize * (isTablet(context) ? 0.17 : 0.17),
+                            top: 50,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              privacyPolicy,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
+                  ),
+                ),
+                Positioned(
+                  bottom: baseSize * (isTablet(context) ? 0.08 : 0.08),
+                  left: 0,
+                  right: 0,
+                  child: IgnorePointer(
+                    child: Container(
+                      height: baseSize * (isTablet(context) ? 0.3 : 0.3),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          stops: [0.0, 1.0],
+                          colors: [
+                            Color(0xFFFCDBB3).withOpacity(0.0),
+                            Color(0xFFFED39F),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          // Bottom Nav Bar
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: CustomBottomNavBar(
-              onHomeTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => MyHomePage()));
-              },
-              onLibraryTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
-              },
-              onHelpTap: () {
-                print("Policy");
-                //Navigator.push(context, MaterialPageRoute(builder: (context) => Help()));
-              },
-            ),
-          ),
+        ],
+      );
+    }
 
-    ],
-    )
-    );
+    Widget _buildLandscapeLayout(BuildContext context, screenWidth, screenHeight) {
+      return Column(
+        children: [
+          Flexible(
+            child: Stack(
+              children: [
+                Positioned(
+                  left: MediaQuery.of(context).size.width / 15,
+                  right: MediaQuery.of(context).size.width / 15,
+                  bottom: screenHeight * 0.14,
+                  child: Container(
+                    height: screenHeight * 0.80,
+                    width: 400,
+                    decoration: BoxDecoration(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: SingleChildScrollView(
+                      child: Padding(
+                        padding: EdgeInsets.only(bottom: 50, top: 50),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              privacyPolicy,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.black,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: screenHeight * 0.14,
+                  left: 0,
+                  right: 0,
+                  child: IgnorePointer(
+                    child: Container(
+                      height: 80,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          stops: [0.0, 5.0],
+                          colors: [
+                            Color(0xFFFCDBB3).withOpacity(0.0),
+                            Color(0xFFFED39F),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
   }
-}

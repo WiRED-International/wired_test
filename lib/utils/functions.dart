@@ -45,9 +45,8 @@ Future<void> openHtmlFile(String htmlFilePath) async {
 
 // Function to check if the device is a tablet
 bool isTablet(BuildContext context) {
-  var screenWidth = MediaQuery.of(context).size.width;
-  var screenHeight = MediaQuery.of(context).size.height;
-  return screenWidth > 600 || screenHeight > 600;
+  var shortestSide = MediaQuery.of(context).size.shortestSide;
+  return shortestSide > 600;
 }
 
 // Function to get responsive text style
