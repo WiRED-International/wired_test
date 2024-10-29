@@ -137,7 +137,7 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
           textAlign: TextAlign.center,
         ),
         SizedBox(
-          height: baseSize * (isTablet(context) ? 0.015 : 0.025),
+          height: baseSize * (isTablet(context) ? 0.015 : 0.005),
         ),
         Container(
           //height: 150,
@@ -148,7 +148,6 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
             child: Text(
               widget.moduleName,
               style: TextStyle(
-                //fontSize: 36,
                 fontSize: baseSize * (isTablet(context) ? 0.055 : 0.07),
                 fontWeight: FontWeight.w500,
                 color: Color(0xFF0070C0),
@@ -158,7 +157,7 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
           ),
         ),
         SizedBox(
-          height: baseSize * (isTablet(context) ? 0.04 : 0.02),
+          height: baseSize * (isTablet(context) ? 0.04 : 0.01),
         ),
         Flexible(
           child: Container(
@@ -181,7 +180,7 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                       Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
                     },
                     child: Container(
-                      height: baseSize * (isTablet(context) ? 0.075 : 0.085),
+                      height: baseSize * (isTablet(context) ? 0.075 : 0.095),
                       width: baseSize * (isTablet(context) ? 0.33 : 0.4),
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
@@ -228,7 +227,7 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                       Navigator.push(context, MaterialPageRoute(builder: (context) => const MyHomePage()));
                     },
                     child: Container(
-                      height: baseSize * (isTablet(context) ? 0.075 : 0.085),
+                      height: baseSize * (isTablet(context) ? 0.075 : 0.095),
                       width: baseSize * (isTablet(context) ? 0.33 : 0.4),
                       alignment: Alignment.center,
                       decoration: BoxDecoration(
@@ -420,3 +419,6 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
     );
   }
 }
+
+
+

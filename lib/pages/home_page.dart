@@ -95,46 +95,49 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Widget _buildPortraitLayout(double screenWidth, double screenHeight) {
+    var baseSize = MediaQuery.of(context).size.shortestSide;
     return Column(
       children: <Widget>[
         Padding(
           padding: EdgeInsets.only(top: 0,
-              bottom: screenHeight * (isTablet(context) ? 0.03 : 0.021)),
+              bottom: baseSize * (isTablet(context) ? 0.03 : 0.021)),
           child: Semantics(
             label: 'Wired Logo',
             child: Image.asset(
               'assets/images/wired-logo.png',
-              height: screenHeight * (isTablet(context) ? 0.12 : 0.095),
+              height: baseSize * (isTablet(context) ? 0.17 : 0.2),
             ),
           ),
         ),
         Text(
           'CME Module Library',
           style: TextStyle(
-            fontSize: screenWidth * (isTablet(context) ? (0.09) * .7 : 0.09),
+            fontSize: baseSize * (isTablet(context) ? 0.07 : 0.09),
             fontWeight: FontWeight.w500,
             color: const Color.fromRGBO(0, 102, 179, 1),
           ),
         ),
-        SizedBox(height: screenHeight * 0.015),
+        SizedBox(
+          height: baseSize * (isTablet(context) ? 0.01 : 0.015),
+        ),
         Text(
           'News and Updates',
           style: TextStyle(
-            fontSize: screenWidth * 0.08,
+            fontSize: baseSize * (isTablet(context) ? 0.08 : 0.08),
             fontWeight: FontWeight.w500,
             color: Color.fromRGBO(84, 130, 53, 1),
           ),
         ),
         Padding(
           padding: EdgeInsets.only(
-            top: screenHeight * 0.015,
-            bottom: screenHeight * 0.04,
-            left: screenWidth * (isTablet(context) ? 0.05 : 0.04),
-            right: screenWidth * (isTablet(context) ? 0.05 : 0.04),
+            top: baseSize * (isTablet(context) ? 0.015 : 0.015),
+            bottom: baseSize * (isTablet(context) ? 0.04 : 0.04),
+            left: baseSize * (isTablet(context) ? 0.05 : 0.04),
+            right: baseSize * (isTablet(context) ? 0.05 : 0.04),
           ),
           child: Container(
             //height: 470,
-            height: screenHeight * (isTablet(context) ? 0.3 : 0.43),
+            height: baseSize * (isTablet(context) ? 0.6 : 0.7),
             decoration: BoxDecoration(
               color: Color(0xFFF9EBD9),
               borderRadius: BorderRadius.circular(7),
@@ -145,17 +148,14 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
             child: SingleChildScrollView(
               child: Padding(
-                padding: EdgeInsets.only(
-                  top: screenHeight * 0.015,
-                  bottom: screenHeight * 0.015,
-                  left: screenWidth * 0.04,
-                  right: screenWidth * 0.04,
+                padding: EdgeInsets.symmetric(
+                  vertical: baseSize * (isTablet(context) ? 0.02 : 0.02),
+                  horizontal: baseSize * (isTablet(context) ? 0.03 : 0.03),
                 ),
                 child: Text(
                   'Hello Testers! Welcome to WiRED\'s new mobile HealthMap app. Thank you for choosing to participate in this closed test. This does mean a lot to all of us here at WiRED. We ask that you please do not click on any button or link that says "Leave the test." We need all testers to remain opted in for 14 consecutive days. After the 14 days, you may leave the test if you wish. Once again, thank you so much for your participation in this test.',
                   style: TextStyle(
-                    fontSize: screenWidth *
-                        (isTablet(context) ? (0.06) * .7 : 0.06),
+                    fontSize: baseSize * (isTablet(context) ? 0.035 : 0.045),
                     fontWeight: FontWeight.w500,
                     color: Colors.black,
                   ),
@@ -164,7 +164,9 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
           ),
         ),
-
+        SizedBox(
+          height: baseSize * (isTablet(context) ? 0.05 : 0.015),
+        ),
         Semantics(
           label: 'Search Button',
           hint: 'Tap to search for modules',
@@ -176,9 +178,9 @@ class _MyHomePageState extends State<MyHomePage> {
             child: Hero(
               tag: 'search',
               child: FractionallySizedBox(
-                widthFactor: isTablet(context) ? 0.5 : 0.4,
+                widthFactor: isTablet(context) ? 0.33 : 0.4,
                 child: Container(
-                  height: screenHeight * (isTablet(context) ? 0.08 : 0.06),
+                  height: baseSize * (isTablet(context) ? 0.09 : 0.13),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [
@@ -204,8 +206,8 @@ class _MyHomePageState extends State<MyHomePage> {
                       builder: (context, constraints) {
                         double buttonWidth = constraints.maxWidth;
                         double fontSize = buttonWidth * 0.2;
-                        double padding = buttonWidth * 0.04;
-                        double iconSize = buttonWidth * 0.2;
+                        double padding = buttonWidth * 0.02;
+                        double iconSize = buttonWidth * 0.15;
                         return Padding(
                           padding: EdgeInsets.all(padding),
                           child: Row(
@@ -224,7 +226,9 @@ class _MyHomePageState extends State<MyHomePage> {
                                   ),
                                 ),
                               ),
-                              SizedBox(width: screenWidth * 0.025,),
+                              SizedBox(
+                                width: baseSize * (isTablet(context) ? 0.015 : 0.025),
+                              ),
                               Semantics(
                                 label: 'Search Icon',
                                 child: SvgPicture.asset(
@@ -248,6 +252,7 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Widget _buildLandscapeLayout(double screenWidth, double screenHeight) {
+    var baseSize = MediaQuery.of(context).size.shortestSide;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: <Widget>[
@@ -257,7 +262,7 @@ class _MyHomePageState extends State<MyHomePage> {
             label: 'Wired Logo',
             child: Image.asset(
               'assets/images/wired-logo.png',
-              height: screenHeight * (isTablet(context) ? 0.15 : 0.12),
+              height: baseSize * (isTablet(context) ? 0.15 : 0.12),
             ),
           ),
         ),
@@ -265,17 +270,19 @@ class _MyHomePageState extends State<MyHomePage> {
         Text(
           'CME Module Library',
           style: TextStyle(
-            fontSize: screenWidth * (isTablet(context) ? 0.038 : 0.07),
+            fontSize: baseSize * (isTablet(context) ? 0.058 : 0.07),
             fontWeight: FontWeight.w500,
             color: const Color.fromRGBO(0, 102, 179, 1),
           ),
           textAlign: TextAlign.center,
         ),
-        SizedBox(height: screenHeight * 0.01),
+        SizedBox(
+          height: baseSize * (isTablet(context) ? 0.01 : 0.015),
+        ),
         Text(
           'News and Updates',
           style: TextStyle(
-            fontSize: screenWidth * (isTablet(context) ? 0.045 : 0.06),
+            fontSize: baseSize * (isTablet(context) ? 0.065 : 0.06),
             fontWeight: FontWeight.w500,
             color: Color.fromRGBO(84, 130, 53, 1),
           ),
@@ -283,13 +290,13 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
         Padding(
           padding: EdgeInsets.only(
-            top: screenHeight * 0.015,
-            bottom: screenHeight * 0.04,
-            left: screenWidth * 0.15,
-            right: screenWidth * 0.15,
+            top: baseSize * (isTablet(context) ? 0.015 : 0.015),
+            bottom: baseSize * (isTablet(context) ? 0.04 : 0.04),
+            left: baseSize * (isTablet(context) ? 0.25 : 0.04),
+            right: baseSize * (isTablet(context) ? 0.25 : 0.04),
           ),
           child: Container(
-            height: screenHeight * (isTablet(context) ? 0.35 : 0.5),
+            height: baseSize * (isTablet(context) ? 0.35 : 0.5),
             decoration: BoxDecoration(
               color: Color(0xFFF9EBD9),
               borderRadius: BorderRadius.circular(7),
@@ -300,11 +307,14 @@ class _MyHomePageState extends State<MyHomePage> {
             ),
             child: SingleChildScrollView(
               child: Padding(
-                padding: EdgeInsets.all(screenHeight * 0.015),
+                padding: EdgeInsets.symmetric(
+                  vertical: baseSize * (isTablet(context) ? 0.01 : 0.02),
+                  horizontal: baseSize * (isTablet(context) ? 0.02 : 0.03),
+                ),
                 child: Text(
                   'Hello Testers! Welcome to WiRED\'s new mobile HealthMap app. Thank you for choosing to participate in this closed test. This does mean a lot to all of us here at WiRED. We ask that you please do not click on any button or link that says "Leave the test." We need all testers to remain opted in for 14 consecutive days. After the 14 days, you may leave the test if you wish. Once again, thank you so much for your participation in this test.',
                   style: TextStyle(
-                    fontSize: screenWidth * (isTablet(context) ? 0.02 : 0.05),
+                    fontSize: baseSize * (isTablet(context) ? 0.03 : 0.05),
                     fontWeight: FontWeight.w500,
                     color: Colors.black,
                   ),
@@ -326,7 +336,7 @@ class _MyHomePageState extends State<MyHomePage> {
               child: FractionallySizedBox(
                 widthFactor: isTablet(context) ? 0.2 : 0.4,
                 child: Container(
-                  height: screenHeight * (isTablet(context) ? 0.08 : 0.06),
+                  height: baseSize * (isTablet(context) ? 0.08 : 0.06),
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [
@@ -352,8 +362,8 @@ class _MyHomePageState extends State<MyHomePage> {
                       builder: (context, constraints) {
                         double buttonWidth = constraints.maxWidth;
                         double fontSize = buttonWidth * 0.2;
-                        double padding = buttonWidth * 0.04;
-                        double iconSize = buttonWidth * 0.2;
+                        double padding = buttonWidth * 0.02;
+                        double iconSize = buttonWidth * 0.15;
                         return Padding(
                           padding: EdgeInsets.all(padding),
                           child: Row(
@@ -372,7 +382,9 @@ class _MyHomePageState extends State<MyHomePage> {
                                   ),
                                 ),
                               ),
-                              SizedBox(width: screenWidth * 0.025,),
+                              SizedBox(
+                                width: baseSize * (isTablet(context) ? 0.015 : 0.025),
+                              ),
                               Semantics(
                                 label: 'Search Icon',
                                 child: SvgPicture.asset(

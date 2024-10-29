@@ -1,4 +1,4 @@
-package com.wiredInternational.wired_test
+package com.wiredInternational.wired_app
 
 import io.flutter.embedding.android.FlutterActivity
 
