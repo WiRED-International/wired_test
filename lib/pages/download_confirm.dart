@@ -11,8 +11,14 @@ import 'module_library.dart';
 
 class DownloadConfirm extends StatefulWidget {
   //const DownloadConfirm({Key? key}) : super(key: key);
-  const DownloadConfirm({super.key, required this.moduleName});
-  final String moduleName;
+  const DownloadConfirm({
+    super.key,
+    this.moduleName,
+    this.packageName
+  });
+
+  final String? moduleName;
+  final String? packageName;
 
   @override
   State<DownloadConfirm> createState() => _DownloadConfirmState();
@@ -24,6 +30,8 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
     var screenWidth = MediaQuery.of(context).size.width;
     var screenHeight = MediaQuery.of(context).size.height;
     bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+
+    String? displayName = widget.moduleName ?? widget.packageName;
 
     return Scaffold(
       body: SafeArea(
@@ -80,8 +88,8 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                       Expanded(
                         child: Center(
                           child: isLandscape
-                              ? _buildLandscapeLayout(screenWidth, screenHeight)
-                              : _buildPortraitLayout(screenWidth, screenHeight),
+                              ? _buildLandscapeLayout(screenWidth, screenHeight, displayName)
+                              : _buildPortraitLayout(screenWidth, screenHeight, displayName),
                         ),
                       ),
                     ],
@@ -118,7 +126,7 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
     );
   }
 
-  Widget _buildPortraitLayout(screenWidth, screenHeight) {
+  Widget _buildPortraitLayout(screenWidth, screenHeight, String? displayName) {
     var baseSize = MediaQuery.of(context).size.shortestSide;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -126,27 +134,29 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
         SizedBox(
           height: baseSize * (isTablet(context) ? 0.03 : 0.03),
         ),
-        Text(
-          "You have downloaded the following module:",
-          style: TextStyle(
-            //fontSize: 36,
-            fontSize: baseSize * (isTablet(context) ? 0.055 : 0.075),
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF548235),
+        Flexible(
+          child: Text(
+            "You have downloaded the following module:",
+            style: TextStyle(
+              // fontSize: 32,
+              fontSize: baseSize * (isTablet(context) ? 0.055 : 0.075),
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF548235),
+            ),
+            textAlign: TextAlign.center,
           ),
-          textAlign: TextAlign.center,
         ),
         SizedBox(
-          height: baseSize * (isTablet(context) ? 0.015 : 0.005),
+          height: baseSize * (isTablet(context) ? 0.015 : 0.05),
         ),
         Container(
           //height: 150,
-          height: baseSize * (isTablet(context) ? 0.18 : 0.45),
+          //height: baseSize * (isTablet(context) ? 0.18 : 0.25),
           width: double.infinity,
           alignment: Alignment.center,
           child: Center(
             child: Text(
-              widget.moduleName,
+              displayName ?? "No Name Provided",
               style: TextStyle(
                 fontSize: baseSize * (isTablet(context) ? 0.055 : 0.07),
                 fontWeight: FontWeight.w500,
@@ -157,110 +167,108 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
           ),
         ),
         SizedBox(
-          height: baseSize * (isTablet(context) ? 0.04 : 0.01),
+          height: baseSize * (isTablet(context) ? 0.04 : 0.05),
         ),
-        Flexible(
-          child: Container(
-            height: baseSize * (isTablet(context) ? 0.53 : 0.53),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    "View module in",
-                    style: TextStyle(
-                      fontSize: baseSize * (isTablet(context) ? 0.062 : 0.072),
-                      fontWeight: FontWeight.w400,
-                      color: Colors.black,
-                    ),
-                    textAlign: TextAlign.center,
+        Container(
+          height: baseSize * (isTablet(context) ? 0.53 : 0.63),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  "View module in",
+                  style: TextStyle(
+                    fontSize: baseSize * (isTablet(context) ? 0.05 : 0.072),
+                    fontWeight: FontWeight.w400,
+                    color: Colors.black,
                   ),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
-                    },
-                    child: Container(
-                      height: baseSize * (isTablet(context) ? 0.075 : 0.095),
-                      width: baseSize * (isTablet(context) ? 0.33 : 0.4),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF519921), Color(0xFF93D221), Color(0xFF519921),], // Your gradient colors
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        ),
-                        borderRadius: BorderRadius.circular(30),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.5),
-                            spreadRadius: 1,
-                            blurRadius: 5,
-                            offset: const Offset(1, 3), // changes position of shadow
-                          ),
-                        ],
+                  textAlign: TextAlign.center,
+                ),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
+                  },
+                  child: Container(
+                    height: baseSize * (isTablet(context) ? 0.08 : 0.095),
+                    width: baseSize * (isTablet(context) ? 0.33 : 0.4),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF519921), Color(0xFF93D221), Color(0xFF519921),], // Your gradient colors
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
                       ),
-                      child: Center(
-                        child: Text(
-                          "My Library",
-                          style: TextStyle(
-                            //fontSize: 32,
-                            fontSize: baseSize * (isTablet(context) ? 0.0515 : 0.06),
-                            fontWeight: FontWeight.w400,
-                            color: Colors.white,
-                          ),
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.5),
+                          spreadRadius: 1,
+                          blurRadius: 5,
+                          offset: const Offset(1, 3), // changes position of shadow
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        "My Library",
+                        style: TextStyle(
+                          //fontSize: 32,
+                          fontSize: baseSize * (isTablet(context) ? 0.051 : 0.06),
+                          fontWeight: FontWeight.w400,
+                          color: Colors.white,
                         ),
                       ),
                     ),
                   ),
-                  Text(
-                    "or return",
-                    style: TextStyle(
-                      // fontSize: 32,
-                      fontSize: baseSize * (isTablet(context) ? 0.062 : 0.072),
-                      fontWeight: FontWeight.w400,
-                      color: Colors.black,
-                    ),
-                    textAlign: TextAlign.center,
+                ),
+                Text(
+                  "or return",
+                  style: TextStyle(
+                    // fontSize: 32,
+                    fontSize: baseSize * (isTablet(context) ? 0.05 : 0.072),
+                    fontWeight: FontWeight.w400,
+                    color: Colors.black,
                   ),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (context) => const MyHomePage()));
-                    },
-                    child: Container(
-                      height: baseSize * (isTablet(context) ? 0.075 : 0.095),
-                      width: baseSize * (isTablet(context) ? 0.33 : 0.4),
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF0070C0), Color(0xFF00C1FF), Color(0xFF0070C0),], // Your gradient colors
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        ),
-                        borderRadius: BorderRadius.circular(30),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.5),
-                            spreadRadius: 1,
-                            blurRadius: 5,
-                            offset: const Offset(1, 3), // changes position of shadow
-                          ),
-                        ],
+                  textAlign: TextAlign.center,
+                ),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const MyHomePage()));
+                  },
+                  child: Container(
+                    height: baseSize * (isTablet(context) ? 0.08 : 0.095),
+                    width: baseSize * (isTablet(context) ? 0.33 : 0.4),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF0070C0), Color(0xFF00C1FF), Color(0xFF0070C0),], // Your gradient colors
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
                       ),
-                      child: Center(
-                        child: Text(
-                          "Home",
-                          style: TextStyle(
-                            // fontSize: 32,
-                            fontSize: baseSize * (isTablet(context) ? 0.0515 : 0.06),
-                            fontWeight: FontWeight.w400,
-                            color: Colors.white,
-                          ),
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.5),
+                          spreadRadius: 1,
+                          blurRadius: 5,
+                          offset: const Offset(1, 3), // changes position of shadow
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Text(
+                        "Home",
+                        style: TextStyle(
+                          // fontSize: 32,
+                          fontSize: baseSize * (isTablet(context) ? 0.051 : 0.06),
+                          fontWeight: FontWeight.w400,
+                          color: Colors.white,
                         ),
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -268,7 +276,7 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
     );
   }
 
-  Widget _buildLandscapeLayout(screenWidth, screenHeight) {
+  Widget _buildLandscapeLayout(screenWidth, screenHeight, String? displayName) {
     var baseSize = MediaQuery.of(context).size.shortestSide;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -280,15 +288,15 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
           "You have downloaded the following module:",
           style: TextStyle(
             //fontSize: 36,
-            fontSize: baseSize * (isTablet(context) ? 0.07 : 0.07),
+            fontSize: baseSize * (isTablet(context) ? 0.06 : 0.07),
             fontWeight: FontWeight.w500,
             color: Color(0xFF548235),
           ),
           textAlign: TextAlign.center,
         ),
-        SizedBox(
-          height: baseSize * (isTablet(context) ? 0.015 : 0.015),
-        ),
+        // SizedBox(
+        //   height: baseSize * (isTablet(context) ? 0.015 : 0.015),
+        // ),
         Container(
           //height: 150,
           height: baseSize * (isTablet(context) ? 0.18 : 0.18),
@@ -296,10 +304,10 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
           alignment: Alignment.center,
           child: Center(
             child: Text(
-              widget.moduleName,
+              displayName ?? "No Name Provided",
               style: TextStyle(
                 //fontSize: 36,
-                fontSize: baseSize * (isTablet(context) ? 0.065 : 0.065),
+                fontSize: baseSize * (isTablet(context) ? 0.06 : 0.065),
                 fontWeight: FontWeight.w500,
                 color: Color(0xFF0070C0),
               ),
@@ -307,12 +315,12 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
             ),
           ),
         ),
-        SizedBox(
-          height: baseSize * (isTablet(context) ? 0.04 : 0.04),
-        ),
+        // SizedBox(
+        //   height: baseSize * (isTablet(context) ? 0.04 : 0.04),
+        // ),
         Flexible(
           child: Container(
-            height: baseSize * (isTablet(context) ? 0.43 : 0.43),
+            height: baseSize * (isTablet(context) ? 0.5 : 0.43),
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -320,7 +328,7 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                   Text(
                     "View module in",
                     style: TextStyle(
-                      fontSize: baseSize * (isTablet(context) ? 0.062 : 0.062),
+                      fontSize: baseSize * (isTablet(context) ? 0.06 : 0.062),
                       fontWeight: FontWeight.w400,
                       color: Colors.black,
                     ),
@@ -367,7 +375,7 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                     "or return",
                     style: TextStyle(
                       // fontSize: 32,
-                      fontSize: baseSize * (isTablet(context) ? 0.062 : 0.062),
+                      fontSize: baseSize * (isTablet(context) ? 0.06 : 0.062),
                       fontWeight: FontWeight.w400,
                       color: Colors.black,
                     ),

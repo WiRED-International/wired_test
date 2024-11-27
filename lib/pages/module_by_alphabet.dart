@@ -17,9 +17,9 @@ import 'module_info.dart';
 
 class ModuleByAlphabet extends StatefulWidget {
   final String letter;
-  final String letterId;
 
-  ModuleByAlphabet({required this.letter, required this.letterId,});
+
+  ModuleByAlphabet({required this.letter});
 
   @override
   _ModuleByAlphabetState createState() => _ModuleByAlphabetState();
@@ -28,58 +28,46 @@ class ModuleByAlphabet extends StatefulWidget {
 class Modules {
   String? name;
   String? description;
-  //String? topics;
   //String? version;
   String? downloadLink;
-  //String? launchFile;
   //String? packageSize;
-  //String? letters;
-  List<String>? letters;
-  //String? credits;
-  //String? module_name;
-  //String? id;
+  String? letters;
+  bool? isDownloadable;
+  Modules? redirectedModule;
 
 
   Modules({
     this.name,
     this.description,
-    //this.topics,
     //this.version,
     this.downloadLink,
-    //this.launchFile,
     //this.packageSize,
     this.letters,
-    //this.credits,
-    //this.module_name,
-    //this.id,
+    this.isDownloadable,
+    this.redirectedModule,
   });
 
   Modules.fromJson(Map<String, dynamic> json)
-    : name = json['name'] as String,
-      description = json['description'] as String,
-      //topics = json['topics'] as String,
-      //version = json['version'] as String,
-      downloadLink = json['downloadLink'] as String,
-      //launchFile = json['launchFile'] as String,
-      //packageSize = json['packageSize'] as String,
-      //letters = json['letters'] as String;
-      letters = (json['letters'] as List<dynamic>?)?.map((e) => e as String).toList();
-      //credits = json['credits'] as String,
-      //module_name = json['module_name'] as String,
-      //id = json['id'] as String;
+      : name = json['name'] as String?,
+        description = json['description'] as String?,
+  //version = json['version'] as String,
+        downloadLink = json['downloadLink'] as String?,
+  //packageSize = json['packageSize'] as String,
+        letters = json['letters'] as String?,
+        isDownloadable = json['is_downloadable'] as bool?,
+        redirectedModule = json['redirectedModule'] != null
+            ? Modules.fromJson(json['redirectedModule'])
+            : null;
 
   Map<String, dynamic> toJson() => {
     'name': name,
     'description': description,
-    //'topics': topics,
     //'version': version,
     'downloadLink': downloadLink,
-    //'launchFile': launchFile,
     //'packageSize': packageSize,
     'letters': letters,
-    //'credits': credits,
-    //'module_name': module_name,
-    //'id': id,
+    'is_downloadable': isDownloadable,
+    'redirectedModule': redirectedModule?.toJson(),
   };
 }
 
@@ -91,7 +79,7 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
   Future<List<Modules>> getModules() async {
     try {
       final response = await http.get(Uri.parse(
-          'https://obrpqbo4eb.execute-api.us-west-2.amazonaws.com/api/modules'),
+          'http://widm.wiredhealthresources.net/apiv2/modules/'),
         headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
       if (response.statusCode == 200) {
@@ -101,7 +89,7 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
 
         // Filter modules by the letter
         moduleData = allModules.where((module) => module.letters?.contains(
-            widget.letterId) ?? false).toList();
+            widget.letter) ?? false).toList();
 
         // change to lower case and Sort modules by name
         moduleData.sort((a, b) =>
@@ -193,98 +181,117 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
   Widget build(BuildContext context) {
     var screenWidth = MediaQuery.of(context).size.width;
     var screenHeight = MediaQuery.of(context).size.height;
+    var baseSize = MediaQuery.of(context).size.shortestSide;
     bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
     return Scaffold(
-      body: Row(
-        children: [
-          // Conditionally show the side navigation bar in landscape mode
-          if (isLandscape)
-            CustomSideNavBar(
-              onHomeTap: () {
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => MyHomePage()));
-              },
-              onLibraryTap: () {
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => ModuleLibrary()));
-              },
-              onHelpTap: () {
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => const Policy()));
-              },
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFFFFF0DC),
+                    Color(0xFFF9EBD9),
+                    Color(0xFFFFC888),
+                  ],
+                ),
+              ),
             ),
+            Column(
+              children: [
+                // Custom AppBar
+                CustomAppBar(
+                  onBackPressed: () {
+                    Navigator.pop(context);
+                  },
+                ),
+                // Expanded layout for the main content
+                Expanded(
+                  child: Row(
+                    children: [
+                      if (isLandscape)
+                        CustomSideNavBar(
+                          onHomeTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => MyHomePage()),
+                            );
+                          },
+                          onLibraryTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => ModuleLibrary()),
+                            );
+                          },
+                          onHelpTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => const Policy()),
+                            );
+                          },
+                        ),
 
-          // Main content area (expanded to fill remaining space)
-          Expanded(
-            child: Stack(
-              children: <Widget>[
-                Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Color(0xFFFFF0DC),
-                        Color(0xFFF9EBD9),
-                        Color(0xFFFFC888),
-                      ],
-                    ),
-                  ),
-                  child: SafeArea(
-                    child: Center(
-                      child: isLandscape ? _buildLandscapeLayout(
-                          screenWidth, screenHeight) : _buildPortraitLayout(
-                          screenWidth, screenHeight),
-                    ),
+                      // Main content area (expanded to fill remaining space)
+                      Expanded(
+                        child: Center(
+                          child: isLandscape
+                              ? _buildLandscapeLayout(screenWidth, screenHeight, baseSize)
+                              : _buildPortraitLayout(screenWidth, screenHeight, baseSize),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                // Conditionally show the bottom navigation bar in portrait mode
+
                 if (!isLandscape)
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: CustomBottomNavBar(
-                      onHomeTap: () {
-                        Navigator.push(context, MaterialPageRoute(
-                              builder: (context) => MyHomePage()),
-                        );
-                      },
-                      onLibraryTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (
-                            context) => ModuleLibrary()));
-                      },
-                      onHelpTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (
-                            context) => const Policy()));
-                      },
-                    ),
+                  CustomBottomNavBar(
+                    onHomeTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => MyHomePage()),
+                      );
+                    },
+                    onLibraryTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => ModuleLibrary()),
+                      );
+                    },
+                    onHelpTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const Policy()),
+                      );
+                    },
                   ),
               ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildPortraitLayout(screenWidth, screenHeight) {
+  Widget _buildPortraitLayout(screenWidth, screenHeight, baseSize) {
     return Column(
       children: [
-        //Imported from utils/custom_app_bar.dart
-        CustomAppBar(
-          onBackPressed: () {
-            Navigator.pop(context);
-          },
-        ),
         Container(
           child: Column(
+            //mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               Text(
                 "Search by",
                 style: TextStyle(
-                  fontSize: screenWidth * 0.1,
+                  fontSize: baseSize * (isTablet(context) ? 0.07 : 0.08),
                   fontWeight: FontWeight.w500,
                   color: Color(0xFF0070C0),
                 ),
@@ -295,7 +302,7 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                   Text(
                     "Alphabet: ",
                     style: TextStyle(
-                      fontSize: screenWidth * 0.1,
+                      fontSize: baseSize * (isTablet(context) ? 0.07 : 0.08),
                       fontWeight: FontWeight.w500,
                       color: Color(0xFF0070C0),
                     ),
@@ -303,7 +310,7 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                   Text(
                     widget.letter,
                     style: TextStyle(
-                      fontSize: screenWidth * 0.1,
+                      fontSize: baseSize * (isTablet(context) ? 0.07 : 0.08),
                       fontWeight: FontWeight.w500,
                       color: Color(0xFF548235),
                     ),
@@ -313,289 +320,455 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
             ],
           ),
         ),
-        const SizedBox(height: 10),
-        Stack(
-          children: [
-            Container(
-              // height: 650,
-              // width: 400,
-              height: screenHeight * 0.63,
-              width: screenWidth * 1.0,
-              decoration: BoxDecoration(
-                color: Colors.transparent,
-              ),
-              child: FutureBuilder<List<Modules>>(
-                future: futureModules,
-                builder: (context, snapshot) {
-                  if (snapshot.hasData) {
-                    return ListView.builder(
-                      itemCount: moduleData.length + 1,
-                      // Increase the item count by 1 to account for the SizedBox as the last item
-                      itemBuilder: (context, index) {
-                        if (index == moduleData.length) {
-                          // This is the last item (the SizedBox or Container)
-                          return SizedBox(
-                            height: screenHeight * 0.21,
-                          );
-                        }
-                        final module = moduleData[index];
-                        final moduleName = module.name ?? "Unknown Module";
-                        final downloadLink = module.downloadLink ??
-                            "No Link available";
-                        final moduleDescription = module.description ??
-                            "No Description available";
-                        return Column(
-                          children: [
-                            InkWell(
-                              onTap: () async {
-                                //print("Downloading ${moduleData[index].downloadLink}");
-                                if (moduleData[index].downloadLink != null) {
-                                  // String fileName = "$moduleName.zip";
-                                  // await downloadModule(downloadLink, fileName);
-                                  Navigator.push(context, MaterialPageRoute(
-                                      builder: (context) => ModuleInfo(
-                                          moduleName: moduleName,
-                                          moduleDescription: moduleDescription,
-                                          downloadLink: downloadLink)));
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(
-                                        'No download link found for ${moduleData[index]
-                                            .name}')),
-                                  );
-                                }
-                              },
-                              child: Center(
-                                child: ListTile(
-                                  title: Text(
-                                    moduleData[index].name!,
-                                    style: TextStyle(
-                                      //fontSize: 24,
-                                      fontSize: screenWidth * 0.0667,
-                                      fontFamilyFallback: [
-                                        'NotoSans',
-                                        'NotoSerif',
-                                        'Roboto',
-                                        'sans-serif'
-                                      ],
-                                      fontWeight: FontWeight.w500,
-                                      color: Color(0xFF0070C0),
+        const SizedBox(height: 20),
+        Flexible(
+          //flex: 1,
+          child: Stack(
+            children: [
+              Container(
+                //height: baseSize * (isTablet(context) ? 60 : 60),
+                width: screenWidth * 1.0,
+                decoration: BoxDecoration(
+                  color: Colors.transparent,
+                ),
+                child: FutureBuilder<List<Modules>>(
+                  future: futureModules,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData) {
+                      return ListView.builder(
+                        itemCount: moduleData.length + 1,
+                        // Increase the item count by 1 to account for the SizedBox as the last item
+                        itemBuilder: (context, index) {
+                          if (index == moduleData.length) {
+                            // This is the last item (the SizedBox or Container)
+                            return SizedBox(
+                              height: screenHeight * 0.21,
+                            );
+                          }
+                          final module = moduleData[index];
+                          final moduleName = module.name ?? "Unknown Module";
+                          debugPrint("Module Name: ${moduleName}");
+                          final downloadLink = module.downloadLink ??
+                              "No Link available";
+                          final moduleDescription = module.description ??
+                              "No Description available";
+
+                          if (module.redirectedModule != null) {
+                            return Column(
+                              children: [
+                                Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(
+                                        vertical: baseSize * (isTablet(context) ? 0.01 : 0.02),
+                                        horizontal: baseSize * (isTablet(context) ? 0.01 : 0.01)
                                     ),
-                                    textAlign: TextAlign.center,
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          "$moduleName see",
+                                          style: TextStyle(
+                                            color: Colors.black,
+                                            fontSize: baseSize * (isTablet(context) ? 0.04 : 0.05),
+                                            fontFamilyFallback: [
+                                              'NotoSans',
+                                              'NotoSerif',
+                                              'Roboto',
+                                              'sans-serif',
+                                            ],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        GestureDetector(
+                                          onTap: () async {
+                                            if (module.redirectedModule!.downloadLink != null &&
+                                                module.redirectedModule!.downloadLink!.isNotEmpty) {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) => ModuleInfo(
+                                                    moduleName: module.redirectedModule!.name!,
+                                                    moduleDescription: module.redirectedModule!.description ?? "No Description available",
+                                                    downloadLink: module.redirectedModule!.downloadLink!,
+                                                  ),
+                                                ),
+                                              );
+                                            } else {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(content: Text('No download link found for ${module.redirectedModule!.name}')),
+                                              );
+                                            }
+                                          },
+                                          child: Text(
+                                            module.redirectedModule!.name!,
+                                            style: TextStyle(
+                                              color: Color(0xFF0070C0), // Redirected module name in blue
+                                              fontSize: baseSize * (isTablet(context) ? 0.045 : 0.055),
+                                              fontFamilyFallback: [
+                                                'NotoSans',
+                                                'NotoSerif',
+                                                'Roboto',
+                                                'sans-serif',
+                                              ],
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ),
-                            const Divider(
-                              color: Colors.grey,
-                              height: 1,
-                            ),
+                                const Divider(
+                                  color: Colors.grey,
+                                  height: 1,
+                                ),
+                              ],
+                            );
+                          } else {
+                            return Column(
+                              children: [
+                                Padding(
+                                  padding: EdgeInsets.symmetric(
+                                      vertical: screenHeight * (isTablet(context) ? 0.01 : 0.01),
+                                      horizontal: screenWidth * (isTablet(context) ? 0.03 : 0.03)
+                                  ),
+                                  child: InkWell(
+                                    onTap: () async {
+                                      if (module.downloadLink != null && module.downloadLink!.isNotEmpty) {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => ModuleInfo(
+                                              moduleName: moduleName,
+                                              moduleDescription: moduleDescription,
+                                              downloadLink: downloadLink,
+                                            ),
+                                          ),
+                                        );
+                                      } else {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('No download link found for ${module.name}')),
+                                        );
+                                      }
+                                    },
+                                    child: Center(
+                                      child: Text(
+                                        moduleName,
+                                        style: TextStyle(
+                                          color: Color(0xFF0070C0),
+                                          fontSize: baseSize * (isTablet(context) ? 0.045 : 0.055),
+                                          fontFamilyFallback: [
+                                            'NotoSans',
+                                            'NotoSerif',
+                                            'Roboto',
+                                            'sans-serif',
+                                          ],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const Divider(
+                                  color: Colors.grey,
+                                  height: 1,
+                                ),
+                              ],
+                            );
+                          }
+                        },
+                      );
+                    } else if (snapshot.hasError) {
+                      return Text('Error: ${snapshot.error}');
+                    } else {
+                      return const CircularProgressIndicator();
+                    }
+                  },
+                ),
+              ),
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  child: Container(
+                    //height: 150,
+                      height: screenHeight * 0.2,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          stops: [0.0, 1.0],
+                          colors: [
+                            // Colors.transparent,
+                            // Color(0xFFFFF0DC),
+                            //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                            Color(0xFFFED09A).withOpacity(0.0),
+                            Color(0xFFFED09A),
                           ],
-                        );
-                      },
-                    );
-                  } else if (snapshot.hasError) {
-                    return Text('Error: ${snapshot.error}');
-                  } else {
-                    return const CircularProgressIndicator();
-                  }
-                },
-              ),
-            ),
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: IgnorePointer(
-                child: Container(
-                  //height: 150,
-                    height: screenHeight * 0.2,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        stops: [0.0, 1.0],
-                        colors: [
-                          // Colors.transparent,
-                          // Color(0xFFFFF0DC),
-                          //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                          Color(0xFFFED09A).withOpacity(0.0),
-                          Color(0xFFFED09A),
-                        ],
-                      ),
-                    )
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLandscapeLayout(screenWidth, screenHeight) {
-    var baseSize = MediaQuery.of(context).size.shortestSide;
-    return Column(
-      children: [
-        //Imported from utils/custom_app_bar.dart
-        CustomAppBar(
-          onBackPressed: () {
-            Navigator.pop(context);
-          },
-        ),
-        Container(
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                "Search by ",
-                style: TextStyle(
-                  fontSize: baseSize * (isTablet(context) ? 0.09 : 0.1),
-                  fontWeight: FontWeight.w500,
-                  color: const Color(0xFF0070C0),
-                ),
-              ),
-              Text(
-                "Alphabet: ",
-                style: TextStyle(
-                  fontSize: baseSize * (isTablet(context) ? 0.09 : 0.1),
-                  fontWeight: FontWeight.w500,
-                  color: const Color(0xFF0070C0),
-                ),
-              ),
-              Text(
-                widget.letter,
-                style: TextStyle(
-                  fontSize: baseSize * (isTablet(context) ? 0.09 : 0.1),
-                  fontWeight: FontWeight.w500,
-                  color: const Color(0xFF548235),
+                        ),
+                      )
+                  ),
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 10),
-        Stack(
-          children: [
-            Container(
-              // height: 650,
-              // width: 400,
-              height: baseSize * (isTablet(context) ? 0.68 : 0.63),
-              width: baseSize * (isTablet(context) ? 1.25 : 1.0),
-              decoration: BoxDecoration(
-                color: Colors.transparent,
+        // Flexible(
+        //   flex: 1,
+        //     child: SizedBox(
+        //         height: baseSize * (isTablet(context) ? .17 : 0.17)
+        //     )
+        // ),
+      ],
+    );
+  }
+
+  Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
+    return Column(
+      children: [
+        Container(
+          child: Column(
+            //mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    "Search by ",
+                    style: TextStyle(
+                      fontSize: screenHeight * (isTablet(context) ? 0.08 : 0.08),
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF0070C0),
+                    ),
+                  ),
+                  Text(
+                    "Alphabet: ",
+                    style: TextStyle(
+                      fontSize: screenHeight * (isTablet(context) ? 0.08 : 0.08),
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF0070C0),
+                    ),
+                  ),
+                  Text(
+                    widget.letter,
+                    style: TextStyle(
+                      fontSize: screenHeight * (isTablet(context) ? 0.08 : 0.08),
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF548235),
+                    ),
+                  ),
+                ],
               ),
-              child: FutureBuilder<List<Modules>>(
-                future: futureModules,
-                builder: (context, snapshot) {
-                  if (snapshot.hasData) {
-                    return ListView.builder(
-                      itemCount: moduleData.length + 1,
-                      // Increase the item count by 1 to account for the SizedBox as the last item
-                      itemBuilder: (context, index) {
-                        if (index == moduleData.length) {
-                          // This is the last item (the SizedBox or Container)
-                          return SizedBox(
-                            height: screenHeight * 0.21,
-                          );
-                        }
-                        final module = moduleData[index];
-                        final moduleName = module.name ?? "Unknown Module";
-                        final downloadLink = module.downloadLink ??
-                            "No Link available";
-                        final moduleDescription = module.description ??
-                            "No Description available";
-                        return Column(
-                          children: [
-                            InkWell(
-                              onTap: () async {
-                                //print("Downloading ${moduleData[index].downloadLink}");
-                                if (moduleData[index].downloadLink != null) {
-                                  // String fileName = "$moduleName.zip";
-                                  // await downloadModule(downloadLink, fileName);
-                                  Navigator.push(context, MaterialPageRoute(
-                                      builder: (context) => ModuleInfo(
-                                          moduleName: moduleName,
-                                          moduleDescription: moduleDescription,
-                                          downloadLink: downloadLink)));
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(
-                                        'No download link found for ${moduleData[index]
-                                            .name}')),
-                                  );
-                                }
-                              },
-                              child: Center(
-                                child: ListTile(
-                                  title: Text(
-                                    moduleData[index].name!,
-                                    style: TextStyle(
-                                      //fontSize: 24,
-                                      fontSize: baseSize * (isTablet(context) ? 0.0667 : 0.0667),
-                                      fontFamilyFallback: [
-                                        'NotoSans',
-                                        'NotoSerif',
-                                        'Roboto',
-                                        'sans-serif'
-                                      ],
-                                      fontWeight: FontWeight.w500,
-                                      color: Color(0xFF0070C0),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
+        Flexible(
+          //flex: 5,
+          child: Stack(
+            children: [
+              Container(
+                //height: screenHeight * (isTablet(context) ? 0.63 : 0.62),
+                width: screenWidth * (isTablet(context) ? 0.8 : 0.8),
+                decoration: BoxDecoration(
+                  color: Colors.transparent,
+                ),
+                child: FutureBuilder<List<Modules>>(
+                  future: futureModules,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData) {
+                      return ListView.builder(
+                        itemCount: moduleData.length + 1,
+                        // Increase the item count by 1 to account for the SizedBox as the last item
+                        itemBuilder: (context, index) {
+                          if (index == moduleData.length) {
+                            // This is the last item (the SizedBox or Container)
+                            return SizedBox(
+                              height: screenHeight * 0.21,
+                            );
+                          }
+                          final module = moduleData[index];
+                          final moduleName = module.name ?? "Unknown Module";
+                          debugPrint("Module Name: ${moduleName}");
+                          final downloadLink = module.downloadLink ??
+                              "No Link available";
+                          final moduleDescription = module.description ??
+                              "No Description available";
+
+                          if (module.redirectedModule != null) {
+                            return Column(
+                              children: [
+                                Center(
+                                  child: Padding(
+                                    padding: EdgeInsets.symmetric(
+                                        vertical: screenHeight * (isTablet(context) ? 0.01 : 0.01),
+                                        horizontal: baseSize * (isTablet(context) ? 0.01 : 0.01)
                                     ),
-                                    textAlign: TextAlign.center,
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          "$moduleName see",
+                                          style: TextStyle(
+                                            color: Colors.black,
+                                            fontSize: screenHeight * (isTablet(context) ? 0.04 : 0.05),
+                                            fontFamilyFallback: [
+                                              'NotoSans',
+                                              'NotoSerif',
+                                              'Roboto',
+                                              'sans-serif',
+                                            ],
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                        GestureDetector(
+                                          onTap: () async {
+                                            if (module.redirectedModule!.downloadLink != null &&
+                                                module.redirectedModule!.downloadLink!.isNotEmpty) {
+                                              Navigator.push(
+                                                context,
+                                                MaterialPageRoute(
+                                                  builder: (context) => ModuleInfo(
+                                                    moduleName: module.redirectedModule!.name!,
+                                                    moduleDescription: module.redirectedModule!.description ?? "No Description available",
+                                                    downloadLink: module.redirectedModule!.downloadLink!,
+                                                  ),
+                                                ),
+                                              );
+                                            } else {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(content: Text('No download link found for ${module.redirectedModule!.name}')),
+                                              );
+                                            }
+                                          },
+                                          child: Text(
+                                            module.redirectedModule!.name!,
+                                            style: TextStyle(
+                                              color: Color(0xFF0070C0), // Redirected module name in blue
+                                              fontSize: screenHeight * (isTablet(context) ? 0.045 : 0.055),
+                                              fontFamilyFallback: [
+                                                'NotoSans',
+                                                'NotoSerif',
+                                                'Roboto',
+                                                'sans-serif',
+                                              ],
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                              ),
-                            ),
-                            // const Divider(
-                            //   color: Colors.grey,
-                            //   height: 1,
-                            // ),
-                            Container(
-                                height: 1,
-                                width: 500,
-                                color: Colors.grey,
-
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  } else if (snapshot.hasError) {
-                    return Text('Error: ${snapshot.error}');
-                  } else {
-                    return const CircularProgressIndicator();
-                  }
-                },
-              ),
-            ),
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: IgnorePointer(
-                child: Container(
-                  //height: 150,
-                    height: baseSize * (isTablet(context) ? 0.28 : 0.2),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        stops: [0.0, 1.0],
-                        colors: [
-                          // Colors.transparent,
-                          // Color(0xFFFFF0DC),
-                          //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                          Color(0xFFFED09A).withOpacity(0.0),
-                          Color(0xFFFED09A),
-                        ],
-                      ),
-                    )
+                                const Divider(
+                                  color: Colors.grey,
+                                  height: 1,
+                                ),
+                              ],
+                            );
+                          } else {
+                            return Column(
+                              children: [
+                                Padding(
+                                  padding: EdgeInsets.symmetric(
+                                      vertical: screenHeight * (isTablet(context) ? 0.01 : 0.01),
+                                      horizontal: screenWidth * (isTablet(context) ? 0.01 : 0.01)
+                                  ),
+                                  child: InkWell(
+                                    onTap: () async {
+                                      if (module.downloadLink != null && module.downloadLink!.isNotEmpty) {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) => ModuleInfo(
+                                              moduleName: moduleName,
+                                              moduleDescription: moduleDescription,
+                                              downloadLink: downloadLink,
+                                            ),
+                                          ),
+                                        );
+                                      } else {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('No download link found for ${module.name}')),
+                                        );
+                                      }
+                                    },
+                                    child: Center(
+                                      child: Text(
+                                        moduleName,
+                                        style: TextStyle(
+                                          color: Color(0xFF0070C0),
+                                          fontSize: screenHeight * (isTablet(context) ? 0.045 : 0.055),
+                                          fontFamilyFallback: [
+                                            'NotoSans',
+                                            'NotoSerif',
+                                            'Roboto',
+                                            'sans-serif',
+                                          ],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const Divider(
+                                  color: Colors.grey,
+                                  height: 1,
+                                ),
+                              ],
+                            );
+                          }
+                        },
+                      );
+                    } else if (snapshot.hasError) {
+                      return Text('Error: ${snapshot.error}');
+                    } else {
+                      return const CircularProgressIndicator();
+                    }
+                  },
                 ),
               ),
-            ),
-          ],
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  child: Container(
+                    //height: 150,
+                      height: screenHeight * 0.2,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          stops: [0.0, 1.0],
+                          colors: [
+                            // Colors.transparent,
+                            // Color(0xFFFFF0DC),
+                            //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                            Color(0xFFFED09A).withOpacity(0.0),
+                            Color(0xFFFED09A),
+                          ],
+                        ),
+                      )
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
+        // Flexible(
+        //     flex: 1,
+        //     child: SizedBox(
+        //         height: baseSize * (isTablet(context) ? .17 : 0.2)
+        //     )
+        // ),
       ],
     );
   }

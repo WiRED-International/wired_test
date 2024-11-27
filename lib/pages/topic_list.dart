@@ -15,66 +15,68 @@ import 'module_library.dart';
 
 class TopicList extends StatefulWidget {
   final String category;
-  final String topicName;
+  final int categoryId;
 
-  const TopicList({Key? key, required this.category, required this.topicName}) : super(key: key);
+  const TopicList({Key? key, required this.category, required this.categoryId}) : super(key: key);
   @override
   _TopicListState createState() => _TopicListState();
 }
 
-class Topic {
+class SubCategory {
   String? name;
-  String? category;
-  String? id;
+  int? categoryId;
+  int? subcategoryId;
 
-  Topic({
+  SubCategory({
     this.name,
-    this.category,
-    this.id,
+    this.categoryId,
+    this.subcategoryId,
   });
 
-  Topic.fromJson(Map<String, dynamic> json)
-      : name = json['name'] as String?,
-        category = json['category'] as String?,
-        id = json['id'] as String;
+  SubCategory.fromJson(Map<String, dynamic> json) {
+    name = json['name'] as String?;
+    categoryId = json['category_id'] as int?; // Convert category_id to string if it's an int
+    subcategoryId = json['id'] as int; // Convert id to string if necessary
+  }
 
   Map<String, dynamic> toJson() => {
     'name': name,
-    'category': category,
-    'id': id,
+    'categoryId': categoryId,
+    'subcategoryId': subcategoryId,
   };
 }
 
 class _TopicListState extends State<TopicList> {
-  late Future<List<Topic>> futureTopics;
+  late Future<List<SubCategory>> futureSubcategories;
   List<String> topicNames = [];
 
-  Future<List<Topic>> fetchTopics() async {
+  Future<List<SubCategory>> fetchSubcategories() async {
     try {
       final response = await http.get(Uri.parse(
-          'https://obrpqbo4eb.execute-api.us-west-2.amazonaws.com/api/topics'));
+          'http://widm.wiredhealthresources.net/apiv2/subCategories'));
 
       debugPrint("Response body: ${response.body}");
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-
+        //final List<dynamic> data = jsonDecode(response.body);
         // Check what data is being decoded
         debugPrint("Fetched Data: $data");
 
         // Ensure that the data is a List
         if (data is List) {
           print("Data is a List");
-          List<Topic> topics = data.map<Topic>((e) => Topic.fromJson(e)).toList();
+          List<SubCategory> subCategories = data.map<SubCategory>((e) => SubCategory.fromJson(e)).toList();
 
-          // Filter topics based on the widget.category
-          topics = topics.where((topic) => topic.category == widget.category).toList();
+          List<SubCategory> filteredSubCategories = subCategories
+              .where((subCategory) => subCategory.categoryId == widget.categoryId)
+              .toList();
 
           // Sort the topics by name
-          topics.sort((a, b) => a.name!.compareTo(b.name!));
+          filteredSubCategories.sort((a, b) => a.name!.compareTo(b.name!));
 
-          debugPrint("Parsed Topics Length: ${topics.length}");
-          return topics;
+          debugPrint("Parsed Topics Length: ${subCategories.length}");
+          return filteredSubCategories;
         } else {
           debugPrint("Data is not a list");
         }
@@ -90,7 +92,7 @@ class _TopicListState extends State<TopicList> {
   @override
   void initState() {
     super.initState();
-    futureTopics = fetchTopics();
+    futureSubcategories = fetchSubcategories();
   }
 
   @override
@@ -197,6 +199,7 @@ class _TopicListState extends State<TopicList> {
   }
 
   Widget _buildPortraitLayout(screenWidth, screenHeight) {
+    var baseSize = MediaQuery.of(context).size.shortestSide;
     return Column(
       children: [
         Container(
@@ -205,7 +208,7 @@ class _TopicListState extends State<TopicList> {
               Text(
                 widget.category,
                 style: TextStyle(
-                  fontSize: screenWidth * 0.085,
+                  fontSize: baseSize * (isTablet(context) ? 0.08 : 0.08),
                   fontWeight: FontWeight.w500,
                   color: Color(0xFF548235),
                 ),
@@ -215,105 +218,110 @@ class _TopicListState extends State<TopicList> {
           ),
         ),
         const SizedBox(height: 10),
-        Stack(
-          children: [
-            Container(
-              height: screenHeight * 0.61,
-              width: screenWidth * 1.0,
-              decoration: BoxDecoration(
-                color: Colors.transparent,
-              ),
-              child: FutureBuilder<List<Topic>>(
-                future: futureTopics,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const CircularProgressIndicator();
-                  } else if (snapshot.hasError) {
-                    return Text('Error: ${snapshot.error}');
-                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Text('No topics available');
-                  } else {
-                    final topics = snapshot.data!;
-                    debugPrint("Number of Topics: ${topics.length}");
-                    return ListView.builder(
-                      itemCount: topics.length + 1,
-                      itemBuilder: (context, index) {
-                        if (index == topics.length) {
-                          return const SizedBox(
-                            height: 160,
-                          );
-                        }
-                        final topic = topics[index];
-                        final topicName = topic.name ?? "Unknown Module";
-                        final category = topic.category ?? "Category not found";
-                        final id = topic.id ?? "Unknown ID";
-                        return Column(
-                          children: [
-                            InkWell(
-                              onTap: () async {
-                                //print("Downloading ${moduleData[index].downloadLink}");
-                                if (category.isNotEmpty) {
-                                  // String fileName = "$moduleName.zip";
-                                  // await downloadModule(downloadLink, fileName);
-                                  Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleByTopic(topicName: topicName, id: id)));
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('No category found for ${topics[index].category}')),
-                                  );
-                                }
-                              },
-                              child: Center(
-                                child: ListTile(
-                                  title: Text(
-                                    topicName,
-                                    style: TextStyle(
-                                      fontSize: screenWidth * 0.074,
-                                      fontWeight: FontWeight.w500,
-                                      color: Color(0xFF0070C0),
+        Flexible(
+          //flex: 3,
+          child: Stack(
+            children: [
+              Container(
+                //height: screenHeight * 0.61,
+                //height: baseSize * (isTablet(context) ? 0.08 : 1.5),
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.transparent,
+                ),
+                child: FutureBuilder<List<SubCategory>>(
+                  future: futureSubcategories,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const CircularProgressIndicator();
+                    } else if (snapshot.hasError) {
+                      return Text('Error: ${snapshot.error}');
+                    } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return const Text('No topics available');
+                    } else {
+                      final List<SubCategory> subcategories = snapshot.data!;
+                      debugPrint("Number of Topics: ${subcategories.length}");
+                      return ListView.builder(
+                        itemCount: subcategories.length + 1,
+                        itemBuilder: (context, index) {
+                          if (index == subcategories.length) {
+                            return const SizedBox(
+                              height: 160,
+                            );
+                          }
+                          final subCategory = subcategories[index];
+                          final subcategoryName = subCategory.name ?? "Unknown SubCategory";
+                          final subcategoryId = subCategory.subcategoryId ?? 0;
+                          return Column(
+                            children: [
+                              InkWell(
+                                onTap: () async {
+                                  //print("Downloading ${moduleData[index].downloadLink}");
+                                  if (subcategoryName.isNotEmpty) {
+                                    // String fileName = "$moduleName.zip";
+                                    // await downloadModule(downloadLink, fileName);
+                                    Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleByTopic(subcategoryName: subcategoryName, subcategoryId: subcategoryId)));
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('No category found for ${subCategory.categoryId}')),
+                                    );
+                                  }
+                                },
+                                child: Center(
+                                  child: ListTile(
+                                    title: Text(
+                                      subcategoryName,
+                                      style: TextStyle(
+                                        fontSize: baseSize * (isTablet(context) ? 0.054 : 0.054),
+                                        fontWeight: FontWeight.w500,
+                                        color: Color(0xFF0070C0),
+                                      ),
+                                      textAlign: TextAlign.center,
                                     ),
-                                    textAlign: TextAlign.center,
                                   ),
                                 ),
                               ),
-                            ),
-                            const Divider(
-                              color: Colors.grey,
-                              height: 1,
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  }
-                },
-              ),
-            ),
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: IgnorePointer(
-                child: Container(
-                    height: 150,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        stops: [0.0, 1.0],
-                        colors: [
-                          // Colors.transparent,
-                          // Color(0xFFFFF0DC),
-                          //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                          Color(0xFFFED09A).withOpacity(0.0),
-                          Color(0xFFFED09A),
-                        ],
-                      ),
-                    )
+                              Container(
+                                color: Colors.grey,
+                                height: 1,
+                                width: baseSize * (isTablet(context) ? 0.75 : 0.85),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    }
+                  },
                 ),
               ),
-            ),
-          ],
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  child: Container(
+                      height: 150,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          stops: [0.0, 1.0],
+                          colors: [
+                            // Colors.transparent,
+                            // Color(0xFFFFF0DC),
+                            //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                            Color(0xFFFED09A).withOpacity(0.0),
+                            Color(0xFFFED09A),
+                          ],
+                        ),
+                      )
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
+        //SizedBox(height: baseSize * (isTablet(context) ? .17 : 0.05)),
       ],
     );
   }
@@ -340,111 +348,112 @@ class _TopicListState extends State<TopicList> {
         SizedBox(
           height: baseSize * (isTablet(context) ? 0.015 : 0.015),
         ),
-        Stack(
-          children: [
-            Container(
-              height: baseSize * (isTablet(context) ? 0.68 : 0.68),
-              width: baseSize * (isTablet(context) ? 1.25 : 1.0),
-              decoration: BoxDecoration(
-                color: Colors.transparent,
-              ),
-              child: FutureBuilder<List<Topic>>(
-                future: futureTopics,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const CircularProgressIndicator();
-                  } else if (snapshot.hasError) {
-                    return Text('Error: ${snapshot.error}');
-                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Text('No topics available');
-                  } else {
-                    final topics = snapshot.data!;
-                    debugPrint("Number of Topics: ${topics.length}");
-                    return ListView.builder(
-                      itemCount: topics.length + 1,
-                      itemBuilder: (context, index) {
-                        if (index == topics.length) {
-                          return const SizedBox(
-                            height: 160,
-                          );
-                        }
-                        final topic = topics[index];
-                        final topicName = topic.name ?? "Unknown Module";
-                        final category = topic.category ?? "Category not found";
-                        final id = topic.id ?? "Unknown ID";
-                        return Column(
-                          children: [
-                            InkWell(
-                              onTap: () async {
-                                //print("Downloading ${moduleData[index].downloadLink}");
-                                if (category.isNotEmpty) {
-                                  // String fileName = "$moduleName.zip";
-                                  // await downloadModule(downloadLink, fileName);
-                                  Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleByTopic(topicName: topicName, id: id)));
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('No category found for ${topics[index].category}')),
-                                  );
-                                }
-                              },
-                              child: Center(
-                                child: ListTile(
-                                  title: Text(
-                                    topicName,
-                                    style: TextStyle(
-                                      fontSize: baseSize * (isTablet(context) ? 0.0667 : 0.0667),
-                                      fontFamilyFallback: [
-                                        'NotoSans',
-                                        'NotoSerif',
-                                        'Roboto',
-                                        'sans-serif'
-                                      ],
-                                      fontWeight: FontWeight.w500,
-                                      color: Color(0xFF0070C0),
+        Flexible(
+          child: Stack(
+            children: [
+              Container(
+                //height: baseSize * (isTablet(context) ? 0.68 : 0.68),
+                //width: baseSize * (isTablet(context) ? 1.25 : 1.0),
+                decoration: BoxDecoration(
+                  color: Colors.transparent,
+                ),
+                child: FutureBuilder<List<SubCategory>>(
+                  future: futureSubcategories,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const CircularProgressIndicator();
+                    } else if (snapshot.hasError) {
+                      return Text('Error: ${snapshot.error}');
+                    } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return const Text('No topics available');
+                    } else {
+                      final List<SubCategory> subcategories = snapshot.data!;
+                      debugPrint("Number of Topics: ${subcategories.length}");
+                      return ListView.builder(
+                        itemCount: subcategories.length + 1,
+                        itemBuilder: (context, index) {
+                          if (index == subcategories.length) {
+                            return const SizedBox(
+                              height: 160,
+                            );
+                          }
+                          final subCategory = subcategories[index];
+                          final subcategoryName = subCategory.name ?? "Unknown SubCategory";
+                          final subcategoryId = subCategory.subcategoryId ?? 0;
+                          return Column(
+                            children: [
+                              InkWell(
+                                onTap: () async {
+                                  //print("Downloading ${moduleData[index].downloadLink}");
+                                  if (subcategoryName.isNotEmpty) {
+                                    // String fileName = "$moduleName.zip";
+                                    // await downloadModule(downloadLink, fileName);
+                                    Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleByTopic(subcategoryName: subcategoryName, subcategoryId: subcategoryId)));
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('No category found for ${subCategory.categoryId}')),
+                                    );
+                                  }
+                                },
+                                child: Center(
+                                  child: ListTile(
+                                    title: Text(
+                                      subcategoryName,
+                                      style: TextStyle(
+                                        fontSize: baseSize * (isTablet(context) ? 0.05 : 0.05),
+                                        fontFamilyFallback: [
+                                          'NotoSans',
+                                          'NotoSerif',
+                                          'Roboto',
+                                          'sans-serif'
+                                        ],
+                                        fontWeight: FontWeight.w500,
+                                        color: Color(0xFF0070C0),
+                                      ),
+                                      textAlign: TextAlign.center,
                                     ),
-                                    textAlign: TextAlign.center,
                                   ),
                                 ),
                               ),
-                            ),
-                            Container(
-                              height: 1,
-                              width: 500,
-                              color: Colors.grey,
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  }
-                },
-              ),
-            ),
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: IgnorePointer(
-                child: Container(
-                    height: 150,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        stops: [0.0, 1.0],
-                        colors: [
-                          // Colors.transparent,
-                          // Color(0xFFFFF0DC),
-                          //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                          Color(0xFFFED09A).withOpacity(0.0),
-                          Color(0xFFFED09A),
-                        ],
-                      ),
-                    )
+                              Container(
+                                height: 1,
+                                width: 500,
+                                color: Colors.grey,
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    }
+                  },
                 ),
               ),
-            ),
-          ],
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  child: Container(
+                      height: 150,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          stops: [0.0, 1.0],
+                          colors: [
+                            // Colors.transparent,
+                            // Color(0xFFFFF0DC),
+                            //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                            Color(0xFFFED09A).withOpacity(0.0),
+                            Color(0xFFFED09A),
+                          ],
+                        ),
+                      )
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );

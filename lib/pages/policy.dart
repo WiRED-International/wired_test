@@ -53,6 +53,7 @@ If you have any questions or concerns about this Privacy Policy, please contact 
     Widget build(BuildContext context) {
       var screenWidth = MediaQuery.of(context).size.width;
       var screenHeight = MediaQuery.of(context).size.height;
+      var baseSize = MediaQuery.of(context).size.shortestSide;
       bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
       return Scaffold(
@@ -109,8 +110,8 @@ If you have any questions or concerns about this Privacy Policy, please contact 
                         Expanded(
                           child: Center(
                             child: isLandscape
-                                ? _buildLandscapeLayout(context, screenWidth, screenHeight)
-                                : _buildPortraitLayout(context, screenWidth, screenHeight),
+                                ? _buildLandscapeLayout(context, screenWidth, screenHeight, baseSize)
+                                : _buildPortraitLayout(context, screenWidth, screenHeight, baseSize),
                           ),
                         ),
                       ],
@@ -145,139 +146,130 @@ If you have any questions or concerns about this Privacy Policy, please contact 
       );
     }
 
-    // Adjusted methods to pass `context`
-    Widget _buildPortraitLayout(BuildContext context, screenWidth, screenHeight) {
-      var baseSize = MediaQuery.of(context).size.shortestSide;
-      return Column(
-        children: [
-          // Module Description Container
-          Flexible(
-            child: Stack(
-              children: [
-                Positioned(
-                  left: MediaQuery.of(context).size.width / 15,
-                  right: MediaQuery.of(context).size.width / 15,
-                  bottom: baseSize * (isTablet(context) ? 0.08 : 0.08),
+  Widget _buildPortraitLayout(BuildContext context, screenWidth, screenHeight, baseSize) {
+    return Column(
+      children: [
+        // Module Description Container
+        Flexible(
+          child: Stack(
+            children: [
+              Container(
+                // height: baseSize * (isTablet(context) ? 1.16 : 1.3),
+                width: baseSize * (isTablet(context) ? 0.9 : 0.9),
+                decoration: BoxDecoration(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      bottom: baseSize * (isTablet(context) ? 0.17 : 0.17),
+                      top: 15,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          privacyPolicy,
+                          style: TextStyle(
+                            fontSize: baseSize * (isTablet(context) ? 0.03 : 0.03),
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
                   child: Container(
-                    height: baseSize * (isTablet(context) ? 1.16 : 1.3),
-                    width: 400,
+                    height: baseSize * (isTablet(context) ? 0.3 : 0.3),
                     decoration: BoxDecoration(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: SingleChildScrollView(
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                            bottom: baseSize * (isTablet(context) ? 0.17 : 0.17),
-                            top: 50,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              privacyPolicy,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.black,
-                              ),
-                            ),
-                          ],
-                        ),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: [0.0, 1.0],
+                        colors: [
+                          Color(0xFFFDD09A).withOpacity(0.0),
+                          Color(0xFFFDD09A),
+                        ],
                       ),
                     ),
                   ),
                 ),
-                Positioned(
-                  bottom: baseSize * (isTablet(context) ? 0.08 : 0.08),
-                  left: 0,
-                  right: 0,
-                  child: IgnorePointer(
-                    child: Container(
-                      height: baseSize * (isTablet(context) ? 0.3 : 0.3),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          stops: [0.0, 1.0],
-                          colors: [
-                            Color(0xFFFCDBB3).withOpacity(0.0),
-                            Color(0xFFFED39F),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      );
-    }
+        ),
+      ],
+    );
+  }
 
-    Widget _buildLandscapeLayout(BuildContext context, screenWidth, screenHeight) {
-      return Column(
-        children: [
-          Flexible(
-            child: Stack(
-              children: [
-                Positioned(
-                  left: MediaQuery.of(context).size.width / 15,
-                  right: MediaQuery.of(context).size.width / 15,
-                  bottom: screenHeight * 0.14,
+  Widget _buildLandscapeLayout(BuildContext context, screenWidth, screenHeight, baseSize) {
+    return Column(
+      children: [
+        Flexible(
+          child: Stack(
+            children: [
+              Container(
+                //height: screenHeight * 0.80,
+                width: baseSize * (isTablet(context) ? 1.5 : 1.5),
+                decoration: BoxDecoration(
+                  color: Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      bottom: baseSize * (isTablet(context) ? 0.17 : 0.17),
+                      top: 15,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          privacyPolicy,
+                          style: TextStyle(
+                            fontSize: baseSize * (isTablet(context) ? 0.03 : 0.03),
+                            fontWeight: FontWeight.w500,
+                            color: Colors.black,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
                   child: Container(
-                    height: screenHeight * 0.80,
-                    width: 400,
+                    height: 80,
                     decoration: BoxDecoration(
-                      color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: SingleChildScrollView(
-                      child: Padding(
-                        padding: EdgeInsets.only(bottom: 50, top: 50),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              privacyPolicy,
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.black,
-                              ),
-                            ),
-                          ],
-                        ),
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: [0.0, 5.0],
+                        colors: [
+                          Color(0xFFFCDBB3).withOpacity(0.0),
+                          Color(0xFFFED39F),
+                        ],
                       ),
                     ),
                   ),
                 ),
-                Positioned(
-                  bottom: screenHeight * 0.14,
-                  left: 0,
-                  right: 0,
-                  child: IgnorePointer(
-                    child: Container(
-                      height: 80,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          stops: [0.0, 5.0],
-                          colors: [
-                            Color(0xFFFCDBB3).withOpacity(0.0),
-                            Color(0xFFFED39F),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      );
-    }
+        ),
+      ],
+    );
+  }
   }
