@@ -21,37 +21,21 @@ class ByTopic extends StatefulWidget {
 
 class Category {
   String? name;
-  String? category;
-  String? id;
+  int? id;
 
   Category({
     this.name,
-    this.category,
     this.id,
   });
 
   Category.fromJson(Map<String, dynamic> json)
       : name = json['name'] as String?,
-        category = json['category'] as String?,
-        id = json['id'] as String;
+        id = json['id'] is int ? json['id'] : int.tryParse(json['id'].toString() ?? '');
 
   Map<String, dynamic> toJson() => {
     'name': name,
-    'category': category,
     'id': id,
   };
-
-  // Override == operator to compare Category objects by their category field
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-
-    return other is Category && other.category == category;
-  }
-
-  // Override hashCode to ensure it is consistent with the == operator
-  @override
-  int get hashCode => category?.hashCode ?? 0;
 }
 
 class _ByTopicState extends State<ByTopic> {
@@ -60,29 +44,25 @@ class _ByTopicState extends State<ByTopic> {
   Future<List<Category>> fetchCategories() async {
     try {
       final response = await http.get(Uri.parse(
-          'https://obrpqbo4eb.execute-api.us-west-2.amazonaws.com/api/topics'));
+          'http://widm.wiredhealthresources.net/apiv2/categories'));
 
       debugPrint("Response body: ${response.body}");
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        // Check what data is being decoded
         debugPrint("Fetched Data: $data");
 
-        // Ensure that the data is a List
         if (data is List) {
           print("Data is a List");
           List<Category> categories = data.map<Category>((e) =>
               Category.fromJson(e)).toList();
 
           // Filter out categories with null or empty names
-          categories = categories.where((c) => c.category != null &&
-              c.category!.isNotEmpty).toList();
+          categories = categories.where((c) => c.name != null && c.name!.isNotEmpty).toList();
 
           // Sort the list by category name
-          categories.sort((a, b) =>
-              a.category!.toLowerCase().compareTo(b.category!.toLowerCase()));
+          categories.sort((a, b) => a.name!.toLowerCase().compareTo(b.name!.toLowerCase()));
 
           // Remove duplicates by converting to a Set and back to a List
           categories = categories.toSet().toList();
@@ -208,7 +188,9 @@ class _ByTopicState extends State<ByTopic> {
   }
 
   Widget _buildPortraitLayout(screenWidth, screenHeight) {
+    var baseSize = MediaQuery.of(context).size.shortestSide;
     return Column(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         SizedBox(height: 10),
         Container(
@@ -217,7 +199,7 @@ class _ByTopicState extends State<ByTopic> {
               Text(
                 "Search by Topic",
                 style: TextStyle(
-                  fontSize: screenWidth * 0.085,
+                  fontSize: baseSize * (isTablet(context) ? 0.08 : 0.08),
                   fontWeight: FontWeight.w500,
                   color: Color(0xFF548235),
                 ),
@@ -225,95 +207,99 @@ class _ByTopicState extends State<ByTopic> {
             ],
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 10),
         // List of topics container
-        Stack(
-          children: [
-            Container(
-              height: screenHeight * 0.65,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: Colors.transparent,
-              ),
-              child: FutureBuilder<List<Category>>(
-                future: futureCategories,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const CircularProgressIndicator();
-                  } else if (snapshot.hasError) {
-                    return Text('Error: ${snapshot.error}');
-                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Text('No categories available');
-                  } else {
-                    final categories = snapshot.data!;
-                    debugPrint("Number of Categories: ${categories.length}");
-                    return ListView.builder(
-                      itemCount: categories.length + 1,
-                      itemBuilder: (context, index) {
-                        if (index == categories.length) {
-                          return const SizedBox(
-                            height: 160,
-                          );
-                        }
-                        final topic = categories[index];
-                        final topicName = topic.name ?? "Unknown Module";
-                        final category = topic.category ?? "Category not found";
-                        return Column(
-                          children: [
-                            InkWell(
-                              onTap: () async {
-                                //print("Downloading ${moduleData[index].downloadLink}");
-                                if (category.isNotEmpty) {
-                                  // String fileName = "$moduleName.zip";
-                                  // await downloadModule(downloadLink, fileName);
-                                  Navigator.push(context, MaterialPageRoute(
-                                      builder: (context) => TopicList(
-                                          category: category,
-                                          topicName: topicName)));
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(
-                                        'No category found for ${categories[index]
-                                            .category}')),
-                                  );
-                                }
-                              },
-                              child: Center(
-                                child: ListTile(
-                                  title: Padding(
-                                    padding: const EdgeInsets.only(
-                                        top: 10, bottom: 10),
-                                    child: Text(
-                                      category,
-                                      style: TextStyle(
-                                        fontSize: screenWidth * 0.074,
-                                        fontWeight: FontWeight.w500,
-                                        color: Color(0xFF0070C0),
+        Flexible(
+          flex: 3,
+          child: Stack(
+            children: [
+              Container(
+                height: baseSize * (isTablet(context) ? 1.5 : 1.5),
+                //height: screenHeight * 0.65,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: Colors.transparent,
+                ),
+                child: FutureBuilder<List<Category>>(
+                  future: futureCategories,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const CircularProgressIndicator();
+                    } else if (snapshot.hasError) {
+                      return Text('Error: ${snapshot.error}');
+                    } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return const Text('No categories available');
+                    } else {
+                      final categories = snapshot.data!;
+                      debugPrint("Number of Categories: ${categories.length}");
+                      return ListView.builder(
+                        itemCount: categories.length + 1,
+                        itemBuilder: (context, index) {
+                          if (index == categories.length) {
+                            return const SizedBox(
+                              height: 160,
+                            );
+                          }
+                          final topic = categories[index];
+                          final topicName = topic.name ?? "Unknown Module";
+                          final categoryId = topic.id ?? 0;
+                          return Column(
+                            children: [
+                              InkWell(
+                                onTap: () async {
+                                  //print("Downloading ${moduleData[index].downloadLink}");
+                                  if (topicName.isNotEmpty) {
+                                    // String fileName = "$moduleName.zip";
+                                    // await downloadModule(downloadLink, fileName);
+                                    Navigator.push(context, MaterialPageRoute(
+                                        builder: (context) => TopicList(
+                                            category: topicName,
+                                            categoryId: categoryId)));
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(
+                                          'No category found for ${categories[index]
+                                              .name}')),
+                                    );
+                                  }
+                                },
+                                child: Center(
+                                  child: ListTile(
+                                    title: Padding(
+                                      padding: const EdgeInsets.only(
+                                          top: 5, bottom: 5),
+                                      child: Text(
+                                        topicName,
+                                        style: TextStyle(
+                                          fontSize: baseSize * (isTablet(context) ? 0.054 : 0.054),
+                                          fontWeight: FontWeight.w500,
+                                          color: Color(0xFF0070C0),
+                                        ),
+                                        textAlign: TextAlign.center,
                                       ),
-                                      textAlign: TextAlign.center,
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                            const Divider(
-                              color: Colors.grey,
-                              height: 1,
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  }
-                },
+                              Container(
+                                color: Colors.grey,
+                                height: 1,
+                                width: baseSize * (isTablet(context) ? 0.75 : 0.7),
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    }
+                  },
+                ),
               ),
-            ),
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: IgnorePointer(
-                child: Container(
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  child: Container(
                     height: 150,
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
@@ -329,10 +315,11 @@ class _ByTopicState extends State<ByTopic> {
                         ],
                       ),
                     )
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -342,16 +329,16 @@ class _ByTopicState extends State<ByTopic> {
     var baseSize = MediaQuery.of(context).size.shortestSide;
     return Column(
       children: [
-        SizedBox(
-          height: baseSize * (isTablet(context) ? 0.03 : 0.03),
-        ),
+        // SizedBox(
+        //   height: baseSize * (isTablet(context) ? 0.03 : 0.03),
+        // ),
         Container(
           child: Column(
             children: [
               Text(
                 "Search by Topic",
                 style: TextStyle(
-                  fontSize: baseSize * (isTablet(context) ? 0.07 : 0.07),
+                  fontSize: baseSize * (isTablet(context) ? 0.08 : 0.08),
                   fontWeight: FontWeight.w500,
                   color: Color(0xFF548235),
                 ),
@@ -363,119 +350,122 @@ class _ByTopicState extends State<ByTopic> {
           height: baseSize * (isTablet(context) ? 0.015 : 0.015),
         ),
         // List of topics container
-        Stack(
-          children: [
-            Container(
-              height: baseSize * (isTablet(context) ? 0.68 : 0.68),
-              width: baseSize * (isTablet(context) ? 1.25 : 1.0),
-              decoration: BoxDecoration(
-                color: Colors.transparent,
-              ),
-              child: FutureBuilder<List<Category>>(
-                future: futureCategories,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const CircularProgressIndicator();
-                  } else if (snapshot.hasError) {
-                    return Text('Error: ${snapshot.error}');
-                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Text('No categories available');
-                  } else {
-                    final categories = snapshot.data!;
-                    debugPrint("Number of Categories: ${categories.length}");
-                    return ListView.builder(
-                      itemCount: categories.length + 1,
-                      itemBuilder: (context, index) {
-                        if (index == categories.length) {
-                          return const SizedBox(
-                            height: 160,
-                          );
-                        }
-                        final topic = categories[index];
-                        final topicName = topic.name ?? "Unknown Module";
-                        final category = topic.category ?? "Category not found";
-                        return Column(
-                          children: [
-                            InkWell(
-                              onTap: () async {
-                                //print("Downloading ${moduleData[index].downloadLink}");
-                                if (category.isNotEmpty) {
-                                  // String fileName = "$moduleName.zip";
-                                  // await downloadModule(downloadLink, fileName);
-                                  Navigator.push(context, MaterialPageRoute(
-                                      builder: (context) => TopicList(
-                                          category: category,
-                                          topicName: topicName)));
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(
-                                        'No category found for ${categories[index]
-                                            .category}')),
-                                  );
-                                }
-                              },
-                              child: Center(
-                                child: ListTile(
-                                  title: Padding(
-                                    padding: const EdgeInsets.only(
-                                        top: 10, bottom: 10),
-                                    child: Text(
-                                      category,
-                                      style: TextStyle(
-                                        fontSize: baseSize * (isTablet(context) ? 0.0667 : 0.0667),
-                                        fontFamilyFallback: [
-                                          'NotoSans',
-                                          'NotoSerif',
-                                          'Roboto',
-                                          'sans-serif'
-                                        ],
-                                        fontWeight: FontWeight.w500,
-                                        color: Color(0xFF0070C0),
+        Flexible(
+          flex: 3,
+          child: Stack(
+            children: [
+              Container(
+                height: baseSize * (isTablet(context) ? 0.68 : 0.68),
+                width: baseSize * (isTablet(context) ? 1.25 : 1.25),
+                decoration: BoxDecoration(
+                  color: Colors.transparent,
+                ),
+                child: FutureBuilder<List<Category>>(
+                  future: futureCategories,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const CircularProgressIndicator();
+                    } else if (snapshot.hasError) {
+                      return Text('Error: ${snapshot.error}');
+                    } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return const Text('No categories available');
+                    } else {
+                      final categories = snapshot.data!;
+                      debugPrint("Number of Categories: ${categories.length}");
+                      return ListView.builder(
+                        itemCount: categories.length + 1,
+                        itemBuilder: (context, index) {
+                          if (index == categories.length) {
+                            return const SizedBox(
+                              height: 160,
+                            );
+                          }
+                          final topic = categories[index];
+                          final topicName = topic.name ?? "Unknown Module";
+                          final categoryId = topic.id ?? 0;
+                          return Column(
+                            children: [
+                              InkWell(
+                                onTap: () async {
+                                  //print("Downloading ${moduleData[index].downloadLink}");
+                                  if (topicName.isNotEmpty) {
+                                    // String fileName = "$moduleName.zip";
+                                    // await downloadModule(downloadLink, fileName);
+                                    Navigator.push(context, MaterialPageRoute(
+                                        builder: (context) => TopicList(
+                                            category: topicName,
+                                            categoryId: categoryId)));
+                                  } else {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text(
+                                          'No category found for ${categories[index]
+                                              .name}')),
+                                    );
+                                  }
+                                },
+                                child: Center(
+                                  child: ListTile(
+                                    title: Padding(
+                                      padding: const EdgeInsets.only(
+                                          top: 10, bottom: 10),
+                                      child: Text(
+                                        topicName,
+                                        style: TextStyle(
+                                          fontSize: baseSize * (isTablet(context) ? 0.054 : 0.054),
+                                          fontFamilyFallback: [
+                                            'NotoSans',
+                                            'NotoSerif',
+                                            'Roboto',
+                                            'sans-serif'
+                                          ],
+                                          fontWeight: FontWeight.w500,
+                                          color: Color(0xFF0070C0),
+                                        ),
+                                        textAlign: TextAlign.center,
                                       ),
-                                      textAlign: TextAlign.center,
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                            Container(
-                              height: 1,
-                              width: 500,
-                              color: Colors.grey,
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  }
-                },
-              ),
-            ),
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: IgnorePointer(
-                child: Container(
-                    height: 150,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        stops: [0.0, 1.0],
-                        colors: [
-                          // Colors.transparent,
-                          // Color(0xFFFFF0DC),
-                          //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                          Color(0xFFFED09A).withOpacity(0.0),
-                          Color(0xFFFED09A),
-                        ],
-                      ),
-                    )
+                              Container(
+                                height: 1,
+                                width: 500,
+                                color: Colors.grey,
+                              ),
+                            ],
+                          );
+                        },
+                      );
+                    }
+                  },
                 ),
               ),
-            ),
-          ],
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  child: Container(
+                      height: 150,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          stops: [0.0, 1.0],
+                          colors: [
+                            // Colors.transparent,
+                            // Color(0xFFFFF0DC),
+                            //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                            Color(0xFFFED09A).withOpacity(0.0),
+                            Color(0xFFFED09A),
+                          ],
+                        ),
+                      )
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );

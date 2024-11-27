@@ -7,8 +7,10 @@ import '../utils/custom_nav_bar.dart';
 import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
 import 'by_alphabet.dart';
+import 'by_packages.dart';
 import 'by_topic.dart';
 import 'module_library.dart';
+
 
 class Search extends StatefulWidget {
   @override
@@ -24,96 +26,114 @@ class _SearchState extends State<Search> {
     bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
     return Scaffold(
-      body: Row(
-        children: [
-          // Conditionally show the side navigation bar in landscape mode
-          if (isLandscape)
-            CustomSideNavBar(
-              onHomeTap: () {
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => MyHomePage()));
-              },
-              onLibraryTap: () {
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => ModuleLibrary()));
-              },
-              onHelpTap: () {
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => const Policy()));
-              },
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFFFFF0DC),
+                    Color(0xFFF9EBD9),
+                    Color(0xFFFFC888),
+                  ],
+                ),
+              ),
             ),
+            Column(
+              children: [
+                // Custom AppBar
+                CustomAppBar(
+                  onBackPressed: () {
+                    Navigator.pop(context);
+                  },
+                ),
+                // Expanded layout for the main content
+                Expanded(
+                  child: Row(
+                    children: [
+                      if (isLandscape)
+                        CustomSideNavBar(
+                          onHomeTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => MyHomePage()),
+                            );
+                          },
+                          onLibraryTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => ModuleLibrary()),
+                            );
+                          },
+                          onHelpTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => const Policy()),
+                            );
+                          },
+                        ),
 
-          // Main content area (expanded to fill remaining space)
-          Expanded(
-            child: Stack(
-              children: <Widget>[
-                Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Color(0xFFFFF0DC),
-                        Color(0xFFF9EBD9),
-                        Color(0xFFFFC888),
-                      ],
-                    ),
-                  ),
-                  child: SafeArea(
-                    child: Center(
-                      child: isLandscape ? _buildLandscapeLayout(screenWidth, screenHeight) : _buildPortraitLayout(screenWidth, screenHeight),
-                    ),
+                      // Main content area (expanded to fill remaining space)
+                      Expanded(
+                        child: Center(
+                          child: isLandscape
+                              ? _buildLandscapeLayout(screenWidth, screenHeight, baseSize)
+                              : _buildPortraitLayout(screenWidth, screenHeight, baseSize),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                // Conditionally show the bottom navigation bar in portrait mode
+
                 if (!isLandscape)
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: CustomBottomNavBar(
-                      onHomeTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (context) => MyHomePage()),
-                        );
-                      },
-                      onLibraryTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (
-                            context) => ModuleLibrary()));
-                      },
-                      onHelpTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (
-                            context) => const Policy()));
-                      },
-                    ),
+                  CustomBottomNavBar(
+                    onHomeTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => MyHomePage()),
+                      );
+                    },
+                    onLibraryTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => ModuleLibrary()),
+                      );
+                    },
+                    onHelpTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const Policy()),
+                      );
+                    },
                   ),
               ],
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildPortraitLayout(double screenWidth, double screenHeight) {
+  Widget _buildPortraitLayout(double screenWidth, double screenHeight, double baseSize) {
     return Column(
       children: [
-        CustomAppBar(
-          onBackPressed: () {
-            Navigator.pop(context);
-          },
-        ),
         SizedBox(
           height: screenHeight * 0.038,
         ),
         Hero(
-          tag: 'search',
+          tag: 'modules',
           child: Text(
-            'Search Modules',
+            'Modules',
             style: TextStyle(
-              fontSize: screenWidth * 0.1,
+              fontSize: baseSize * (isTablet(context) ? 0.09 : 0.09),
               fontWeight: FontWeight.w500,
               color: Color(0xFF0070C0),
             ),
@@ -133,7 +153,7 @@ class _SearchState extends State<Search> {
             Color(0xFF0070C0),
           ],
           text: 'By Alphabet',
-          width: 240,
+          width: baseSize * (isTablet(context) ? 0.3 : 0.4),
         ),
         SizedBox(
           height: screenHeight * 0.09,
@@ -149,15 +169,15 @@ class _SearchState extends State<Search> {
             Color(0xFF519921),
           ],
           text: 'By Topic',
-          width: 240,
+          width: baseSize * (isTablet(context) ? 0.3 : 0.4),
         ),
         SizedBox(
           height: screenHeight * 0.09,
         ),
         CustomButton(
           onTap: () {
-            print('Topic button pressed');
-            //Navigator.push(context, MaterialPageRoute(builder: (context) => Search()));
+            print('package button pressed');
+            Navigator.push(context, MaterialPageRoute(builder: (context) => ByPackages()));
           },
           gradientColors: [
             Color(0xFF0070C0),
@@ -165,38 +185,34 @@ class _SearchState extends State<Search> {
             Color(0xFF0070C0),
           ],
           text: 'By Package',
-          width: 240,
+          width: baseSize * (isTablet(context) ? 0.3 : 0.4),
         ),
       ],
     );
   }
 
-  Widget _buildLandscapeLayout(double screenWidth, double screenHeight) {
-    var baseSize = MediaQuery.of(context).size.shortestSide;
+  Widget _buildLandscapeLayout(double screenWidth, double screenHeight, double baseSize) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        CustomAppBar(
-          onBackPressed: () {
-            Navigator.pop(context);
-          },
-        ),
         SizedBox(
-          height: screenHeight * 0.038,
+          height: baseSize * (isTablet(context) ? 0.038 : 0.0),
         ),
-        Hero(
-          tag: 'search',
-          child: Text(
-            'Search Modules',
-            style: TextStyle(
-              fontSize: baseSize * (isTablet(context) ? 0.1 : 0.1),
-              fontWeight: FontWeight.w500,
-              color: Color(0xFF0070C0),
+        Flexible(
+          child: Hero(
+            tag: 'search',
+            child: Text(
+              'Search Modules',
+              style: TextStyle(
+                fontSize: baseSize * (isTablet(context) ? 0.09 : 0.09),
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF0070C0),
+              ),
             ),
           ),
         ),
         SizedBox(
-          height: screenHeight * 0.09,
+          height: baseSize * (isTablet(context) ? 0.1 : 0.03),
         ),
         CustomButton(
           onTap: () {
@@ -209,7 +225,7 @@ class _SearchState extends State<Search> {
             Color(0xFF0070C0),
           ],
           text: 'By Alphabet',
-          width: 240,
+          width: baseSize * (isTablet(context) ? 0.3 : 0.4),
         ),
         SizedBox(
           height: screenHeight * 0.09,
@@ -225,7 +241,7 @@ class _SearchState extends State<Search> {
             Color(0xFF519921),
           ],
           text: 'By Topic',
-          width: 240,
+          width: baseSize * (isTablet(context) ? 0.3 : 0.4),
         ),
         SizedBox(
           height: screenHeight * 0.09,
@@ -241,7 +257,7 @@ class _SearchState extends State<Search> {
             Color(0xFF0070C0),
           ],
           text: 'By Package',
-          width: 240,
+          width: baseSize * (isTablet(context) ? 0.3 : 0.4),
         ),
       ],
     );
