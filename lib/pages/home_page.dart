@@ -19,16 +19,20 @@ class MyHomePage extends StatefulWidget {
 
 class Alert {
   String? alert;
+  bool? important;
 
   Alert({
     this.alert,
+    this.important,
   });
 
   Alert.fromJson(Map<String, dynamic> json)
-      : alert = json['alert'] as String;
+      : alert = json['alert'] as String,
+        important = json['important'] as bool;
 
   Map<String, dynamic> toJson() => {
     'alert': alert,
+    'important': important,
   };
 }
 
@@ -37,8 +41,10 @@ class _MyHomePageState extends State<MyHomePage> {
   String alert = "";
 
   Future<Alert?> getAlert() async {
+    const remoteServer = 'http://widm.wiredhealthresources.net/apiv2/alerts/latest';
+    const localServer = 'http://10.0.2.2:3000/alerts/latest';
     try {
-      final response = await http.get(Uri.parse('http://widm.wiredhealthresources.net/apiv2/alerts/latest'));
+      final response = await http.get(Uri.parse(localServer));
 
       debugPrint("Response body: ${response.body}");
 
@@ -59,6 +65,7 @@ class _MyHomePageState extends State<MyHomePage> {
     return null;
   }
 
+  bool isImportant = false;
   @override
   void initState() {
     super.initState();
@@ -66,6 +73,7 @@ class _MyHomePageState extends State<MyHomePage> {
       if (alertObj != null) {
         setState(() {
           alert = alertObj.alert ?? "No alert available";
+          isImportant = alertObj.important ?? false;
         });
       }
     });
@@ -208,7 +216,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     style: TextStyle(
                       fontSize: baseSize * (isTablet(context) ? 0.035 : 0.04),
                       fontWeight: FontWeight.w500,
-                      color: Colors.black,
+                      color: isImportant ? Colors.red : Colors.black,
                     ),
                   ),
                 ),
@@ -358,7 +366,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     style: TextStyle(
                       fontSize: baseSize * (isTablet(context) ? 0.032 : 0.032),
                       fontWeight: FontWeight.w500,
-                      color: Colors.black,
+                      color: isImportant ? Colors.red : Colors.black,
                     ),
                   ),
                 ),

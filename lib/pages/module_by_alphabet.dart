@@ -25,36 +25,44 @@ class ModuleByAlphabet extends StatefulWidget {
   _ModuleByAlphabetState createState() => _ModuleByAlphabetState();
 }
 
+class ModuleLetter {
+  int? id;
+  String? letters;
+
+  ModuleLetter({this.id, this.letters});
+
+  ModuleLetter.fromJson(Map<String, dynamic> json)
+      : id = json['id'] as int?,
+        letters = json['letters'] as String?;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'letters': letters,
+  };
+}
+
 class Modules {
   String? name;
   String? description;
-  //String? version;
   String? downloadLink;
-  //String? packageSize;
-  String? letters;
-  bool? isDownloadable;
+  List<ModuleLetter>? letters;
   Modules? redirectedModule;
-
 
   Modules({
     this.name,
     this.description,
-    //this.version,
     this.downloadLink,
-    //this.packageSize,
     this.letters,
-    this.isDownloadable,
     this.redirectedModule,
   });
 
   Modules.fromJson(Map<String, dynamic> json)
       : name = json['name'] as String?,
         description = json['description'] as String?,
-  //version = json['version'] as String,
         downloadLink = json['downloadLink'] as String?,
-  //packageSize = json['packageSize'] as String,
-        letters = json['letters'] as String?,
-        isDownloadable = json['is_downloadable'] as bool?,
+        letters = (json['letters'] as List<dynamic>?)
+            ?.map((e) => ModuleLetter.fromJson(e as Map<String, dynamic>))
+            .toList(),
         redirectedModule = json['redirectedModule'] != null
             ? Modules.fromJson(json['redirectedModule'])
             : null;
@@ -62,11 +70,8 @@ class Modules {
   Map<String, dynamic> toJson() => {
     'name': name,
     'description': description,
-    //'version': version,
     'downloadLink': downloadLink,
-    //'packageSize': packageSize,
-    'letters': letters,
-    'is_downloadable': isDownloadable,
+    'letters': letters?.map((e) => e.toJson()).toList(),
     'redirectedModule': redirectedModule?.toJson(),
   };
 }
@@ -77,34 +82,44 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
 
   // Get the Module Data
   Future<List<Modules>> getModules() async {
+    const remoteServer = 'http://widm.wiredhealthresources.net/apiv2/modules/';
+    const localServer = 'http://10.0.2.2:3000/modules';
     try {
-      final response = await http.get(Uri.parse(
-          'http://widm.wiredhealthresources.net/apiv2/modules/'),
+      final response = await http.get(Uri.parse(localServer),
         headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        List<Modules> allModules = data.map<Modules>((e) => Modules.fromJson(e))
-            .toList();
+        // List<Modules> allModules = data.map<Modules>((e) => Modules.fromJson(e))
+        //     .toList();
 
-        // Filter modules by the letter
-        moduleData = allModules.where((module) => module.letters?.contains(
-            widget.letter) ?? false).toList();
+        if (data is List) {
+          List<Modules> allModules = data.map<Modules>((e) => Modules.fromJson(e)).toList();
+          moduleData = allModules.where((module) {
+            print("Module Name: ${module.letters}");
+            // Check if any of the letters match the desired letter
+            return module.letters?.any((letter) => letter.letters == widget.letter) ?? false;
+          }).toList();
 
-        // change to lower case and Sort modules by name
-        moduleData.sort((a, b) =>
-            a.name!.toLowerCase().compareTo(b.name!.toLowerCase()));
+          List<Modules> filteredModules = allModules.where((module) => module.letters?.contains(
+              widget.letter) ?? false).toList();
+          // change to lower case and Sort modules by name
+          filteredModules.sort((a, b) =>
+              a.name!.toLowerCase().compareTo(b.name!.toLowerCase()));
 
-        debugPrint("Module Data: ${moduleData.length}");
-        return moduleData;
+          debugPrint("Module Data: ${filteredModules.length}");
+          return filteredModules;
+        } else {
+          debugPrint("Data is not a list");
+        }
       } else {
-        debugPrint("Failed to load modules");
+        debugPrint("Failed to load modules, status code: ${response.statusCode}");
       }
-      return moduleData;
+      //return moduleData;
     } catch (e) {
-      debugPrint("$e");
+      debugPrint(" Error fetching modules: $e");
     }
-    return moduleData;
+    return [];
   }
 
   // Get Permissions
