@@ -44,7 +44,7 @@ class _MyHomePageState extends State<MyHomePage> {
     const remoteServer = 'http://widm.wiredhealthresources.net/apiv2/alerts/latest';
     const localServer = 'http://10.0.2.2:3000/alerts/latest';
     try {
-      final response = await http.get(Uri.parse(localServer));
+      final response = await http.get(Uri.parse(remoteServer));
 
       debugPrint("Response body: ${response.body}");
 

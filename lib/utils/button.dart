@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'functions.dart';
+
 class CustomButton extends StatefulWidget {
   final VoidCallback onTap;
   final List<Color> gradientColors;
@@ -21,8 +23,11 @@ class CustomButton extends StatefulWidget {
 class _CustomButtonState extends State<CustomButton> {
   bool isTapped = false;
 
+
   @override
   Widget build(BuildContext context) {
+    var screenHeight = MediaQuery.of(context).size.height;
+    var baseSize = MediaQuery.of(context).size.shortestSide;
     return GestureDetector(
       onTap: () async {
         setState(() {
@@ -40,7 +45,7 @@ class _CustomButtonState extends State<CustomButton> {
           double fontSize = buttonWidth * 0.13;
           double padding = buttonWidth * 0.03;
           return Container(
-            height: 60,
+            height: baseSize * (isTablet(context) ? 0.08 : 0.13),
             width: buttonWidth, // Use provided width or fallback to a default
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -65,15 +70,12 @@ class _CustomButtonState extends State<CustomButton> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.only(left: 10),
-                    child: Text(
-                      widget.text,
-                      style: TextStyle(
-                        fontSize: fontSize,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.white,
-                      ),
+                  Text(
+                    widget.text,
+                    style: TextStyle(
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white,
                     ),
                   ),
                 ],

@@ -85,7 +85,7 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
     const remoteServer = 'http://widm.wiredhealthresources.net/apiv2/modules/';
     const localServer = 'http://10.0.2.2:3000/modules';
     try {
-      final response = await http.get(Uri.parse(localServer),
+      final response = await http.get(Uri.parse(remoteServer),
         headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
       if (response.statusCode == 200) {

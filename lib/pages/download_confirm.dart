@@ -152,6 +152,7 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
         Container(
           //height: 150,
           //height: baseSize * (isTablet(context) ? 0.18 : 0.25),
+          padding: EdgeInsets.symmetric(horizontal: baseSize * (isTablet(context) ? 0.01 : 0.02)),
           width: double.infinity,
           alignment: Alignment.center,
           child: Center(

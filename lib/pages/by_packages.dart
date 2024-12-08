@@ -60,9 +60,10 @@ class _ByPackagesState extends State<ByPackages> {
   late Future<List<Package>> futurePackages;
 
   Future<List<Package>> fetchPackages() async {
+    const remoteServer = 'http://widm.wiredhealthresources.net/apiv2/packages';
+    const localServer = 'http://10.0.2.2:3000/packages';
     try {
-      final response = await http.get(Uri.parse(
-          'http://10.0.2.2:3000/packages'));
+      final response = await http.get(Uri.parse(localServer));
 
       debugPrint("Response body: ${response.body}");
 

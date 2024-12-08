@@ -153,7 +153,7 @@ class _SearchState extends State<Search> {
             Color(0xFF0070C0),
           ],
           text: 'By Alphabet',
-          width: baseSize * (isTablet(context) ? 0.3 : 0.4),
+          width: baseSize * (isTablet(context) ? 0.3 : 0.5),
         ),
         SizedBox(
           height: screenHeight * 0.09,
@@ -169,7 +169,7 @@ class _SearchState extends State<Search> {
             Color(0xFF519921),
           ],
           text: 'By Topic',
-          width: baseSize * (isTablet(context) ? 0.3 : 0.4),
+          width: baseSize * (isTablet(context) ? 0.3 : 0.5),
         ),
         SizedBox(
           height: screenHeight * 0.09,
@@ -185,7 +185,7 @@ class _SearchState extends State<Search> {
             Color(0xFF0070C0),
           ],
           text: 'By Package',
-          width: baseSize * (isTablet(context) ? 0.3 : 0.4),
+          width: baseSize * (isTablet(context) ? 0.3 : 0.5),
         ),
       ],
     );
@@ -225,7 +225,7 @@ class _SearchState extends State<Search> {
             Color(0xFF0070C0),
           ],
           text: 'By Alphabet',
-          width: baseSize * (isTablet(context) ? 0.3 : 0.4),
+          width: baseSize * (isTablet(context) ? 0.3 : 0.5),
         ),
         SizedBox(
           height: screenHeight * 0.09,
@@ -241,7 +241,7 @@ class _SearchState extends State<Search> {
             Color(0xFF519921),
           ],
           text: 'By Topic',
-          width: baseSize * (isTablet(context) ? 0.3 : 0.4),
+          width: baseSize * (isTablet(context) ? 0.3 : 0.5),
         ),
         SizedBox(
           height: screenHeight * 0.09,
@@ -257,122 +257,9 @@ class _SearchState extends State<Search> {
             Color(0xFF0070C0),
           ],
           text: 'By Package',
-          width: baseSize * (isTablet(context) ? 0.3 : 0.4),
+          width: baseSize * (isTablet(context) ? 0.3 : 0.5),
         ),
       ],
     );
   }
-
-  //   return Scaffold(
-  //     body: Stack(
-  //       children: [
-  //         Container(
-  //           decoration: const BoxDecoration(
-  //             gradient: LinearGradient(
-  //               begin: Alignment.topCenter,
-  //               end: Alignment.bottomCenter,
-  //               colors: [
-  //                 Color(0xFFFFF0DC),
-  //                 Color(0xFFF9EBD9),
-  //                 Color(0xFFFFC888),
-  //               ],
-  //             ),
-  //           ),
-  //       child: SafeArea(
-  //         child: Center(
-  //           child: Column(
-  //             children: [
-  //               CustomAppBar(
-  //                 onBackPressed: () {
-  //                   Navigator.pop(context);
-  //                 },
-  //               ),
-  //               SizedBox(
-  //                   height: screenHeight * 0.038,
-  //               ),
-  //               Hero(
-  //                 tag: 'search',
-  //                 child: Text(
-  //                     'Search Modules',
-  //                     style: TextStyle(
-  //                       fontSize: screenWidth * 0.1,
-  //                       fontWeight: FontWeight.w500,
-  //                       color: Color(0xFF0070C0),
-  //                     ),
-  //                 ),
-  //               ),
-  //               SizedBox(
-  //                   height: screenHeight * 0.09,
-  //               ),
-  //               CustomButton(
-  //                 onTap: () {
-  //                   print('Alphabet button pressed');
-  //                   Navigator.push(context, MaterialPageRoute(builder: (context) => ByAlphabet()));
-  //                 },
-  //                 gradientColors: [
-  //                   Color(0xFF0070C0),
-  //                   Color(0xFF00C1FF),
-  //                   Color(0xFF0070C0),
-  //                 ],
-  //                 text: 'By Alphabet',
-  //                 width: 240,
-  //               ),
-  //               SizedBox(
-  //                   height: screenHeight * 0.09,
-  //               ),
-  //               CustomButton(
-  //                 onTap: () {
-  //                   print('Topic button pressed');
-  //                   Navigator.push(context, MaterialPageRoute(builder: (context) => ByTopic()));
-  //                 },
-  //                 gradientColors: [
-  //                   Color(0xFF519921),
-  //                   Color(0xFF93D221),
-  //                   Color(0xFF519921),
-  //                 ],
-  //                 text: 'By Topic',
-  //                 width: 240,
-  //               ),
-  //               SizedBox(
-  //                   height: screenHeight * 0.09,
-  //               ),
-  //               CustomButton(
-  //                 onTap: () {
-  //                   print('Topic button pressed');
-  //                   //Navigator.push(context, MaterialPageRoute(builder: (context) => Search()));
-  //                 },
-  //                 gradientColors: [
-  //                   Color(0xFF0070C0),
-  //                   Color(0xFF00C1FF),
-  //                   Color(0xFF0070C0),
-  //                 ],
-  //                 text: 'By Package',
-  //                 width: 240,
-  //               ),
-  //             ],
-  //           ),
-  //         ),
-  //       ),
-  //     ),
-  //         // Bottom Nav Bar
-  //         Positioned(
-  //           bottom: 0,
-  //           left: 0,
-  //           right: 0,
-  //           child: CustomBottomNavBar(
-  //             onHomeTap: () {
-  //               Navigator.push(context, MaterialPageRoute(builder: (context) => const MyHomePage()));
-  //             },
-  //             onLibraryTap: () {
-  //               Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
-  //             },
-  //             onHelpTap: () {
-  //               Navigator.push(context, MaterialPageRoute(builder: (context) => const Policy()));
-  //             },
-  //           ),
-  //         ),
-  //     ],
-  //     ),
-  //   );
-  // }
 }
