@@ -23,9 +23,10 @@ class ModuleLibrary extends StatefulWidget {
 class ModuleFile {
   final FileSystemEntity file;
   final String path;
+  final String title;
 
 
-  ModuleFile({required this.file, required this.path});
+  ModuleFile({required this.file, required this.path, required this.title});
 }
 
 enum DisplayType { modules, resources }
@@ -52,8 +53,16 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
         modules = directory
             .listSync()
             .whereType<File>()
-            .map((file) => ModuleFile(file: file, path: file.path))
+            .map((file) {
+              String fileName = file.path.split('/').last;
+              if (fileName.endsWith('.htm')) {
+                fileName = fileName.replaceAll('.htm', '');
+              }
+              return ModuleFile(file: file, path: file.path, title: fileName);
+              })
             .toList();
+
+        modules.sort((a, b) => a.title.compareTo(b.title));
       });
       // check this later
       return modules;
@@ -126,7 +135,8 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
       print('File content read successfully: ${fileContent.substring(0, 150)}...');
 
       // Use RegEx to find the path to the directory
-      final regEx = RegExp(r'files/(\d+(-[a-zA-Z0-9]+(-\d+)?|\d+[a-zA-Z0-9])?)/');
+      final regEx = RegExp(r'files/(\d+(-[a-zA-Z0-9]+)*(-[A-Z]+)?)/');
+
       final match = regEx.firstMatch(fileContent);
       print('match: $match');
       if (match != null) {
@@ -369,26 +379,26 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                                 if (index == snapshot.data!.length) {
 
                                   return SizedBox(
-                                    height: baseSize * (isTablet(context) ? 0.135 : 0.135),// This is the last item (the SizedBox or Container)
+                                    height: baseSize * (isTablet(context) ? 0.135 : 0.135),// This is the last item
                                   );
                                 }
                                 final moduleFile = snapshot.data![index];
-                                // start here to add the fade functionality and scroll functionality. Use module info as reference.
+
                                 return Column(
                                   children: [
                                     Container(
-                                      height: baseSize * (isTablet(context) ? 0.18 : 0.18), // Increased height of the parent container
+                                      height: baseSize * (isTablet(context) ? 0.18 : 0.18),
                                       child: Padding(
-                                        padding: EdgeInsets.all(baseSize * 0.02), // Adjust padding as needed
+                                        padding: EdgeInsets.all(baseSize * 0.02),
                                         child: Row(
-                                          crossAxisAlignment: CrossAxisAlignment.center, // Align items to the center
+                                          crossAxisAlignment: CrossAxisAlignment.center,
                                           children: [
                                             // Module name text (Expanded to take available space)
                                             Expanded(
                                               child: Text(
-                                                moduleFile.file.path.split('/').last,
+                                                moduleFile.title,
                                                 style: TextStyle(
-                                                  fontSize: baseSize * (isTablet(context) ? 0.0385 : 0.0485),
+                                                  fontSize: baseSize * (isTablet(context) ? 0.0385 : 0.044),
                                                   fontWeight: FontWeight.w300,
                                                   color: Colors.black,
                                                 ),
@@ -398,10 +408,11 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                                             Row(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
+                                                SizedBox(width: baseSize * 0.02), // spacing between text and buttons
                                                 // Play button
                                                 Container(
-                                                  height: baseSize * (isTablet(context) ? 0.09 : 0.09), // Increase the button height
-                                                  width: baseSize * (isTablet(context) ? 0.13 : 0.13),   // Increase the button width
+                                                  height: baseSize * (isTablet(context) ? 0.09 : 0.11), // button height
+                                                  width: baseSize * (isTablet(context) ? 0.13 : 0.13),   // button width
                                                   decoration: BoxDecoration(
                                                     gradient: const LinearGradient(
                                                       begin: Alignment.centerLeft,
@@ -415,15 +426,34 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                                                   ),
                                                   child: GestureDetector(
                                                     onTap: () {
-                                                      // Play the module
-                                                      Navigator.push(
-                                                        context,
-                                                        MaterialPageRoute(
-                                                            builder: (context) => WebViewScreen(
-                                                              urlRequest: URLRequest(
-                                                                url: Uri.file(moduleFile.path),
+                                                      // Show the alert dialog
+                                                      showDialog(
+                                                        context: context,
+                                                        builder: (BuildContext context) {
+                                                          return AlertDialog(
+                                                            title: Text("Information"),
+                                                            content: Text("You are about to play the module. If the navigation bar is not visible, swipe from the top of the screen down to access the navigation bar while in portrait mode. The module is best experienced in landscape mode."),
+                                                            actions: [
+                                                              TextButton(
+                                                                onPressed: () {
+                                                                  // Close the dialog and navigate to the WebViewScreen
+                                                                  Navigator.of(context).pop(); // Close the dialog
+                                                                  Navigator.push(
+                                                                    context,
+                                                                    MaterialPageRoute(
+                                                                      builder: (context) => WebViewScreen(
+                                                                        urlRequest: URLRequest(
+                                                                          url: Uri.file(moduleFile.path),
+                                                                        ),
+                                                                      ),
+                                                                    ),
+                                                                  );
+                                                                },
+                                                                child: Text("Got it"),
                                                               ),
-                                                            )),
+                                                            ],
+                                                          );
+                                                        },
                                                       );
                                                     },
                                                     child: FittedBox(
@@ -435,12 +465,12 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                                                           Icon(
                                                             Icons.play_arrow,
                                                             color: Color(0xFF545454),
-                                                            size: baseSize * (isTablet(context) ? 0.07 : 0.07), // Adjust icon size
+                                                            size: baseSize * (isTablet(context) ? 0.07 : 0.07),
                                                           ),
                                                           Text(
                                                             "Play",
                                                             style: TextStyle(
-                                                              fontSize: baseSize * (isTablet(context) ? 0.04 : 0.04), // Adjust text size
+                                                              fontSize: baseSize * (isTablet(context) ? 0.04 : 0.04),
                                                               fontWeight: FontWeight.w500,
                                                               color: Color(0xFF545454),
                                                             ),
@@ -454,7 +484,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
 
                                                 // Delete button
                                                 Container(
-                                                  height: baseSize * (isTablet(context) ? 0.09 : 0.09), // Increase the button height
+                                                  height: baseSize * (isTablet(context) ? 0.09 : 0.11), // Increase the button height
                                                   width: baseSize * (isTablet(context) ? 0.13 : 0.13),   // Increase the button width
                                                   decoration: BoxDecoration(
                                                     gradient: const LinearGradient(
@@ -650,7 +680,7 @@ Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
                             if (index == snapshot.data!.length) {
 
                               return SizedBox(
-                                //height: 120,// This is the last item (the SizedBox or Container)
+                                //height: 120,// This is the last item
                                 height: baseSize * (isTablet(context) ? 0.135 : 0.135),
                               );
                             }
@@ -659,16 +689,16 @@ Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
                             return Column(
                               children: [
                                 Container(
-                                  height: baseSize * (isTablet(context) ? 0.18 : 0.18), // Increased height of the parent container
+                                  height: baseSize * (isTablet(context) ? 0.18 : 0.18), // height of the parent container
                                   child: Padding(
-                                    padding: EdgeInsets.all(baseSize * 0.02), // Adjust padding as needed
+                                    padding: EdgeInsets.all(baseSize * 0.02),
                                     child: Row(
                                       crossAxisAlignment: CrossAxisAlignment.center, // Align items to the center
                                       children: [
                                         // Module name text (Expanded to take available space)
                                         Expanded(
                                           child: Text(
-                                            moduleFile.file.path.split('/').last,
+                                            moduleFile.title,
                                             style: TextStyle(
                                               fontSize: baseSize * (isTablet(context) ? 0.04 : 0.04),
                                               fontWeight: FontWeight.w300,
@@ -682,8 +712,8 @@ Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
                                           children: [
                                             // Play button
                                             Container(
-                                              height: baseSize * (isTablet(context) ? 0.1 : 0.1), // Increase the button height
-                                              width: baseSize * (isTablet(context) ? 0.14 : 0.14),   // Increase the button width
+                                              height: baseSize * (isTablet(context) ? 0.1 : 0.11), // button height
+                                              width: baseSize * (isTablet(context) ? 0.14 : 0.14),   // button width
                                               decoration: BoxDecoration(
                                                 gradient: const LinearGradient(
                                                   begin: Alignment.centerLeft,
@@ -717,12 +747,12 @@ Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
                                                       Icon(
                                                         Icons.play_arrow,
                                                         color: Color(0xFF545454),
-                                                        size: baseSize * (isTablet(context) ? 0.07 : 0.07), // Adjust icon size
+                                                        size: baseSize * (isTablet(context) ? 0.07 : 0.07), // icon size
                                                       ),
                                                       Text(
                                                         "Play",
                                                         style: TextStyle(
-                                                          fontSize: baseSize * (isTablet(context) ? 0.04 : 0.04), // Adjust text size
+                                                          fontSize: baseSize * (isTablet(context) ? 0.04 : 0.04),
                                                           fontWeight: FontWeight.w500,
                                                           color: Color(0xFF545454),
                                                         ),
@@ -736,8 +766,8 @@ Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
 
                                             // Delete button
                                             Container(
-                                              height: baseSize * (isTablet(context) ? 0.1 : 0.1), // Increase the button height
-                                              width: baseSize * (isTablet(context) ? 0.14 : 0.14),   // Increase the button width
+                                              height: baseSize * (isTablet(context) ? 0.1 : 0.11), // button height
+                                              width: baseSize * (isTablet(context) ? 0.14 : 0.14),   // button width
                                               decoration: BoxDecoration(
                                                 gradient: const LinearGradient(
                                                   begin: Alignment.centerLeft,
@@ -762,12 +792,12 @@ Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
                                                       Icon(
                                                         Icons.delete,
                                                         color: Color(0xFF545454),
-                                                        size: baseSize * (isTablet(context) ? 0.07 : 0.07), // Adjust icon size
+                                                        size: baseSize * (isTablet(context) ? 0.07 : 0.07),
                                                       ),
                                                       Text(
                                                         "Delete",
                                                         style: TextStyle(
-                                                          fontSize: baseSize * (isTablet(context) ? 0.04 : 0.04), // Adjust text size
+                                                          fontSize: baseSize * (isTablet(context) ? 0.04 : 0.04),
                                                           fontWeight: FontWeight.w500,
                                                           color: Color(0xFF545454),
                                                         ),

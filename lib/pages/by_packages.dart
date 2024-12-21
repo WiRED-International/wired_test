@@ -63,7 +63,7 @@ class _ByPackagesState extends State<ByPackages> {
     const remoteServer = 'http://widm.wiredhealthresources.net/apiv2/packages';
     const localServer = 'http://10.0.2.2:3000/packages';
     try {
-      final response = await http.get(Uri.parse(localServer));
+      final response = await http.get(Uri.parse(remoteServer));
 
       debugPrint("Response body: ${response.body}");
 
