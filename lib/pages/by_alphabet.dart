@@ -262,7 +262,7 @@ class _ByAlphabetState extends State<ByAlphabet> {
                             style: TextStyle(
                               color: Colors.white,
                               //fontSize: 36,
-                              fontSize: baseSize * (isTablet(context) ? 0.07 : 0.09),
+                              fontSize: baseSize * (isTablet(context) ? 0.07 : 0.075),
                             ),
                           ),
                         ),
