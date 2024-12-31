@@ -40,7 +40,7 @@ class _ByAlphabetState extends State<ByAlphabet> {
     // Hardcoded list of albums from A to W and X-Y-Z. Some letters have been removed because we don't have any modules for them at the moment.
     albums = [
       Album(name: 'A'),
-      //Album(name: 'B'),
+      Album(name: 'B'),
       Album(name: 'C'),
       Album(name: 'D'),
       Album(name: 'E'),
@@ -48,21 +48,21 @@ class _ByAlphabetState extends State<ByAlphabet> {
       Album(name: 'G'),
       Album(name: 'H'),
       Album(name: 'I'),
-      //Album(name: 'J'),
-      //Album(name: 'K'),
+      Album(name: 'J'),
+      Album(name: 'K'),
       Album(name: 'L'),
       Album(name: 'M'),
       Album(name: 'N'),
       Album(name: 'O'),
       Album(name: 'P'),
-      //Album(name: 'Q'),
+      Album(name: 'Q'),
       Album(name: 'R'),
       Album(name: 'S'),
       Album(name: 'T'),
       Album(name: 'U'),
       Album(name: 'V'),
       Album(name: 'W'),
-      //Album(name: 'X-Y-Z'),
+      Album(name: 'X-Y-Z'),
     ];
 
     // Sorting alphabetically if needed
