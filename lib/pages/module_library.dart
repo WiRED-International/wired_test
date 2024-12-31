@@ -371,7 +371,16 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                         } else if (snapshot.hasError) {
                           return const Center(child: Text('Error loading modules'));
                         } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                          return const Center(child: Text('No modules found'));
+                          return const Center(
+                              child: Text(
+                                  'You have not downloaded any modules yet. Please download the modules first.',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF548235),
+                                ),
+                                textAlign: TextAlign.center,
+                              ));
                         } else {
                           return ListView.builder(
                               itemCount: snapshot.data!.length + 1,

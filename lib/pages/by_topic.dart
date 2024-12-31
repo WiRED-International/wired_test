@@ -67,6 +67,9 @@ class _ByTopicState extends State<ByTopic> {
           // Remove duplicates by converting to a Set and back to a List
           categories = categories.toSet().toList();
 
+          // This is a temporary fix for the issue where some categories contain subcategories that are empty. Remove each subcategory name from the list if there is a module associated with it.
+          categories.removeWhere((category) => category.name!.contains('Diagnosis and Therapy'));
+
           debugPrint("Parsed Categories Length: ${categories.length}");
           return categories;
         } else {

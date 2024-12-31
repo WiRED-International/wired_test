@@ -212,7 +212,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     horizontal: baseSize * (isTablet(context) ? 0.03 : 0.03),
                   ),
                   child: Text(
-                    alert.isNotEmpty ? alert : 'Hello Testers! Welcome to WiRED\'s new mobile HealthMap app. Thank you for choosing to participate in this closed test. This does mean a lot to all of us here at WiRED. We ask that you please do not click on any button or link that says "Leave the test." We need all testers to remain opted in for 14 consecutive days. After the 14 days, you may leave the test if you wish. Once again, thank you so much for your participation in this test.',
+                    alert.isNotEmpty ? alert : 'Welcome to WiRED\'s new mobile HealthMap app. Feel free to browse the modules and find topics that interest you. All of WiRED\'s modules are free, evidence-based, peer-reviewed, and written by licensed healthcare professionals. We hope you find them useful!',
                     style: TextStyle(
                       fontSize: baseSize * (isTablet(context) ? 0.035 : 0.04),
                       fontWeight: FontWeight.w500,

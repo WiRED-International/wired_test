@@ -75,6 +75,10 @@ class _TopicListState extends State<TopicList> {
           // Sort the topics by name
           filteredSubCategories.sort((a, b) => a.name!.compareTo(b.name!));
 
+          // This is a temporary fix for the issue where some subcategories are empty. Remove each subcategory name from the list if there is a module associated with it.
+          List<String> namesToRemove = ['Mouth and Teeth', 'Population Groups', 'Genetics/Birth Defects', 'Injuries and Wounds', 'Substance Abuse Problems', 'Disasters', 'Fitness and Exercise', 'Health System', 'Personal Health Issues', 'Safety Issues', 'Kenya', 'Mandarin'];
+          filteredSubCategories.removeWhere((subCategory) => namesToRemove.contains(subCategory.name!));
+
           debugPrint("Parsed Topics Length: ${subCategories.length}");
           return filteredSubCategories;
         } else {
