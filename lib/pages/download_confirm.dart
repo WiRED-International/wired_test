@@ -7,6 +7,7 @@ import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
 import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
+import 'menu.dart';
 import 'module_library.dart';
 
 class DownloadConfirm extends StatefulWidget {
@@ -111,11 +112,13 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                         MaterialPageRoute(builder: (context) => ModuleLibrary()),
                       );
                     },
-                    onHelpTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const Policy()),
-                      );
+                    onTrackerTap: () {
+                      // Navigator.push(context, MaterialPageRoute(builder: (
+                      //     context) => Policy()));
+                    },
+                    onMenuTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (
+                          context) => Menu()));
                     },
                   ),
               ],

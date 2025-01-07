@@ -6,6 +6,7 @@ import '../utils/custom_app_bar.dart';
 import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
 import 'home_page.dart';
+import 'menu.dart';
 import 'module_library.dart';
 
 class Policy extends StatelessWidget {
@@ -131,11 +132,13 @@ If you have any questions or concerns about this Privacy Policy, please contact 
                           MaterialPageRoute(builder: (context) => ModuleLibrary()),
                         );
                       },
-                      onHelpTap: () {
-                        // Navigator.push(
-                        //   context,
-                        //   MaterialPageRoute(builder: (context) => const Policy()),
-                        // );
+                      onTrackerTap: () {
+                        // Navigator.push(context, MaterialPageRoute(builder: (
+                        //     context) => Policy()));
+                      },
+                      onMenuTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (
+                            context) => Menu()));
                       },
                     ),
                 ],

@@ -4,6 +4,8 @@ import 'package:flutter_svg/svg.dart';
 import 'package:wired_test/utils/functions.dart';
 import '../pages/search.dart';
 import '../utils/custom_nav_bar.dart';
+import 'cme/cme_info.dart';
+import 'menu.dart';
 import 'module_library.dart';
 import 'policy.dart';
 import 'package:wired_test/utils/side_nav_bar.dart';
@@ -144,9 +146,13 @@ class _MyHomePageState extends State<MyHomePage> {
                         Navigator.push(context, MaterialPageRoute(builder: (
                             context) => ModuleLibrary()));
                       },
-                      onHelpTap: () {
+                      onTrackerTap: () {
                         Navigator.push(context, MaterialPageRoute(builder: (
-                            context) => const Policy()));
+                            context) => CmeInfo()));
+                      },
+                      onMenuTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (
+                            context) => Menu()));
                       },
                     ),
                   ),

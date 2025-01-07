@@ -15,6 +15,7 @@ import '../utils/custom_nav_bar.dart';
 import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
 import 'download_confirm.dart';
+import 'menu.dart';
 import 'module_library.dart';
 import 'package:auto_size_text/auto_size_text.dart';
 
@@ -268,11 +269,13 @@ class _ModuleInfoState extends State<ModuleInfo> {
                             builder: (context) => ModuleLibrary()),
                       );
                     },
-                    onHelpTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const Policy()),
-                      );
+                    onTrackerTap: () {
+                      // Navigator.push(context, MaterialPageRoute(builder: (
+                      //     context) => Policy()));
+                    },
+                    onMenuTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (
+                          context) => Menu()));
                     },
                   ),
               ],

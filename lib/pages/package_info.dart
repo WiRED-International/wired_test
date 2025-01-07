@@ -14,6 +14,7 @@ import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
 import 'download_confirm.dart';
 import 'home_page.dart';
+import 'menu.dart';
 import 'module_library.dart';
 
 class PackageInfo extends StatefulWidget {
@@ -248,9 +249,13 @@ class _PackageInfoState extends State<PackageInfo> {
                         Navigator.push(context, MaterialPageRoute(builder: (
                             context) => ModuleLibrary()));
                       },
-                      onHelpTap: () {
+                      onTrackerTap: () {
+                        // Navigator.push(context, MaterialPageRoute(builder: (
+                        //     context) => Policy()));
+                      },
+                      onMenuTap: () {
                         Navigator.push(context, MaterialPageRoute(builder: (
-                            context) => const Policy()));
+                            context) => Menu()));
                       },
                     ),
                   ),
