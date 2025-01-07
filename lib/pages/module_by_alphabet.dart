@@ -12,6 +12,7 @@ import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
 import '../utils/side_nav_bar.dart';
 import 'home_page.dart';
+import 'menu.dart';
 import 'module_library.dart';
 import 'module_info.dart';
 
@@ -281,11 +282,13 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                             builder: (context) => ModuleLibrary()),
                       );
                     },
-                    onHelpTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const Policy()),
-                      );
+                    onTrackerTap: () {
+                      // Navigator.push(context, MaterialPageRoute(builder: (
+                      //     context) => Policy()));
+                    },
+                    onMenuTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (
+                          context) => Menu()));
                     },
                   ),
               ],

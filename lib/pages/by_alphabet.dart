@@ -9,6 +9,7 @@ import '../utils/custom_nav_bar.dart';
 import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
 import 'home_page.dart';
+import 'menu.dart';
 import 'module_by_alphabet.dart';
 import 'module_library.dart';
 
@@ -168,11 +169,13 @@ class _ByAlphabetState extends State<ByAlphabet> {
                             builder: (context) => ModuleLibrary()),
                       );
                     },
-                    onHelpTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const Policy()),
-                      );
+                    onTrackerTap: () {
+                      // Navigator.push(context, MaterialPageRoute(builder: (
+                      //     context) => Policy()));
+                    },
+                    onMenuTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (
+                          context) => Menu()));
                     },
                   ),
               ],

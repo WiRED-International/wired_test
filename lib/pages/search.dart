@@ -9,6 +9,7 @@ import '../utils/side_nav_bar.dart';
 import 'by_alphabet.dart';
 import 'by_packages.dart';
 import 'by_topic.dart';
+import 'menu.dart';
 import 'module_library.dart';
 
 
@@ -107,11 +108,13 @@ class _SearchState extends State<Search> {
                             builder: (context) => ModuleLibrary()),
                       );
                     },
-                    onHelpTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const Policy()),
-                      );
+                    onTrackerTap: () {
+                      // Navigator.push(context, MaterialPageRoute(builder: (
+                      //     context) => Policy()));
+                    },
+                    onMenuTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (
+                          context) => Menu()));
                     },
                   ),
               ],

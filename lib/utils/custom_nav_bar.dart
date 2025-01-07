@@ -5,13 +5,15 @@ import 'package:flutter_svg/flutter_svg.dart';
 class CustomBottomNavBar extends StatelessWidget {
   final VoidCallback onHomeTap;
   final VoidCallback onLibraryTap;
-  final VoidCallback onHelpTap;
+  final VoidCallback onTrackerTap;
+  final VoidCallback onMenuTap;
 
   const CustomBottomNavBar({
     Key? key,
     required this.onHomeTap,
     required this.onLibraryTap,
-    required this.onHelpTap,
+    required this.onTrackerTap,
+    required this.onMenuTap,
   }) : super(key: key);
 
   @override
@@ -79,27 +81,70 @@ class CustomBottomNavBar extends StatelessWidget {
               ),
             ),
           ),
-          GestureDetector(
-            onTap: onHelpTap,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.info,
-                  size: baseSize * (isTablet(context) ? .07 : 0.1),
-                  color: Colors.black
-                ),
-                Text(
-                  "Policy",
-                  style: TextStyle(
+          Semantics(
+            label: 'CME Tracker button',
+            button: true,
+            onTapHint: "Tap to track your CME credits",
+            child: GestureDetector(
+              onTap: onTrackerTap,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Icon(
+                  //   Icons.info,
+                  //   size: baseSize * (isTablet(context) ? .07 : 0.1),
+                  //   color: Colors.black
+                  // ),
+                  SvgPicture.asset(
+                    'assets/icons/cme.svg',
+                    //width: baseSize * (isTablet(context) ? .07 : 0.1),
+                    height: baseSize * (isTablet(context) ? .07 : 0.1),
                     color: Colors.black,
-                    fontSize: baseSize * (isTablet(context) ? .028 : 0.044),
-                    fontWeight: FontWeight.w500,
-                  )
-                ),
-              ],
+                  ),
+                  Text(
+                    "Tracker",
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: baseSize * (isTablet(context) ? .028 : 0.044),
+                      fontWeight: FontWeight.w500,
+                    )
+                  ),
+                ],
+              ),
             ),
           ),
+          Semantics(
+            label: 'Menu button',
+            button: true,
+            onTapHint: "Tap to go to Menu",
+            child: GestureDetector(
+              onTap: onMenuTap,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Icon(
+                  //   Icons.menu,
+                  //   size: baseSize * (isTablet(context) ? .07 : 0.1),
+                  //   color: Colors.black,
+                  // ),
+                  SvgPicture.asset(
+                    'assets/icons/hamburger.svg',
+                    //width: baseSize * (isTablet(context) ? .07 : 0.1),
+                    height: baseSize * (isTablet(context) ? .07 : 0.1),
+                    color: Colors.black,
+                  ),
+                  Text(
+                    "Menu",
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: baseSize * (isTablet(context) ? .028 : 0.044),
+                      fontWeight: FontWeight.w500,
+                    )
+                  ),
+                ],
+              ),
+            ),
+          )
         ],
       ),
     );

@@ -73,18 +73,7 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
-    - assets/modules/
-    - assets/modules/118-Flu_Influenza/
-    - assets/modules/118-Flu_Influenza/files/
-    - assets/modules/118-Flu_Influenza/files/118/
-    - assets/modules/118-Flu_Influenza/files/118/story_content/
-    - assets/modules/118-Flu_Influenza/files/118/html5/lib/stylesheets/
-    - assets/modules/118-Flu_Influenza/files/118/html5/data/css/
-    - assets/modules/118-Flu_Influenza/files/118/html5/lib/scripts/
-    - assets/modules/118-Flu_Influenza/files/118/html5/lib/stylesheets/mobile-fonts/
-    - assets/modules/118-Flu_Influenza/files/118/html5/data/js/
-    - assets/modules/118-Flu_Influenza/files/118/mobile/
-    - assets/modules/118-Flu_Influenza/files/118/story_content/external_files/
+
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware
