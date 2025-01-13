@@ -40,7 +40,6 @@ app.*.map.json
 # Enviromental variables
 .env
 notes.md
-assets
 
 # Android Studio will place build artifacts here
 /android/app/debug
