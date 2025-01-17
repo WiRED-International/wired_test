@@ -9,6 +9,7 @@ import '../utils/side_nav_bar.dart';
 import 'by_alphabet.dart';
 import 'by_packages.dart';
 import 'by_topic.dart';
+import 'cme/cme_info.dart';
 import 'menu.dart';
 import 'module_library.dart';
 
@@ -71,12 +72,16 @@ class _SearchState extends State<Search> {
                                   builder: (context) => ModuleLibrary()),
                             );
                           },
-                          onHelpTap: () {
+                          onTrackerTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (context) => const Policy()),
+                                  builder: (context) => CmeInfo()),
                             );
+                          },
+                          onMenuTap: () {
+                            Navigator.push(context, MaterialPageRoute(builder: (
+                                context) => Menu()));
                           },
                         ),
 
@@ -109,8 +114,11 @@ class _SearchState extends State<Search> {
                       );
                     },
                     onTrackerTap: () {
-                      // Navigator.push(context, MaterialPageRoute(builder: (
-                      //     context) => Policy()));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => CmeInfo()),
+                      );
                     },
                     onMenuTap: () {
                       Navigator.push(context, MaterialPageRoute(builder: (
@@ -251,8 +259,8 @@ class _SearchState extends State<Search> {
         ),
         CustomButton(
           onTap: () {
-            print('Topic button pressed');
-            //Navigator.push(context, MaterialPageRoute(builder: (context) => Search()));
+            print('package button pressed');
+            Navigator.push(context, MaterialPageRoute(builder: (context) => ByPackages()));
           },
           gradientColors: [
             Color(0xFF0070C0),

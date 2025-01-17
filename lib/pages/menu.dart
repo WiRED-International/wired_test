@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:wired_test/pages/home_page.dart';
 import 'package:wired_test/pages/policy.dart';
+import '../utils/custom_app_bar.dart';
+import '../utils/custom_nav_bar.dart';
+import '../utils/functions.dart';
+import '../utils/side_nav_bar.dart';
+import 'cme/cme_info.dart';
+import 'home_page.dart';
+import 'module_library.dart';
 
 
 class Menu extends StatefulWidget {
@@ -11,41 +17,226 @@ class Menu extends StatefulWidget {
 class _MenuState extends State<Menu> {
   @override
   Widget build(BuildContext context) {
+    var screenWidth = MediaQuery
+        .of(context)
+        .size
+        .width;
+    var screenHeight = MediaQuery
+        .of(context)
+        .size
+        .height;
+    var baseSize = MediaQuery
+        .of(context)
+        .size
+        .shortestSide;
+    bool isLandscape = MediaQuery
+        .of(context)
+        .orientation == Orientation.landscape;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Wired Test'),
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFFFFF0DC),
+                    Color(0xFFF9EBD9),
+                    Color(0xFFFFC888),
+                  ],
+                ),
+              ),
+            ),
+            Column(
+              children: [
+                // Custom AppBar
+                // CustomAppBar(
+                //   onBackPressed: () {
+                //     Navigator.pop(context);
+                //   },
+                // ),
+                // Expanded layout for the main content
+                Expanded(
+                  child: Row(
+                    children: [
+                      if (isLandscape)
+                        CustomSideNavBar(
+                          onHomeTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => MyHomePage()),
+                            );
+                          },
+                          onLibraryTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => ModuleLibrary()),
+                            );
+                          },
+                          onTrackerTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (context) => CmeInfo()),
+                            );
+                          },
+                          onMenuTap: () {
+                            //Purposefully left blank
+                          },
+                        ),
+
+                      // Main content area (expanded to fill remaining space)
+                      Expanded(
+                        child: Center(
+                          child: isLandscape
+                              ? _buildLandscapeLayout(context, screenWidth, screenHeight, baseSize)
+                              : _buildPortraitLayout(context, screenWidth, screenHeight, baseSize),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                if (!isLandscape)
+                  CustomBottomNavBar(
+                    onHomeTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => MyHomePage()),
+                      );
+                    },
+                    onLibraryTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => ModuleLibrary()),
+                      );
+                    },
+                    onTrackerTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (
+                          context) => CmeInfo()));
+                    },
+                    onMenuTap: () {
+                      //Purposefully left blank
+                    },
+                  ),
+              ],
+            ),
+          ],
+        ),
       ),
-      body: ListView(
-        children: <Widget>[
-          ListTile(
-            title: Text('Home'),
-            onTap: () {
-              // Navigator.push(
-              //   context,
-              //   MaterialPageRoute(builder: (context) => Home()),
-              // );
-            },
+    );
+  }
+
+  Widget _buildPortraitLayout(
+      BuildContext context, double screenWidth, double screenHeight, double baseSize) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: <Widget>[
+        Expanded(
+          child: ListView(
+            children: <Widget>[
+              ListTile(
+                title: Align(
+                  alignment: Alignment.centerLeft,
+                  child: SizedBox(
+                    width: baseSize * (isTablet(context) ? 0.6 : 0.7),
+                    child: Container(
+                      padding: EdgeInsets.all(16.0), // Adds padding for a square-like shape
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        color: const Color(0xFFFFFFFF),
+                        border: Border.all(color: Colors.black, width: 2), // Black border
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.5), // Shadow color with opacity
+                            spreadRadius: 2, // Spread radius
+                            blurRadius: 5, // Blur radius
+                            offset: Offset(3, 3), // Horizontal and vertical shadow offset
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        'Privacy Policy',
+                        style: TextStyle(
+                          fontSize: baseSize * (isTablet(context) ? 0.07 : 0.08),
+                          fontWeight: FontWeight.w500,
+                          color: const Color.fromRGBO(0, 102, 179, 1),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => Policy()),
+                  );
+                },
+              ),
+            ],
           ),
-          ListTile(
-            title: Text('Login'),
-            onTap: () {
-              // Navigator.push(
-              //   context,
-              //   MaterialPageRoute(builder: (context) => Login()),
-              // );
-            },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLandscapeLayout(
+      BuildContext context, double screenWidth, double screenHeight, double baseSize) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: <Widget>[
+        Expanded(
+          child: ListView(
+            children: <Widget>[
+              ListTile(
+                title: Align(
+                  alignment: Alignment.centerLeft,
+                  child: SizedBox(
+                    width: baseSize * (isTablet(context) ? 0.6 : 0.7),
+                    child: Container(
+                      padding: EdgeInsets.all(16.0), // Adds padding for a square-like shape
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(10),
+                        color: const Color(0xFFFFFFFF),
+                        border: Border.all(color: Colors.black, width: 2), // Black border
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.5), // Shadow color with opacity
+                            spreadRadius: 2, // Spread radius
+                            blurRadius: 5, // Blur radius
+                            offset: Offset(3, 3), // Horizontal and vertical shadow offset
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        'Privacy Policy',
+                        style: TextStyle(
+                          fontSize: baseSize * (isTablet(context) ? 0.07 : 0.08),
+                          fontWeight: FontWeight.w500,
+                          color: const Color.fromRGBO(0, 102, 179, 1),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => Policy()),
+                  );
+                },
+              ),
+            ],
           ),
-          ListTile(
-            title: Text('Privacy Policy'),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => Policy()),
-              );
-            },
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

@@ -16,6 +16,7 @@ import '../download_confirm.dart';
 import '../home_page.dart';
 import '../menu.dart';
 import '../module_library.dart';
+import 'cme_info.dart';
 
 class Register extends StatefulWidget {
   @override
@@ -139,11 +140,13 @@ class _RegisterState extends State<Register> {
                               MaterialPageRoute(builder: (context) => ModuleLibrary()),
                             );
                           },
-                          onHelpTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => const Policy()),
-                            );
+                          onTrackerTap: () {
+                            Navigator.push(context, MaterialPageRoute(builder: (
+                                context) => CmeInfo()));
+                          },
+                          onMenuTap: () {
+                            Navigator.push(context, MaterialPageRoute(builder: (
+                                context) => Menu()));
                           },
                         ),
 
@@ -175,8 +178,8 @@ class _RegisterState extends State<Register> {
                       );
                     },
                     onTrackerTap: () {
-                      // Navigator.push(context, MaterialPageRoute(builder: (
-                      //     context) => Policy()));
+                      Navigator.push(context, MaterialPageRoute(builder: (
+                          context) => CmeInfo()));
                     },
                     onMenuTap: () {
                       Navigator.push(context, MaterialPageRoute(builder: (

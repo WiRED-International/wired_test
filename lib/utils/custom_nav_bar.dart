@@ -90,13 +90,8 @@ class CustomBottomNavBar extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Icon(
-                  //   Icons.info,
-                  //   size: baseSize * (isTablet(context) ? .07 : 0.1),
-                  //   color: Colors.black
-                  // ),
                   SvgPicture.asset(
-                    'assets/icons/cme.svg',
+                    'assets/icons/cme1.svg',
                     //width: baseSize * (isTablet(context) ? .07 : 0.1),
                     height: baseSize * (isTablet(context) ? .07 : 0.1),
                     color: Colors.black,

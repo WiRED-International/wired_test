@@ -9,6 +9,7 @@ import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
 import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
+import 'cme/cme_info.dart';
 import 'home_page.dart';
 import 'menu.dart';
 import 'module_by_alphabet.dart';
@@ -152,12 +153,13 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
                                   builder: (context) => ModuleLibrary()),
                             );
                           },
-                          onHelpTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => const Policy()),
-                            );
+                          onTrackerTap: () {
+                            Navigator.push(context, MaterialPageRoute(builder: (
+                                context) => CmeInfo()));
+                          },
+                          onMenuTap: () {
+                            Navigator.push(context, MaterialPageRoute(builder: (
+                                context) => Menu()));
                           },
                         ),
 
@@ -190,8 +192,8 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
                       );
                     },
                     onTrackerTap: () {
-                      // Navigator.push(context, MaterialPageRoute(builder: (
-                      //     context) => Policy()));
+                      Navigator.push(context, MaterialPageRoute(builder: (
+                          context) => CmeInfo()));
                     },
                     onMenuTap: () {
                       Navigator.push(context, MaterialPageRoute(builder: (

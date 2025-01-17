@@ -11,6 +11,7 @@ import 'package:archive/archive_io.dart';
 import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
 import '../utils/side_nav_bar.dart';
+import 'cme/cme_info.dart';
 import 'home_page.dart';
 import 'menu.dart';
 import 'module_library.dart';
@@ -245,12 +246,13 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                                   builder: (context) => ModuleLibrary()),
                             );
                           },
-                          onHelpTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => const Policy()),
-                            );
+                          onTrackerTap: () {
+                            Navigator.push(context, MaterialPageRoute(builder: (
+                                context) => CmeInfo()));
+                          },
+                          onMenuTap: () {
+                            Navigator.push(context, MaterialPageRoute(builder: (
+                                context) => Menu()));
                           },
                         ),
 
@@ -283,8 +285,8 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                       );
                     },
                     onTrackerTap: () {
-                      // Navigator.push(context, MaterialPageRoute(builder: (
-                      //     context) => Policy()));
+                      Navigator.push(context, MaterialPageRoute(builder: (
+                          context) => CmeInfo()));
                     },
                     onMenuTap: () {
                       Navigator.push(context, MaterialPageRoute(builder: (
@@ -535,12 +537,6 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
             ],
           ),
         ),
-        // Flexible(
-        //   flex: 1,
-        //     child: SizedBox(
-        //         height: baseSize * (isTablet(context) ? .17 : 0.17)
-        //     )
-        // ),
       ],
     );
   }
@@ -591,7 +587,7 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
             children: [
               Container(
                 //height: screenHeight * (isTablet(context) ? 0.63 : 0.62),
-                width: screenWidth * (isTablet(context) ? 0.8 : 0.8),
+                width: baseSize * (isTablet(context) ? 0.8 : 1.1),
                 decoration: BoxDecoration(
                   color: Colors.transparent,
                 ),
