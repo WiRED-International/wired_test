@@ -37,7 +37,7 @@ class CustomSideNavBar extends StatelessWidget {
         ),
       ), // You can change the background color if needed
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center, // Align items at the start of the column
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           // Home Button
           Semantics(
