@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -14,6 +13,7 @@ import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
 import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
+import 'cme/cme_info.dart';
 import 'download_confirm.dart';
 import 'menu.dart';
 import 'module_library.dart';
@@ -33,58 +33,28 @@ class ModuleInfo extends StatefulWidget {
 class Modules {
   String? name;
   String? description;
-  //String? topics;
-  //String? version;
   String? downloadLink;
-  //String? launchFile;
-  //String? packageSize;
-  //String? letters;
   List<String>? letters;
-  //String? credits;
-  //String? module_name;
-  //String? id;
-
 
   Modules({
     this.name,
     this.description,
-    //this.topics,
-    //this.version,
     this.downloadLink,
-    //this.launchFile,
-    //this.packageSize,
     this.letters,
-    //this.credits,
-    //this.module_name,
-    //this.id,
   });
 
   Modules.fromJson(Map<String, dynamic> json)
       : name = json['name'] as String,
         description = json['description'] as String,
-  //topics = json['topics'] as String,
-  //version = json['version'] as String,
         downloadLink = json['downloadLink'] as String,
-  //launchFile = json['launchFile'] as String,
-  //packageSize = json['packageSize'] as String,
-  //letters = json['letters'] as String;
         letters = (json['letters'] as List<dynamic>?)?.map((e) => e as String).toList();
-  //credits = json['credits'] as String,
-  //module_name = json['module_name'] as String,
-  //id = json['id'] as String;
+
 
   Map<String, dynamic> toJson() => {
     'name': name,
     'description': description,
-    //'topics': topics,
-    //'version': version,
     'downloadLink': downloadLink,
-    //'launchFile': launchFile,
-    //'packageSize': packageSize,
     'letters': letters,
-    //'credits': credits,
-    //'module_name': module_name,
-    //'id': id,
   };
 }
 
@@ -110,8 +80,23 @@ class _ModuleInfoState extends State<ModuleInfo> {
     print("Has Permission: $hasPermission");
     if (true) {
       final directory = await getExternalStorageDirectory(); // Get the External Storage Directory (Android)
-      final filePath = '${directory!.path}/$fileName';
-      final file = File(filePath);
+      if (directory == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unable to access storage directory')),
+        );
+        return;
+      }
+
+      // Check if the individuals modules directory exists
+      final modulesDirectoryPath = '${directory.path}/modules';
+      final modulesDirectory = Directory(modulesDirectoryPath);
+      if (!modulesDirectory.existsSync()) {
+        modulesDirectory.createSync(recursive: true);
+        print('Directory created: $modulesDirectoryPath');
+      }
+
+      final modulesFilePath = '$modulesDirectoryPath/$fileName';
+      final file = File(modulesFilePath);
 
       try {
         final response = await http.get(Uri.parse(url));
@@ -120,7 +105,7 @@ class _ModuleInfoState extends State<ModuleInfo> {
           SnackBar(content: Text('Downloaded $fileName')),
         );
         print('Directory: ${directory.path}');
-        print('File Path: $filePath');
+        print('File Path: $modulesFilePath');
 
         // Unzip the downloaded file
         final bytes = file.readAsBytesSync();
@@ -128,17 +113,17 @@ class _ModuleInfoState extends State<ModuleInfo> {
 
         for (var file in archive) {
           final filename = file.name;
-          final filePath = '${directory.path}/$filename';
-          print('Processing file: $filename at path: $filePath');
+          final modulesFilePath = '${directory.path}/modules/$filename';
+          print('Processing file: $filename at path: $modulesFilePath');
 
           if (file.isFile) {
             final data = file.content as List<int>;
-            File(filePath)
+            File(modulesFilePath)
               ..createSync(recursive: true)
               ..writeAsBytesSync(data);
           } else {
-            Directory(filePath).createSync(recursive: true);
-            print('Directory created: $filePath');
+            Directory(modulesFilePath).createSync(recursive: true);
+            print('Directory created: $modulesFilePath');
           }
         }
 
@@ -150,7 +135,7 @@ class _ModuleInfoState extends State<ModuleInfo> {
         // Delete the zip file
         try {
           await file.delete();
-          print('Zip file deleted: $filePath');
+          print('Zip file deleted: $modulesFilePath');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Unzipped and deleted $fileName')),
           );
@@ -232,12 +217,13 @@ class _ModuleInfoState extends State<ModuleInfo> {
                                   builder: (context) => ModuleLibrary()),
                             );
                           },
-                          onHelpTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => const Policy()),
-                            );
+                          onTrackerTap: () {
+                            Navigator.push(context, MaterialPageRoute(builder: (
+                                context) => CmeInfo()));
+                          },
+                          onMenuTap: () {
+                            Navigator.push(context, MaterialPageRoute(builder: (
+                                context) => Menu()));
                           },
                         ),
 
@@ -270,8 +256,8 @@ class _ModuleInfoState extends State<ModuleInfo> {
                       );
                     },
                     onTrackerTap: () {
-                      // Navigator.push(context, MaterialPageRoute(builder: (
-                      //     context) => Policy()));
+                      Navigator.push(context, MaterialPageRoute(builder: (
+                          context) => CmeInfo()));
                     },
                     onMenuTap: () {
                       Navigator.push(context, MaterialPageRoute(builder: (
@@ -532,21 +518,21 @@ class _ModuleInfoState extends State<ModuleInfo> {
                 right: 0,
                 child: IgnorePointer(
                   child: Container(
-                      height: 80,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          stops: [0.0, 5.0],
-                          colors: [
-                            // Colors.transparent,
-                            // Color(0xFFFFF0DC),
-                            //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                            Color(0xFFFCDBB3).withOpacity(0.0),
-                            Color(0xFFFDD8AD),
-                          ],
-                        ),
-                      )
+                    height: 80,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: [0.0, 5.0],
+                        colors: [
+                          // Colors.transparent,
+                          // Color(0xFFFFF0DC),
+                          //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                          Color(0xFFFCDBB3).withOpacity(0.0),
+                          Color(0xFFFDD8AD),
+                        ],
+                      ),
+                    )
                   ),
                 ),
               ),

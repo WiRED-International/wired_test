@@ -1,23 +1,27 @@
 import 'package:flutter/material.dart';
-import 'package:wired_test/utils/functions.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter_svg/svg.dart';
+
+import 'functions.dart';
 
 class CustomSideNavBar extends StatelessWidget {
   final VoidCallback onHomeTap;
   final VoidCallback onLibraryTap;
-  final VoidCallback onHelpTap;
+  final VoidCallback onTrackerTap;
+  final VoidCallback onMenuTap;
 
   const CustomSideNavBar({
     Key? key,
     required this.onHomeTap,
     required this.onLibraryTap,
-    required this.onHelpTap,
+    required this.onTrackerTap,
+    required this.onMenuTap,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     var screenWidth = MediaQuery.of(context).size.width;
     var screenHeight = MediaQuery.of(context).size.height;
+    var baseSize = MediaQuery.of(context).size.shortestSide;
 
     return Container(
       width: screenWidth * 0.1, // Adjust the width of the side nav
@@ -48,14 +52,14 @@ class CustomSideNavBar extends StatelessWidget {
                   children: [
                     Icon(
                       Icons.home,
-                      size: screenHeight * 0.06, // Adjust icon size based on height
+                      size: baseSize * (isTablet(context) ? .07 : 0.09),
                       color: Colors.black,
                     ),
                     Text(
                       "Home",
                       style: TextStyle(
                         color: Colors.black,
-                        fontSize: screenHeight * 0.025, // Adjust text size based on height
+                        fontSize: baseSize * (isTablet(context) ? .028 : 0.04),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -77,14 +81,14 @@ class CustomSideNavBar extends StatelessWidget {
                   children: [
                     Icon(
                       Icons.library_books,
-                      size: screenHeight * 0.06,
+                      size: baseSize * (isTablet(context) ? .07 : 0.09),
                       color: Colors.black,
                     ),
                     Text(
-                      "My Library",
+                      "Library",
                       style: TextStyle(
                         color: Colors.black,
-                        fontSize: screenHeight * 0.025,
+                        fontSize: baseSize * (isTablet(context) ? .028 : 0.04),
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -95,33 +99,62 @@ class CustomSideNavBar extends StatelessWidget {
           ),
           // Policy Button
           Semantics(
-            label: 'Policy button',
+            label: 'CME Tracker button',
             button: true,
-            onTapHint: "Tap to view policy",
+            onTapHint: "Tap to track your CME credits",
             child: GestureDetector(
-              onTap: onHelpTap,
+              onTap: onTrackerTap,
               child: Padding(
                 padding: EdgeInsets.symmetric(vertical: screenHeight * 0.04),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.info,
-                      size: screenHeight * 0.06,
+                    SvgPicture.asset(
+                      'assets/icons/cme1.svg',
+                      //width: baseSize * (isTablet(context) ? .07 : 0.1),
+                      height: baseSize * (isTablet(context) ? .07 : 0.09),
                       color: Colors.black,
                     ),
                     Text(
-                      "Policy",
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: screenHeight * 0.025,
-                        fontWeight: FontWeight.w500,
-                      ),
+                        "Tracker",
+                        style: TextStyle(
+                          color: Colors.black,
+                          fontSize: baseSize * (isTablet(context) ? .028 : 0.04),
+                          fontWeight: FontWeight.w500,
+                        )
                     ),
                   ],
                 ),
               ),
             ),
           ),
+          Semantics(
+            label: 'Menu button',
+            button: true,
+            onTapHint: "Tap to go to Menu",
+            child: GestureDetector(
+              onTap: onMenuTap,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SvgPicture.asset(
+                    'assets/icons/hamburger.svg',
+                    //width: baseSize * (isTablet(context) ? .07 : 0.1),
+                    height: baseSize * (isTablet(context) ? .07 : 0.09),
+                    color: Colors.black,
+                  ),
+                  Text(
+                      "Menu",
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: baseSize * (isTablet(context) ? .028 : 0.04),
+                        fontWeight: FontWeight.w500,
+                      )
+                  ),
+                ],
+              ),
+            ),
+          )
         ],
       ),
     );

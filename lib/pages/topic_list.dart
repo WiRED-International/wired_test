@@ -10,6 +10,7 @@ import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
 import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
+import 'cme/cme_info.dart';
 import 'home_page.dart';
 import 'menu.dart';
 import 'module_library.dart';
@@ -151,12 +152,16 @@ class _TopicListState extends State<TopicList> {
                                   builder: (context) => ModuleLibrary()),
                             );
                           },
-                          onHelpTap: () {
+                          onTrackerTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (context) => const Policy()),
+                                  builder: (context) => CmeInfo()),
                             );
+                          },
+                          onMenuTap: () {
+                            Navigator.push(context, MaterialPageRoute(builder: (
+                                context) => Menu()));
                           },
                         ),
 
@@ -189,8 +194,11 @@ class _TopicListState extends State<TopicList> {
                       );
                     },
                     onTrackerTap: () {
-                      // Navigator.push(context, MaterialPageRoute(builder: (
-                      //     context) => Policy()));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (context) => CmeInfo()),
+                      );
                     },
                     onMenuTap: () {
                       Navigator.push(context, MaterialPageRoute(builder: (

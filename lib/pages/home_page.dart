@@ -102,9 +102,13 @@ class _MyHomePageState extends State<MyHomePage> {
                 Navigator.push(context,
                     MaterialPageRoute(builder: (context) => ModuleLibrary()));
               },
-              onHelpTap: () {
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => const Policy()));
+              onTrackerTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (
+                    context) => CmeInfo()));
+              },
+              onMenuTap: () {
+                Navigator.push(context, MaterialPageRoute(builder: (
+                    context) => Menu()));
               },
             ),
 

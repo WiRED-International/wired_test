@@ -16,7 +16,6 @@ class CustomAppBar extends StatelessWidget {
     var screenWidth = MediaQuery.of(context).size.width;
     var screenHeight = MediaQuery.of(context).size.height;
     var baseSize = MediaQuery.of(context).size.shortestSide;
-    double appBarHeight = screenHeight * 0.055;
 
     return Container(
       //height: appBarHeight,
@@ -37,15 +36,15 @@ class CustomAppBar extends StatelessWidget {
                   onTapHint: "Tap to go back to the previous page",
                   child: SvgPicture.asset(
                     'assets/icons/chevron_left.svg',
-                    height: baseSize * (isTablet(context) ? 0.045 : 0.057),  // Use baseSize for consistency
-                    width: baseSize * (isTablet(context) ? 0.045 : 0.057),
+                    height: baseSize * (isTablet(context) ? 0.045 : 0.05),  // Use baseSize for consistency
+                    width: baseSize * (isTablet(context) ? 0.045 : 0.05),
                   ),
                 ),
                 SizedBox(width: screenWidth * 0.0),
                 Text(
                   "Back",
                   style: TextStyle(
-                    fontSize: baseSize * (isTablet(context) ? 0.045 : 0.065),
+                    fontSize: baseSize * (isTablet(context) ? 0.045 : 0.06),
                     fontWeight: FontWeight.w500,
                     color: Colors.black,
                   ),

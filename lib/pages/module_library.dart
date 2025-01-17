@@ -1,12 +1,9 @@
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
-import 'package:flutter_svg/svg.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:wired_test/pages/policy.dart';
 import '.././utils/webview_screen.dart';
-import '../main.dart';
 import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
 import '../utils/functions.dart';
@@ -49,24 +46,42 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
   Future<List<ModuleFile>> _fetchModules() async {
     final directory = await getExternalStorageDirectory();
     if (directory != null) {
-      // Get all files from the directory
-      setState(() {
-        modules = directory
-            .listSync()
-            .whereType<File>()
-            .map((file) {
-              String fileName = file.path.split('/').last;
-              if (fileName.endsWith('.htm')) {
-                fileName = fileName.replaceAll('.htm', '');
-              }
-              return ModuleFile(file: file, path: file.path, title: fileName);
-              })
-            .toList();
+      final packagesDirectory = Directory('${directory.path}/packages');
+      final modulesDirectory = Directory('${directory.path}/modules');
 
-        modules.sort((a, b) => a.title.compareTo(b.title));
+      List<ModuleFile> fetchedModules = [];
+
+      // Get all files from the packages directory
+      if (packagesDirectory.existsSync()) {
+        final packageFiles = packagesDirectory.listSync().whereType<File>().toList();
+        fetchedModules.addAll(packageFiles.map((file) {
+          String fileName = file.path.split('/').last;
+          if (fileName.endsWith('.htm')) {
+            fileName = fileName.replaceAll('.htm', '');
+          }
+          return ModuleFile(file: file, path: file.path, title: fileName);
+        }).toList());
+      }
+
+      // Get all files from the modules directory
+      if (modulesDirectory.existsSync()) {
+        final moduleFiles = modulesDirectory.listSync().whereType<File>().toList();
+        fetchedModules.addAll(moduleFiles.map((file) {
+          String fileName = file.path.split('/').last;
+          if (fileName.endsWith('.htm')) {
+            fileName = fileName.replaceAll('.htm', '');
+          }
+          return ModuleFile(file: file, path: file.path, title: fileName);
+        }).toList());
+      }
+
+      fetchedModules.sort((a, b) => a.title.compareTo(b.title));
+
+      setState(() {
+        modules = fetchedModules;
       });
-      // check this later
-      return modules;
+
+      return fetchedModules;
     } else {
       return [];
     }
@@ -122,55 +137,56 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
         return;
       }
       // Define the path to the file
-      final filePath = '${directory.path}/$fileName';
+      final packagesFilePath = '${directory.path}/packages/$fileName';
+      final modulesFilePath = '${directory.path}/modules/$fileName';
 
-      // Read the htm file
-      final file = File(filePath);
-      print('attempting to delete file: $filePath');
-      if (!await file.exists()) {
-        print('File not found: $filePath');
+      // Determine which directory the file exists in
+      String? filePath;
+      if (File(packagesFilePath).existsSync()) {
+        filePath = packagesFilePath;
+      } else if (File(modulesFilePath).existsSync()) {
+        filePath = modulesFilePath;
+      }
+
+      if (filePath == null) {
+        print('File not found in either directory: $fileName');
         return;
       }
 
+      final file = File(filePath);
+      print('Attempting to delete file: $filePath');
       final fileContent = await file.readAsString();
-      print('File content read successfully: ${fileContent.substring(0, 150)}...');
 
-      // Use RegEx to find the path to the directory
+      // Use RegEx to find the path to the associated directory
       final regEx = RegExp(r'files/(\d+(-[a-zA-Z0-9]+)*(-[A-Z]+)?)/');
-
       final match = regEx.firstMatch(fileContent);
-      print('match: $match');
+
       if (match != null) {
         final directoryName = match.group(1);
-        final directoryPath = '${directory.path}/files/$directoryName';
-        print('directoryPath resolved to: $directoryPath');
+        final associatedDirectoryPath = '${directory.path}/files/$directoryName';
 
-        // Delete HTM file
+        // Delete the file
         await file.delete();
         print('Deleted file: $filePath');
 
-        // Delete directory
-        final dir = Directory(directoryPath);
-        if (await dir.exists()) {
-          await dir.delete(recursive: true);
-          print('Deleted directory: $directoryPath');
-
+        // Delete the associated directory
+        final associatedDirectory = Directory(associatedDirectoryPath);
+        if (associatedDirectory.existsSync()) {
+          await associatedDirectory.delete(recursive: true);
+          print('Deleted directory: $associatedDirectoryPath');
         } else {
-          print('Directory not found: $directoryPath');
+          print('Associated directory not found: $associatedDirectoryPath');
         }
 
-        // Update the state to remove the deleted file from the list
+        // Update state to remove the deleted module
         setState(() {
           modules.removeWhere((module) => module.path == filePath);
         });
-
-      } else if (match == null) {
-        print('No match found in file: $filePath');
-        return;
+      } else {
+        print('No associated directory found in file: $filePath');
       }
     } catch (e) {
       print('Error deleting file or directory: $e');
-      return;
     }
   }
 
@@ -226,11 +242,16 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                             //   MaterialPageRoute(builder: (context) => ModuleLibrary()),
                             // );
                           },
-                          onHelpTap: () {
+                          onTrackerTap: () {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (context) => const Policy()),
+                              MaterialPageRoute(
+                                  builder: (context) => const Policy()),
                             );
+                          },
+                          onMenuTap: () {
+                            Navigator.push(context, MaterialPageRoute(builder: (
+                                context) => Menu()));
                           },
                         ),
 
@@ -438,34 +459,15 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                                                   ),
                                                   child: GestureDetector(
                                                     onTap: () {
-                                                      // Show the alert dialog
-                                                      showDialog(
-                                                        context: context,
-                                                        builder: (BuildContext context) {
-                                                          return AlertDialog(
-                                                            title: Text("Information"),
-                                                            content: Text("You are about to play the module. If the navigation bar is not visible, swipe from the top of the screen down to access the navigation bar while in portrait mode. The module is best experienced in landscape mode."),
-                                                            actions: [
-                                                              TextButton(
-                                                                onPressed: () {
-                                                                  // Close the dialog and navigate to the WebViewScreen
-                                                                  Navigator.of(context).pop(); // Close the dialog
-                                                                  Navigator.push(
-                                                                    context,
-                                                                    MaterialPageRoute(
-                                                                      builder: (context) => WebViewScreen(
-                                                                        urlRequest: URLRequest(
-                                                                          url: Uri.file(moduleFile.path),
-                                                                        ),
-                                                                      ),
-                                                                    ),
-                                                                  );
-                                                                },
-                                                                child: Text("Got it"),
-                                                              ),
-                                                            ],
-                                                          );
-                                                        },
+                                                      Navigator.push(
+                                                        context,
+                                                        MaterialPageRoute(
+                                                          builder: (context) => WebViewScreen(
+                                                            urlRequest: URLRequest(
+                                                              url: Uri.file(moduleFile.path),
+                                                            ),
+                                                          ),
+                                                        ),
                                                       );
                                                     },
                                                     child: FittedBox(
