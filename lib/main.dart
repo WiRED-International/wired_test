@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:wired_test/pages/home_page.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:wired_test/providers/auth_provider.dart';
+import 'package:wired_test/providers/user_provider.dart';
 // import 'package:flutter/rendering.dart';
 
 import 'pages/search.dart';
@@ -13,7 +16,15 @@ void main() {
   // debugPaintPointersEnabled = true; // Shows the touch points
   // debugRepaintRainbowEnabled = true; // Shows repaint areas with a rainbow effect
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const MyApp());
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => UserProvider()), // Add UserProvider
+      ],
+      child: const MyApp(),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {

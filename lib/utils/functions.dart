@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:archive/archive_io.dart';
 import 'package:url_launcher/url_launcher.dart';
+
 
 Future<void> unzipFile(String zipFilePath) async {
   // Get the application documents directory
@@ -54,5 +56,15 @@ TextStyle responsiveTextStyle(BuildContext context, double baseSize) {
   return TextStyle(
     fontSize: isTablet(context) ? baseSize * 1.5 : baseSize, // Adjust font size for tablets
   );
+}
+
+// Function to format timestamp
+String formatDate(String timestamp) {
+  try {
+    final DateTime date = DateTime.parse(timestamp); // Parse the timestamp
+    return DateFormat('MMMM yyyy').format(date); // Format to "Month Year"
+  } catch (e) {
+    return 'Invalid date'; // Handle invalid timestamps
+  }
 }
 
