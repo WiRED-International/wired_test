@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:wired_test/pages/policy.dart';
+import '../providers/auth_guard.dart';
+import '../providers/auth_provider.dart';
+import '../providers/user_provider.dart';
 import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
 import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
 import 'cme/cme_info.dart';
+import 'cme/cme_tracker.dart';
+import 'cme/login.dart';
 import 'home_page.dart';
 import 'module_library.dart';
 
@@ -79,11 +85,32 @@ class _MenuState extends State<Menu> {
                             );
                           },
                           onTrackerTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => CmeInfo()),
-                            );
+                            // Retrieve user data from UserProvider
+                            final userProvider = Provider.of<UserProvider>(context, listen: false);
+
+                            // Check if the user data is available
+                            if (userProvider.firstName != null && userProvider.email != null) {
+                              // Navigate to CMETracker with user data
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => CMETracker(
+                                    firstName: userProvider.firstName!,
+                                    lastName: userProvider.lastName!,
+                                    email: userProvider.email!,
+                                    dateJoined: userProvider.dateJoined!,
+                                  ),
+                                ),
+                              );
+                            } else {
+                              // Handle the case where user data is not available (e.g., redirect to login)
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => Login(), // Redirect to Login if no user data
+                                ),
+                              );
+                            }
                           },
                           onMenuTap: () {
                             //Purposefully left blank
@@ -119,8 +146,32 @@ class _MenuState extends State<Menu> {
                       );
                     },
                     onTrackerTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (
-                          context) => CmeInfo()));
+                      // Retrieve user data from UserProvider
+                      final userProvider = Provider.of<UserProvider>(context, listen: false);
+
+                      // Check if the user data is available
+                      if (userProvider.firstName != null && userProvider.email != null) {
+                        // Navigate to CMETracker with user data
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CMETracker(
+                              firstName: userProvider.firstName!,
+                              lastName: userProvider.lastName!,
+                              email: userProvider.email!,
+                              dateJoined: userProvider.dateJoined!,
+                            ),
+                          ),
+                        );
+                      } else {
+                        // Handle the case where user data is not available (e.g., redirect to login)
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => Login(), // Redirect to Login if no user data
+                          ),
+                        );
+                      }
                     },
                     onMenuTap: () {
                       //Purposefully left blank
@@ -183,6 +234,33 @@ class _MenuState extends State<Menu> {
             ],
           ),
         ),
+        GestureDetector(
+          onTap: () {
+            Provider.of<AuthProvider>(context, listen: false).logOut();
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => Login()),
+            );
+          },
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: EdgeInsets.only(left: baseSize * (isTablet(context) ? 0.05 : 0.03)),
+              child: Text(
+                'Log out',
+                style: TextStyle(
+                  fontSize: baseSize * (isTablet(context) ? 0.07 : 0.08),
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+          ),
+        ),
+        SizedBox(
+          height: baseSize * (isTablet(context) ? 0.05 : 0.06),
+          width: baseSize * (isTablet(context) ? 0.05 : 0.06),
+        ),
       ],
     );
   }
@@ -232,6 +310,23 @@ class _MenuState extends State<Menu> {
                     MaterialPageRoute(builder: (context) => Policy()),
                   );
                 },
+              ),
+              GestureDetector(
+                onTap: () {
+                  Provider.of<AuthProvider>(context, listen: false).logOut();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => Login()),
+                  );
+                },
+                child: Text(
+                  'Log out',
+                  style: TextStyle(
+                    fontSize: baseSize * (isTablet(context) ? 0.07 : 0.08),
+                    fontWeight: FontWeight.w500,
+                    color: Colors.black,
+                  ),
+                ),
               ),
             ],
           ),

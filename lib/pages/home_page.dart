@@ -1,10 +1,15 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
+import 'package:provider/provider.dart';
+import 'package:wired_test/providers/auth_guard.dart';
 import 'package:wired_test/utils/functions.dart';
 import '../pages/search.dart';
+import '../providers/user_provider.dart';
 import '../utils/custom_nav_bar.dart';
 import 'cme/cme_info.dart';
+import 'cme/cme_tracker.dart';
+import 'cme/login.dart';
 import 'menu.dart';
 import 'module_library.dart';
 import 'policy.dart';
@@ -103,8 +108,32 @@ class _MyHomePageState extends State<MyHomePage> {
                     MaterialPageRoute(builder: (context) => ModuleLibrary()));
               },
               onTrackerTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (
-                    context) => CmeInfo()));
+                // Retrieve user data from UserProvider
+                final userProvider = Provider.of<UserProvider>(context, listen: false);
+
+                // Check if the user data is available
+                if (userProvider.firstName != null && userProvider.email != null) {
+                  // Navigate to CMETracker with user data
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CMETracker(
+                        firstName: userProvider.firstName!,
+                        lastName: userProvider.lastName!,
+                        email: userProvider.email!,
+                        dateJoined: userProvider.dateJoined!,
+                      ),
+                    ),
+                  );
+                } else {
+                  // Handle the case where user data is not available (e.g., redirect to login)
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => Login(), // Redirect to Login if no user data
+                    ),
+                  );
+                }
               },
               onMenuTap: () {
                 Navigator.push(context, MaterialPageRoute(builder: (
@@ -151,8 +180,32 @@ class _MyHomePageState extends State<MyHomePage> {
                             context) => ModuleLibrary()));
                       },
                       onTrackerTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (
-                            context) => CmeInfo()));
+                        // Retrieve user data from UserProvider
+                        final userProvider = Provider.of<UserProvider>(context, listen: false);
+
+                        // Check if the user data is available
+                        if (userProvider.firstName != null && userProvider.email != null) {
+                          // Navigate to CMETracker with user data
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => CMETracker(
+                                firstName: userProvider.firstName!,
+                                lastName: userProvider.lastName!,
+                                email: userProvider.email!,
+                                dateJoined: userProvider.dateJoined!,
+                              ),
+                            ),
+                          );
+                        } else {
+                          // Handle the case where user data is not available (e.g., redirect to login)
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => Login(), // Redirect to Login if no user data
+                            ),
+                          );
+                        }
                       },
                       onMenuTap: () {
                         Navigator.push(context, MaterialPageRoute(builder: (
