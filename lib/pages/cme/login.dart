@@ -325,12 +325,7 @@ class _LoginState extends State<Login> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => CMETracker(
-                              firstName: firstName,
-                              lastName: lastName,
-                              email: email,
-                              dateJoined: dateJoined
-                          )
+                          builder: (context) => CMETracker(),
                         ),
                       );
                     }

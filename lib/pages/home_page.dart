@@ -117,12 +117,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => CMETracker(
-                        firstName: userProvider.firstName!,
-                        lastName: userProvider.lastName!,
-                        email: userProvider.email!,
-                        dateJoined: userProvider.dateJoined!,
-                      ),
+                      builder: (context) => CMETracker(),
                     ),
                   );
                 } else {
@@ -189,12 +184,7 @@ class _MyHomePageState extends State<MyHomePage> {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
-                              builder: (context) => CMETracker(
-                                firstName: userProvider.firstName!,
-                                lastName: userProvider.lastName!,
-                                email: userProvider.email!,
-                                dateJoined: userProvider.dateJoined!,
-                              ),
+                              builder: (context) => CMETracker(),
                             ),
                           );
                         } else {
