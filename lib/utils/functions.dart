@@ -68,3 +68,9 @@ String formatDate(String timestamp) {
   }
 }
 
+// Function to pad base64 string
+String normalizeBase64(String base64String) {
+  return base64String.padRight(base64String.length + (4 - base64String.length % 4) % 4, '=');
+}
+
+

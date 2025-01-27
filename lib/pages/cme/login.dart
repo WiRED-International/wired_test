@@ -252,7 +252,7 @@ class _LoginState extends State<Login> {
     );
   }
 
-  Widget _buildPortraitLayout(screenWidth, screenHeight, baseSize, authProvider) {
+  Widget _buildPortraitLayout(screenWidth, screenHeight, baseSize, AuthProvider authProvider) {
     return Center(
       child: Form(
         key: _formKey,
@@ -305,10 +305,29 @@ class _LoginState extends State<Login> {
                   onTap: () async {
                     final response = await _submitForm(); // Wait for submission result
                     if (response != null) {
-                      authProvider.logIn();
+                      // Parse the response
+                      final responseData = json.decode(response.body);
+
+                      // Extract token and expiry
+                      final authToken = responseData['token'];
+                      final normalizedTokenPayload = normalizeBase64(
+                        authToken.split('.')[1],
+                      );
+                      final decodedPayload = json.decode(
+                        utf8.decode(base64.decode(normalizedTokenPayload)),
+                      );
+                      final expiryTimestamp = decodedPayload['exp'];
+                      final expiry = DateTime.fromMillisecondsSinceEpoch(
+                        expiryTimestamp * 1000,
+                      );
+
+                      // Update the AuthProvider
+                      authProvider.logIn(authToken, expiry);
+
+
 
                       // Parse the response from the API to get user data
-                      final responseData = json.decode(response.body);
+                      //final responseData = json.decode(response.body);
                       final user = responseData['user'] ?? {};
                       String firstName = user['firstName'] ?? 'Unknown';
                       String lastName = user['lastName'] ?? 'Unknown';
@@ -319,7 +338,7 @@ class _LoginState extends State<Login> {
                       debugPrint('User Data: firstName=$firstName, lastName=$lastName, email=$email, dateJoined=$dateJoined');
 
                       // Save user data in the UserProvider
-                      Provider.of<UserProvider>(context, listen: false).setUser(firstName, lastName, email, dateJoined);
+                      Provider.of<AuthProvider>(context, listen: false).logIn(authToken, expiry);
 
                       // Navigate to RegistrationConfirm if successful
                       Navigator.push(
