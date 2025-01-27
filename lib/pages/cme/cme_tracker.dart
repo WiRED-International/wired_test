@@ -2,28 +2,18 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:wired_test/pages/cme/submit_credits.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
+import '../../utils/profile_section.dart';
 import '../../utils/side_nav_bar.dart';
 import '../home_page.dart';
 import '../menu.dart';
 import '../module_library.dart';
+import 'credits_history.dart';
 
 
 class CMETracker extends StatefulWidget {
-  // final String firstName;
-  // final String lastName;
-  // final String email;
-  // final String dateJoined;
-  // // final String profilePictureUrl;
-  //
-  // const CMETracker({
-  //   super.key,
-  //   required this.firstName,
-  //   required this.lastName,
-  //   required this.email,
-  //   required this.dateJoined
-  // });
 
   @override
   _CMETrackerState createState() => _CMETrackerState();
@@ -67,9 +57,9 @@ class User {
 class _CMETrackerState extends State<CMETracker> {
   final double circleDiameter = 130.0;
   final double circleDiameterSmall = 115.0;
-  //late Future<Map<String, dynamic>> moduleScores;
   late Future<User> userData;
   final _storage = const FlutterSecureStorage();
+  bool showCreditsHistory = false;
 
   @override
   void initState() {
@@ -80,7 +70,6 @@ class _CMETrackerState extends State<CMETracker> {
   Future<String?> getAuthToken() async {
     return await _storage.read(key: 'authToken');
   }
-
 
   Future<User> fetchUserData() async {
     final token = await getAuthToken();
@@ -115,126 +104,139 @@ class _CMETrackerState extends State<CMETracker> {
 
   @override
   Widget build(BuildContext context) {
-    var screenWidth = MediaQuery.of(context).size.width;
-    var screenHeight = MediaQuery.of(context).size.height;
     var baseSize = MediaQuery.of(context).size.shortestSide;
     bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
     return Scaffold(
       body: SafeArea(
-        child: Stack(
-          children: [
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFFFFF0DC),
-                    Color(0xFFF9EBD9),
-                    Color(0xFFFFC888),
+        child: FutureBuilder<User>(
+          future: userData,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(child: CircularProgressIndicator());
+            } else if (snapshot.hasError) {
+              return Center(child: Text('Error: ${snapshot.error}'));
+            } else if (!snapshot.hasData) {
+              return Center(child: Text('No data available'));
+            }
+
+            final user = snapshot.data!;
+            return Stack(
+              children: [
+                Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0xFFFFF0DC),
+                        Color(0xFFF9EBD9),
+                        Color(0xFFFFC888),
+                      ],
+                    ),
+                  ),
+                ),
+                Column(
+                  children: [
+                    ProfileSection(
+                      firstName: user.firstName ?? 'Guest',
+                      dateJoined: user.dateJoined ?? 'Unknown',
+                    ),
+                    SizedBox(
+                      height: baseSize * (isTablet(context) ? 0.05 : 0.07),
+                    ),
+                    Expanded(
+                      child: Row(
+                        children: [
+                          if (isLandscape)
+                            CustomSideNavBar(
+                              onHomeTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) => MyHomePage()),
+                                );
+                              },
+                              onLibraryTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) => ModuleLibrary()),
+                                );
+                              },
+                              onTrackerTap: () {
+                                // Intentionally left blank
+                              },
+                              onMenuTap: () {
+                                Navigator.push(context, MaterialPageRoute(
+                                    builder: (context) => Menu()));
+                              },
+                            ),
+                          Expanded(
+                            child: Stack(
+                              children: <Widget>[
+                                Container(
+                                  decoration: const BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Color(0xFFFFF0DC),
+                                        Color(0xFFF9EBD9),
+                                        Color(0xFFFFC888),
+                                      ],
+                                    ),
+                                  ),
+                                  child: SafeArea(
+                                    child: Center(
+                                      child: isLandscape
+                                        ? _buildLandscapeLayout(context, baseSize, user.firstName, user.dateJoined, user.quizScores)
+                                        : _buildPortraitLayout(context, baseSize, user.firstName, user.dateJoined, user.quizScores),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (!isLandscape)
+                      CustomBottomNavBar(
+                        onHomeTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => MyHomePage()),
+                          );
+                        },
+                        onLibraryTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => ModuleLibrary()),
+                          );
+                        },
+                        onTrackerTap: () {
+                          // Intentionally left blank
+                        },
+                        onMenuTap: () {
+                          Navigator.push(context,
+                              MaterialPageRoute(builder: (context) => Menu()));
+                        },
+                      ),
                   ],
                 ),
-              ),
-            ),
-            Column(
-              children: [
-                // Expanded layout for the main content
-                Expanded(
-                  child: Row(
-                    children: [
-                      if (isLandscape)
-                        CustomSideNavBar(
-                          onHomeTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => MyHomePage()),
-                            );
-                          },
-                          onLibraryTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => ModuleLibrary()),
-                            );
-                          },
-                          onTrackerTap: () {
-                            //Purposefully left blank
-                          },
-                          onMenuTap: () {
-                            Navigator.push(context, MaterialPageRoute(
-                                builder: (context) => Menu()));
-                          },
-                        ),
-
-                      // Main content area (expanded to fill remaining space)
-                      Expanded(
-                        child: Center(
-                          child: FutureBuilder<User>(
-                            future: userData,
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState == ConnectionState.waiting) {
-                                return Center(child: CircularProgressIndicator());
-                              } else if (snapshot.hasError) {
-                                return Center(child: Text('Error: ${snapshot.error}'));
-                              } else if (!snapshot.hasData) {
-                                return Center(child: Text('No data available'));
-                              }
-
-                              final user = snapshot.data!;
-                              print('FutureBuilder User: ${user.toJson()}');
-                              return _buildPortraitLayout(
-                                MediaQuery.of(context).size.width,
-                                MediaQuery.of(context).size.height,
-                                MediaQuery.of(context).size.shortestSide,
-                                user.firstName,
-                                user.lastName,
-                                user.email,
-                                user.dateJoined,
-                                user.quizScores,
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                if (!isLandscape)
-                  CustomBottomNavBar(
-                    onHomeTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => MyHomePage()),
-                      );
-                    },
-                    onLibraryTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => ModuleLibrary()),
-                      );
-                    },
-                    onTrackerTap: () {
-                      //Purposefully left blank
-                    },
-                    onMenuTap: () {
-                      Navigator.push(context,
-                          MaterialPageRoute(builder: (context) => Menu()));
-                    },
-                  ),
               ],
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
   }
+}
 
-  Widget _buildPortraitLayout(screenWidth, screenHeight, baseSize, firstName, lastName, email, dateJoined, quizScores) {
+  Widget _buildPortraitLayout(BuildContext context, baseSize, firstName, dateJoined, quizScores) {
 
     // Calculate credits
     final int creditsEarned = quizScores != null
@@ -255,96 +257,6 @@ class _CMETrackerState extends State<CMETracker> {
 
     return Column(
       children: <Widget>[
-        Stack(
-          clipBehavior: Clip.none, // Allows the circle to extend outside the container
-          children: [
-            Container(
-              height: baseSize * (isTablet(context) ? 0.05 : 0.35),
-              width: MediaQuery.of(context).size.width,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFF2853FF),
-                    Color(0xFFC3C6FB),
-                  ],
-                ),
-              ),
-            ),
-            Positioned(
-              top: baseSize * (isTablet(context) ? 0.05 : 0.35) - (circleDiameter / 2), // Middle of the circle aligns with the bottom
-              left: baseSize * (isTablet(context) ? 0.05 : 0.18) - (circleDiameter / 2), // Horizontally centered
-              child: Container(
-                width: circleDiameter, // Diameter of the circle
-                height: circleDiameter,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Color(0xFFFCEEDB),
-                ),
-              ),
-            ),
-            // Second Circle
-            Positioned(
-              top: baseSize * (isTablet(context) ? 0.05 : 0.35) - circleDiameterSmall / 2, // Adjust position to place on top of first circle
-              left: baseSize * (isTablet(context) ? 0.05 : 0.18) - (circleDiameterSmall / 2), // Smaller circle horizontally centered
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: circleDiameterSmall, // Smaller circle
-                    height: circleDiameterSmall,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.grey, // Different color for the second circle
-                    ),
-                  ),
-                  Icon(
-                    Icons.person_2_sharp, // Flutter icon
-                    size: baseSize * (isTablet(context) ? .07 : 0.25), // Scale the icon size
-                    color: Colors.white,
-                  ),
-                ],
-              ),
-            ),
-            // Text at the Bottom Center
-            Positioned(
-              bottom: 10.0, // Position slightly above the bottom of the container
-              left: 0,
-              right: baseSize * (isTablet(context) ? 0.07 : 0.06),
-              child: Text(
-                "Hi, ${firstName ?? 'Guest'}",
-                textAlign: TextAlign.center, // Center the text horizontally
-                style: TextStyle(
-                  fontSize: baseSize * (isTablet(context) ? 0.07 : 0.06),
-                  color: Colors.black,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-        SizedBox(
-          height: baseSize * (isTablet(context) ? 0.02 : 0.02),
-        ),
-        Row(
-          children: [
-            SizedBox(
-              width: baseSize * (isTablet(context) ? 0.05 : 0.35),
-            ),
-            Text(
-              "Joined: ${dateJoined != null ? formatDate(dateJoined!) : 'Unknown'}",
-              style: TextStyle(
-                fontSize: baseSize * (isTablet(context) ? 0.07 : 0.045),
-                fontWeight: FontWeight.w400,
-                color: Colors.black,
-              ),
-            ),
-          ],
-        ),
-        SizedBox(
-          height: baseSize * (isTablet(context) ? 0.05 : 0.09),
-        ),
         Text(
           "CME Credits Tracker",
           textAlign: TextAlign.center,
@@ -413,10 +325,10 @@ class _CMETrackerState extends State<CMETracker> {
         SizedBox(height: baseSize * (isTablet(context) ? 0.05 : 0.10)),
         Padding(
           padding: EdgeInsets.symmetric(
-              horizontal: baseSize * (isTablet(context) ? 0.05 : 0.04),
+              horizontal: baseSize * (isTablet(context) ? 0.05 : 0.09),
           ),
           child: RichText(
-            textAlign: TextAlign.center,
+            textAlign: TextAlign.left,
             text: TextSpan(
               style: TextStyle(
                 fontSize: baseSize * (isTablet(context) ? 0.045 : 0.06),
@@ -438,13 +350,129 @@ class _CMETrackerState extends State<CMETracker> {
               ],
             ),
           ),
-        )
+        ),
+        SizedBox(height: baseSize * (isTablet(context) ? 0.05 : 0.10)),
+        Semantics(
+          label: 'CME Credits History Button',
+          hint: 'Tap to view your CME credits history',
+          child: GestureDetector(
+            onTap: () async {
+              Navigator.push(
+                  context, MaterialPageRoute(builder: (context) => CreditsHistory()));
+            },
+            child: FractionallySizedBox(
+              widthFactor: isTablet(context) ? 0.33 : 0.7,
+              child: Container(
+                height: baseSize * (isTablet(context) ? 0.09 : 0.13),
+                decoration: BoxDecoration(
+                  color: Color(0xFF6B72FF),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.5),
+                      spreadRadius: 1,
+                      blurRadius: 5,
+                      offset: const Offset(
+                          1, 3), // changes position of shadow
+                    ),
+                  ],
+                ),
+                child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      double buttonWidth = constraints.maxWidth;
+                      double fontSize = buttonWidth * 0.2;
+                      double padding = buttonWidth * 0.02;
+                      return Padding(
+                        padding: EdgeInsets.all(padding),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.fitWidth,
+                                child: Text(
+                                  "Credits History",
+                                  style: TextStyle(
+                                    fontSize: fontSize,
+                                    fontWeight: FontWeight.w400,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                ),
+              ),
+            ),
+          ),
+        ),
+        SizedBox(height: baseSize * (isTablet(context) ? 0.05 : 0.10)),
+        Semantics(
+          label: 'Submit CME Credits Button',
+          hint: 'Tap to submit your CME credits',
+          child: GestureDetector(
+            onTap: () async {
+              Navigator.push(
+                  context, MaterialPageRoute(builder: (context) => SubmitCredits()));
+            },
+            child: FractionallySizedBox(
+              widthFactor: isTablet(context) ? 0.33 : 0.7,
+              child: Container(
+                height: baseSize * (isTablet(context) ? 0.09 : 0.13),
+                decoration: BoxDecoration(
+                  color: Color(0xFF6B72FF),
+                  borderRadius: BorderRadius.circular(30),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.5),
+                      spreadRadius: 1,
+                      blurRadius: 5,
+                      offset: const Offset(
+                          1, 3), // changes position of shadow
+                    ),
+                  ],
+                ),
+                child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      double buttonWidth = constraints.maxWidth;
+                      double fontSize = buttonWidth * 0.2;
+                      double padding = buttonWidth * 0.02;
+                      return Padding(
+                        padding: EdgeInsets.all(padding),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.fitWidth,
+                                child: Text(
+                                  "Submit New Credits",
+                                  style: TextStyle(
+                                    fontSize: fontSize,
+                                    fontWeight: FontWeight.w400,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }
+                ),
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
 
 
-  Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
+  Widget _buildLandscapeLayout(BuildContext context, baseSize, firstName, dateJoined, quizScores) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: <Widget>[
@@ -463,6 +491,5 @@ class _CMETrackerState extends State<CMETracker> {
       ],
     );
   }
-}
 
 
