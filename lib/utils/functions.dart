@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
@@ -72,5 +73,31 @@ String formatDate(String timestamp) {
 String normalizeBase64(String base64String) {
   return base64String.padRight(base64String.length + (4 - base64String.length % 4) % 4, '=');
 }
+
+// Function to help with scaling in portrait
+double getScalingFactor(BuildContext context) {
+  Size screenSize = MediaQuery.of(context).size;
+  double baseWidth = 360.0;  // Reference width for portrait mode
+  double baseHeight = 640.0; // Reference height for portrait mode
+
+  if (screenSize.width > screenSize.height) {
+    return ((screenSize.width / baseWidth) + (screenSize.height / baseHeight)) / 2;
+  } else {
+    return screenSize.width / baseWidth;
+  }
+}
+
+// Function to check if user is logged in
+Future<bool> checkIfUserIsLoggedIn() async {
+  final _storage = const FlutterSecureStorage();
+  final token = await _storage.read(key: 'authToken');
+  print("🔑 Retrieved Token: $token"); // Debugging output
+
+  bool isLoggedIn = token != null && token.isNotEmpty;
+  print("✅ User is logged in: $isLoggedIn"); // Debugging output
+
+  return isLoggedIn;
+}
+
 
 

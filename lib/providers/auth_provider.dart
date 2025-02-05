@@ -1,92 +1,105 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import '../pages/cme/cme_info.dart';
+import '../pages/cme/login.dart';
+import 'package:http/http.dart' as http;
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthProvider with ChangeNotifier {
   bool _isLoggedIn = false; // Tracks the authentication status
   String? _authToken;
   DateTime? _tokenExpiry;
+  final FlutterSecureStorage storage = const FlutterSecureStorage();
 
   bool get isLoggedIn => _isLoggedIn;
-
-  // Public getter to access the authToken
   String? get authToken => _authToken;
 
-  // Log in the user and set the token
-  void logIn(String authToken, DateTime expiry) {
+  // Load stored token & expiry on app startup
+  Future<void> loadStoredAuthData() async {
+    _authToken = await storage.read(key: 'authToken');
+    final expiryString = await storage.read(key: 'tokenExpiry');
+
+    if (_authToken != null && expiryString != null) {
+      _tokenExpiry = DateTime.tryParse(expiryString);
+      _isLoggedIn = _tokenExpiry != null && !isTokenExpired();
+    }
+
+    notifyListeners();
+  }
+
+  // Log in the user and store token securely
+  Future<void> logIn(String authToken, DateTime expiry) async {
     _authToken = authToken;
     _tokenExpiry = expiry;
     _isLoggedIn = true;
-    print('AuthProvider: Token set: $_authToken');
-    notifyListeners(); // Notify listeners when authentication state changes
+
+    await storage.write(key: 'authToken', value: authToken);
+    await storage.write(key: 'tokenExpiry', value: expiry.toIso8601String());
+
+    notifyListeners();
+    print('User logged in. Token: $_authToken, Expiry: $_tokenExpiry');
   }
 
   // Log out the user
-  void logOut() {
+  Future<void> logOut() async {
+    print('logOut: Logging out user.');
+
+    await storage.delete(key: 'authToken');
+    await storage.delete(key: 'tokenExpiry');
+
     _authToken = null;
     _tokenExpiry = null;
     _isLoggedIn = false;
-    notifyListeners(); // Notify listeners when authentication state changes
+    notifyListeners();
+
+    print('User logged out.');
   }
 
-  // Decode the JWT to extract the user_id or other claims
+  // Decode JWT to extract user ID
   String? getUserIdFromToken() {
-    if (_authToken == null) {
-      print('Auth token is null');
-      return null;
-    }
-
+    if (_authToken == null) return null;
     try {
       final parts = _authToken!.split('.');
-      if (parts.length != 3) {
-        print('AuthProvider: Invalid token format');
-        return null;
-      }
+      if (parts.length != 3) return null;
 
       final payload = utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
       final payloadMap = json.decode(payload) as Map<String, dynamic>;
 
-      print('Decoded payload: $payloadMap');
-      print('AuthProvider: Decoded payload: $payloadMap');
-      return payloadMap['id']?.toString(); // Ensure `id` is the correct key
+      return payloadMap['id']?.toString();
     } catch (e) {
-      print('AuthProvider: Error decoding token: $e');
+      print('Error decoding token: $e');
       return null;
     }
   }
 
-  // Check if the token is expired
+  // Check if token is expired
   bool isTokenExpired() {
     if (_tokenExpiry == null) return true;
-    return DateTime.now().isAfter(_tokenExpiry!);
+
+    final bufferDuration = Duration(minutes: 2);
+    final expiryWithBuffer = _tokenExpiry!.subtract(bufferDuration);
+
+    return DateTime.now().isAfter(expiryWithBuffer);
   }
 
-  // Attempt to renew the token
-  Future<bool> renewToken() async {
-    // Replace this with your token refresh API call logic
-    try {
-      final newToken = await fetchNewToken(_authToken); // Example API call
-      if (newToken != null) {
-        logIn(newToken.token, newToken.expiry); // Update token and expiry
-        return true;
-      }
-    } catch (e) {
-      print('Error renewing token: $e');
+  // Handle authentication status and redirect if needed
+  void handleAuthentication(BuildContext context) {
+    if (_authToken == null) {
+      Future.microtask(() {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => CmeInfo()),
+        );
+      });
+    } else if (isTokenExpired()) {
+      print('Token expired. Logging out.');
+      Future.microtask(() {
+        logOut();
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => Login()),
+        );
+      });
     }
-    logOut(); // Log out if token cannot be renewed
-    return false;
   }
-}
-
-// Example function for token renewal (replace with actual API call)
-Future<TokenResponse?> fetchNewToken(String? currentToken) async {
-  // Call your backend to get a new token
-  // Return null if renewal fails
-  return null;
-}
-
-class TokenResponse {
-  final String token;
-  final DateTime expiry;
-
-  TokenResponse(this.token, this.expiry);
 }

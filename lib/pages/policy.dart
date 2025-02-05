@@ -2,12 +2,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:wired_test/utils/custom_nav_bar.dart';
+import '../providers/auth_guard.dart';
 import '../utils/custom_app_bar.dart';
 import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
 import 'cme/cme_info.dart';
+import 'cme/cme_tracker.dart';
 import 'home_page.dart';
-import 'menu.dart';
+import 'menu/guestMenu.dart';
+import 'menu/menu.dart';
 import 'module_library.dart';
 
 class Policy extends StatelessWidget {
@@ -82,6 +85,7 @@ If you have any questions or concerns about this Privacy Policy, please contact 
                     onBackPressed: () {
                       Navigator.pop(context);
                     },
+                    requireAuth: false,
                   ),
                   // Expanded layout for the main content
                   Expanded(
@@ -92,7 +96,7 @@ If you have any questions or concerns about this Privacy Policy, please contact 
                             onHomeTap: () {
                               Navigator.push(
                                 context,
-                                MaterialPageRoute(builder: (context) => MyHomePage()),
+                                MaterialPageRoute(builder: (context) => const MyHomePage()),
                               );
                             },
                             onLibraryTap: () {
@@ -105,12 +109,21 @@ If you have any questions or concerns about this Privacy Policy, please contact 
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                    builder: (context) => CmeInfo()),
+                                  builder: (context) => AuthGuard(
+                                    child: CMETracker(),
+                                  ),
+                                ),
                               );
                             },
-                            onMenuTap: () {
-                              Navigator.push(context, MaterialPageRoute(builder: (
-                                  context) => Menu()));
+                            onMenuTap: () async {
+                              bool isLoggedIn = await checkIfUserIsLoggedIn();
+                              print("Navigating to menu. Logged in: $isLoggedIn");
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                                ),
+                              );
                             },
                           ),
                         // Main content area (expanded to fill remaining space)
@@ -129,7 +142,7 @@ If you have any questions or concerns about this Privacy Policy, please contact 
                       onHomeTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => MyHomePage()),
+                          MaterialPageRoute(builder: (context) => const MyHomePage()),
                         );
                       },
                       onLibraryTap: () {
@@ -142,12 +155,21 @@ If you have any questions or concerns about this Privacy Policy, please contact 
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                              builder: (context) => CmeInfo()),
+                            builder: (context) => AuthGuard(
+                              child: CMETracker(),
+                            ),
+                          ),
                         );
                       },
-                      onMenuTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (
-                            context) => Menu()));
+                      onMenuTap: () async {
+                        bool isLoggedIn = await checkIfUserIsLoggedIn();
+                        print("Navigating to menu. Logged in: $isLoggedIn");
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                          ),
+                        );
                       },
                     ),
                 ],

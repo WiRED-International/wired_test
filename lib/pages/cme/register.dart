@@ -1,24 +1,19 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:archive/archive_io.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:wired_test/pages/cme/registration_confirm.dart';
-import 'package:wired_test/pages/policy.dart';
+import '../../providers/auth_guard.dart';
 import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
 import '../../utils/side_nav_bar.dart';
-import '../download_confirm.dart';
 import '../home_page.dart';
-import '../menu.dart';
+import '../menu/guestMenu.dart';
+import '../menu/menu.dart';
 import '../module_library.dart';
 import 'cme_info.dart';
+import 'cme_tracker.dart';
 import 'login.dart';
 
 class Register extends StatefulWidget {
@@ -62,7 +57,7 @@ class _RegisterState extends State<Register> {
   }
 
   Future<void> _fetchCountrySuggestions(String query) async {
-    final url = Uri.parse('http://10.0.2.2:3000/countries?query=$query');
+    final url = Uri.parse('http://widm.wiredhealthresources.net/apiv2/countries?query=$query');
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {
@@ -193,7 +188,7 @@ class _RegisterState extends State<Register> {
 
       print('User data being sent: $userData');
 
-      final url = Uri.parse('http://10.0.2.2:3000/auth/register');
+      final url = Uri.parse('http://widm.wiredhealthresources.net/apiv2/auth/register');
 
       try {
         final response = await http.post(
@@ -229,9 +224,7 @@ class _RegisterState extends State<Register> {
 
   @override
   Widget build(BuildContext context) {
-    var screenWidth = MediaQuery.of(context).size.width;
-    var screenHeight = MediaQuery.of(context).size.height;
-    var baseSize = MediaQuery.of(context).size.shortestSide;
+    double scalingFactor = getScalingFactor(context);
     bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
     return Scaffold(
@@ -258,6 +251,7 @@ class _RegisterState extends State<Register> {
                   onBackPressed: () {
                     Navigator.pop(context);
                   },
+                  requireAuth: false,
                 ),
                 // Expanded layout for the main content
                 Expanded(
@@ -268,7 +262,7 @@ class _RegisterState extends State<Register> {
                           onHomeTap: () {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (context) => MyHomePage()),
+                              MaterialPageRoute(builder: (context) => const MyHomePage()),
                             );
                           },
                           onLibraryTap: () {
@@ -278,12 +272,24 @@ class _RegisterState extends State<Register> {
                             );
                           },
                           onTrackerTap: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (
-                                context) => CmeInfo()));
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => AuthGuard(
+                                  child: CMETracker(),
+                                ),
+                              ),
+                            );
                           },
-                          onMenuTap: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (
-                                context) => Menu()));
+                          onMenuTap: () async {
+                            bool isLoggedIn = await checkIfUserIsLoggedIn();
+                            print("Navigating to menu. Logged in: $isLoggedIn");
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                              ),
+                            );
                           },
                         ),
 
@@ -291,8 +297,8 @@ class _RegisterState extends State<Register> {
                       Expanded(
                         child: Center(
                           child: isLandscape
-                              ? _buildLandscapeLayout(screenWidth, screenHeight, baseSize)
-                              : _buildPortraitLayout(screenWidth, screenHeight, baseSize),
+                              ? _buildLandscapeLayout(scalingFactor)
+                              : _buildPortraitLayout(scalingFactor),
                         ),
                       ),
                     ],
@@ -305,7 +311,7 @@ class _RegisterState extends State<Register> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (context) => MyHomePage()),
+                            builder: (context) => const MyHomePage()),
                       );
                     },
                     onLibraryTap: () {
@@ -315,12 +321,24 @@ class _RegisterState extends State<Register> {
                       );
                     },
                     onTrackerTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (
-                          context) => CmeInfo()));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AuthGuard(
+                            child: CMETracker(),
+                          ),
+                        ),
+                      );
                     },
-                    onMenuTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (
-                          context) => Menu()));
+                    onMenuTap: () async {
+                      bool isLoggedIn = await checkIfUserIsLoggedIn();
+                      print("Navigating to menu. Logged in: $isLoggedIn");
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                        ),
+                      );
                     },
                   ),
               ],
@@ -332,12 +350,12 @@ class _RegisterState extends State<Register> {
 
   }
 
-  Widget _buildPortraitLayout(screenWidth, screenHeight, baseSize) {
+  Widget _buildPortraitLayout(scalingFactor) {
     return Center(
       child: Form(
         key: _formKey,
         child: SingleChildScrollView(
-          padding: EdgeInsets.only(top: baseSize * (isTablet(context) ? 0.02 : 0.02)),
+          padding: EdgeInsets.only(top: scalingFactor * (isTablet(context) ? 10 : 10)),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: <Widget>[
@@ -345,67 +363,85 @@ class _RegisterState extends State<Register> {
                 "Register",
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: baseSize * (isTablet(context) ? 0.08 : 0.08),
+                  fontSize: scalingFactor * (isTablet(context) ? 28 : 32),
                   fontWeight: FontWeight.w500,
                   color: Color(0xFF0070C0),
                 ),
               ),
               SizedBox(
-                height: baseSize * (isTablet(context) ? 0.02 : 0.02),
+                height: scalingFactor * (isTablet(context) ? 10 : 10),
               ),
-              _buildTextField(
-                controller: _firstNameController,
-                label: "First Name",
-                hintText: "Enter your first name",
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return "Please enter your first name";
-                  }
-                  return null;
-                },
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 10 : 10)),
+                child: _buildTextField(
+                  controller: _firstNameController,
+                  label: "First Name",
+                  hintText: "Enter your first name",
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return "Please enter your first name";
+                    }
+                    return null;
+                  },
+                ),
               ),
-              _buildTextField(
-                controller: _lastNameController,
-                label: "Last Name",
-                hintText: "Enter your last name",
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return "Please enter your last name";
-                  }
-                  return null;
-                },
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 10 : 10)),
+                child: _buildTextField(
+                  controller: _lastNameController,
+                  label: "Last Name",
+                  hintText: "Enter your last name",
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return "Please enter your last name";
+                    }
+                    return null;
+                  },
+                ),
               ),
-              _buildTextField(
-                controller: _emailController,
-                label: "Email",
-                hintText: "Enter your email",
-                validator: _validateEmail,
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 10 : 10)),
+                child: _buildTextField(
+                  controller: _emailController,
+                  label: "Email",
+                  hintText: "Enter your email",
+                  validator: _validateEmail,
+                ),
               ),
-              _buildCountryField(),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 10 : 10)),
+                child: _buildCountryField(),
+              ),
               // _buildCityField(),
               // _buildOrganizationField(),
-              _buildTextField(
-                controller: _passwordController,
-                label: "Password",
-                hintText: "Enter your password",
-                validator: _validatePassword,
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 10 : 10)),
+                child: _buildTextField(
+                  controller: _passwordController,
+                  label: "Password",
+                  hintText: "Enter your password",
+                  validator: _validatePassword,
+                ),
               ),
-              _buildTextField(
-                controller: _confirmPasswordController,
-                label: "Confirm Password",
-                hintText: "Confirm your password",
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return "Please confirm your password";
-                  }
-                  if (value != _passwordController.text) {
-                    return "Passwords do not match";
-                  }
-                  return null;
-                },
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 10 : 10)),
+                child: _buildTextField(
+                  controller: _confirmPasswordController,
+                  label: "Confirm Password",
+                  hintText: "Confirm your password",
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return "Please confirm your password";
+                    }
+                    if (value != _passwordController.text) {
+                      return "Passwords do not match";
+                    }
+                    return null;
+                  },
+                ),
               ),
               SizedBox(
-                height: baseSize * (isTablet(context) ? 0.02 : 0.1),
+                height: scalingFactor * (isTablet(context) ? 25 : 25),
               ),
               Semantics(
                 label: 'Register Button',
@@ -422,9 +458,9 @@ class _RegisterState extends State<Register> {
                     }
                   },
                   child: FractionallySizedBox(
-                    widthFactor: isTablet(context) ? 0.33 : 0.7,
+                    widthFactor: isTablet(context) ? 0.5 : 0.7,
                     child: Container(
-                      height: baseSize * (isTablet(context) ? 0.09 : 0.13),
+                      height: scalingFactor * (isTablet(context) ? 30 : 40),
                       decoration: BoxDecoration(
                         color: Color(0xFF0070C0),
                         // gradient: const LinearGradient(
@@ -480,39 +516,42 @@ class _RegisterState extends State<Register> {
                 ),
               ),
               SizedBox(
-                height: baseSize * (isTablet(context) ? 0.02 : 0.1),
+                height: scalingFactor * (isTablet(context) ? 35 : 35),
               ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    "Already have an account?",
-                    style: TextStyle(
-                      fontSize: baseSize * (isTablet(context) ? 0.03 : 0.05),
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black,
-                    ),
-                  ),
-                  SizedBox(
-                    width: baseSize * (isTablet(context) ? 0.02 : 0.02),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => Login()),
-                      );
-                    },
-                    child: Text(
-                      "Login",
+              Padding(
+                padding: EdgeInsets.only(bottom: scalingFactor * (isTablet(context) ? 55 : 55)),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      "Already have an account?",
                       style: TextStyle(
-                        fontSize: baseSize * (isTablet(context) ? 0.03 : 0.05),
+                        fontSize: scalingFactor * (isTablet(context) ? 16 : 18),
                         fontWeight: FontWeight.w500,
-                        color: Color(0xFF0070C0),
+                        color: Colors.black,
                       ),
                     ),
-                  )
-                ],
+                    SizedBox(
+                      width: scalingFactor * (isTablet(context) ? 10 : 10),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => Login()),
+                        );
+                      },
+                      child: Text(
+                        "Login",
+                        style: TextStyle(
+                          fontSize: scalingFactor * (isTablet(context) ? 16 : 18),
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF0070C0),
+                        ),
+                      ),
+                    )
+                  ],
+                ),
               ),
             ],
           ),
@@ -521,19 +560,210 @@ class _RegisterState extends State<Register> {
     );
   }
 
-  Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: <Widget>[
-        Text(
-          "Register",
-          style: TextStyle(
-            fontSize: baseSize * (isTablet(context) ? 0.08 : 0.08),
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF548235),
+  Widget _buildLandscapeLayout(scalingFactor) {
+    return Center(
+      child: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(top: scalingFactor * (isTablet(context) ? 0.02 : 10)),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: <Widget>[
+              Text(
+                "Register",
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: scalingFactor * (isTablet(context) ? 24 : 28),
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF0070C0),
+                ),
+              ),
+              SizedBox(
+                height: scalingFactor * (isTablet(context) ? 10 : 10),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 80 : 100)),
+                child: _buildTextField(
+                  controller: _firstNameController,
+                  label: "First Name",
+                  hintText: "Enter your first name",
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return "Please enter your first name";
+                    }
+                    return null;
+                  },
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 80 : 100)),
+                child: _buildTextField(
+                  controller: _lastNameController,
+                  label: "Last Name",
+                  hintText: "Enter your last name",
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return "Please enter your last name";
+                    }
+                    return null;
+                  },
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 80 : 100)),
+                child: _buildTextField(
+                  controller: _emailController,
+                  label: "Email",
+                  hintText: "Enter your email",
+                  validator: _validateEmail,
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 80 : 100)),
+                child: _buildCountryField(),
+              ),
+              // _buildCityField(),
+              // _buildOrganizationField(),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 80 : 100)),
+                child: _buildTextField(
+                  controller: _passwordController,
+                  label: "Password",
+                  hintText: "Enter your password",
+                  validator: _validatePassword,
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 80 : 100)),
+                child: _buildTextField(
+                  controller: _confirmPasswordController,
+                  label: "Confirm Password",
+                  hintText: "Confirm your password",
+                  validator: (value) {
+                    if (value == null || value.isEmpty) {
+                      return "Please confirm your password";
+                    }
+                    if (value != _passwordController.text) {
+                      return "Passwords do not match";
+                    }
+                    return null;
+                  },
+                ),
+              ),
+              SizedBox(
+                height: scalingFactor * (isTablet(context) ? 30 : 25),
+              ),
+              Semantics(
+                label: 'Register Button',
+                hint: 'Tap to register',
+                child: GestureDetector(
+                  onTap: () async {
+                    bool isSuccess = await _submitForm(); // Wait for submission result
+                    if (isSuccess) {
+                      // Navigate to RegistrationConfirm if successful
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => RegistrationConfirm()),
+                      );
+                    }
+                  },
+                  child: FractionallySizedBox(
+                    widthFactor: isTablet(context) ? 0.3 : 0.3,
+                    child: Container(
+                      height: scalingFactor * (isTablet(context) ? 30 : 30),
+                      decoration: BoxDecoration(
+                        color: Color(0xFF0070C0),
+                        // gradient: const LinearGradient(
+                        //   colors: [
+                        //     Color(0xFF0070C0),
+                        //     Color(0xFF00C1FF),
+                        //     Color(0xFF0070C0),
+                        //   ], // Your gradient colors
+                        //   begin: Alignment.topCenter,
+                        //   end: Alignment.bottomCenter,
+                        // ),
+                        borderRadius: BorderRadius.circular(10),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.5),
+                            spreadRadius: 1,
+                            blurRadius: 5,
+                            offset: const Offset(
+                                1, 3), // changes position of shadow
+                          ),
+                        ],
+                      ),
+                      child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            double buttonWidth = constraints.maxWidth;
+                            double fontSize = buttonWidth * 0.2;
+                            double padding = buttonWidth * 0.02;
+                            return Padding(
+                              padding: EdgeInsets.all(padding),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Flexible(
+                                    child: FittedBox(
+                                      fit: BoxFit.fitWidth,
+                                      child: Text(
+                                        "Register",
+                                        style: TextStyle(
+                                          fontSize: fontSize,
+                                          fontWeight: FontWeight.w500,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: scalingFactor * (isTablet(context) ? 35 : 30)),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      "Already have an account?",
+                      style: TextStyle(
+                        fontSize: scalingFactor * (isTablet(context) ? 16 : 18),
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black,
+                      ),
+                    ),
+                    SizedBox(
+                      width: scalingFactor * (isTablet(context) ? 10 : 10),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (context) => Login()),
+                        );
+                      },
+                      child: Text(
+                        "Login",
+                        style: TextStyle(
+                          fontSize: scalingFactor * (isTablet(context) ? 16 : 18),
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF0070C0),
+                        ),
+                      ),
+                    )
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }

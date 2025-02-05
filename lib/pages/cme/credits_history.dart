@@ -3,15 +3,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 
+import '../../providers/auth_guard.dart';
+import '../../providers/auth_provider.dart';
 import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
+import '../../utils/landscape_profile_section.dart';
 import '../../utils/profile_section.dart';
 import '../../utils/side_nav_bar.dart';
 import '../home_page.dart';
-import '../menu.dart';
+import '../menu/guestMenu.dart';
+import '../menu/menu.dart';
 import '../module_library.dart';
+import 'cme_tracker.dart';
+import 'login.dart';
 
 
 
@@ -80,7 +87,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
     }
 
     final url = Uri.parse(
-        'http://10.0.2.2:3000/users/me'); // Replace with your API URL
+        'http://widm.wiredhealthresources.net/apiv2/users/me'); // Replace with your API URL
     final response = await http.get(
       url,
       headers: {
@@ -106,8 +113,13 @@ class _CreditsHistoryState extends State<CreditsHistory> {
 
   @override
   Widget build(BuildContext context) {
-    var baseSize = MediaQuery.of(context).size.shortestSide;
-    bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final mediaQuery = MediaQuery.of(context);
+    final screenSize = mediaQuery.size;
+    // final baseSize = screenSize.shortestSide;
+    final isLandscape = mediaQuery.orientation == Orientation.landscape;
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final scalingFactor = getScalingFactor(context);
+    final isTabletDevice = isTablet(context);
 
     return Scaffold(
       body: SafeArea(
@@ -115,16 +127,17 @@ class _CreditsHistoryState extends State<CreditsHistory> {
           future: userData,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return Center(child: CircularProgressIndicator());
+              return const Center(child: CircularProgressIndicator());
             } else if (snapshot.hasError) {
               return Center(child: Text('Error: ${snapshot.error}'));
             } else if (!snapshot.hasData) {
-              return Center(child: Text('No data available'));
+              return const Center(child: Text('No data available'));
             }
 
             final user = snapshot.data!;
             return Stack(
               children: [
+                // Background Gradient
                 Container(
                   decoration: const BoxDecoration(
                     gradient: LinearGradient(
@@ -138,7 +151,53 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                     ),
                   ),
                 ),
-                Column(
+                isLandscape
+                    ? Row(
+                  children: [
+                    // Side Navigation Bar for Landscape
+                    SizedBox(
+                      width: screenSize.width * 0.12, // Adjust width as needed
+                      child: CustomSideNavBar(
+                        onHomeTap: () => _navigateTo(context, const MyHomePage()),
+                        onLibraryTap: () => _navigateTo(context, ModuleLibrary()),
+                        onTrackerTap: () => _navigateTo(context, AuthGuard(child: CMETracker())),
+                        onMenuTap: () async {
+                          bool isLoggedIn = await checkIfUserIsLoggedIn();
+                          print("Navigating to menu. Logged in: $isLoggedIn");
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    // Right Side Content
+                    Expanded(
+                      child: Column(
+                        children: [
+                          LandscapeProfileSection(
+                            firstName: user.firstName ?? 'Guest',
+                            dateJoined: user.dateJoined ?? 'Unknown',
+                          ),
+                          Expanded(
+                            child: Center(
+                              child: _buildLandscapeLayout(
+                                context,
+                                scalingFactor,
+                                user.firstName,
+                                user.dateJoined,
+                                user.quizScores,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                )
+                    : Column(
                   children: [
                     ProfileSection(
                       firstName: user.firstName ?? 'Guest',
@@ -147,66 +206,39 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                     Expanded(
                       child: Row(
                         children: [
-                          if (isLandscape)
-                            CustomSideNavBar(
-                              onHomeTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) => MyHomePage()),
-                                );
-                              },
-                              onLibraryTap: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (context) => ModuleLibrary()),
-                                );
-                              },
-                              onTrackerTap: () {
-                                // Intentionally left blank
-                              },
-                              onMenuTap: () {
-                                Navigator.push(context, MaterialPageRoute(
-                                    builder: (context) => Menu()));
-                              },
-                            ),
                           Expanded(
                             child: Center(
-                              child: isLandscape
-                                  ? _buildLandscapeLayout(context, baseSize, user.firstName, user.dateJoined, user.quizScores,)
-                                  : _buildPortraitLayout(context, baseSize, user.firstName, user.dateJoined, user.quizScores,),
+                              child: _buildPortraitLayout(
+                                context,
+                                scalingFactor,
+                                user.firstName,
+                                user.dateJoined,
+                                user.quizScores,
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    if (!isLandscape)
-                      CustomBottomNavBar(
-                        onHomeTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => MyHomePage()),
-                          );
-                        },
-                        onLibraryTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                                builder: (context) => ModuleLibrary()),
-                          );
-                        },
-                        onTrackerTap: () {
-                          // Intentionally left blank
-                        },
-                        onMenuTap: () {
-                          Navigator.push(context,
-                              MaterialPageRoute(builder: (context) => Menu()));
-                        },
-                      ),
+                    // Bottom Navigation Bar for Portrait
+                    CustomBottomNavBar(
+                      onHomeTap: () => _navigateTo(context, const MyHomePage()),
+                      onLibraryTap: () => _navigateTo(context, ModuleLibrary()),
+                      onTrackerTap: () => _navigateTo(context, AuthGuard(child: CMETracker())),
+                      onMenuTap: () async {
+                        bool isLoggedIn = await checkIfUserIsLoggedIn();
+                        print("Navigating to menu. Logged in: $isLoggedIn");
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                          ),
+                        );
+                      },
+                    ),
                   ],
                 ),
+                // Custom AppBar
                 Positioned(
                   top: 0,
                   left: 0,
@@ -214,7 +246,8 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                     onBackPressed: () {
                       Navigator.pop(context);
                     },
-                  ), // Your custom app bar widget
+                    requireAuth: true,
+                  ),
                 ),
               ],
             );
@@ -223,165 +256,332 @@ class _CreditsHistoryState extends State<CreditsHistory> {
       ),
     );
   }
-}
 
-Widget _buildPortraitLayout(BuildContext context, baseSize, firstName, dateJoined, quizScores) {
-  // Sort quizScores by date (latest first)
-  quizScores?.sort((a, b) => DateTime.parse(b['date_taken']).compareTo(DateTime.parse(a['date_taken'])));
+// Navigation Helper Function
+  void _navigateTo(BuildContext context, Widget page) {
+    Navigator.push(context, MaterialPageRoute(builder: (context) => page));
+  }
 
-  // Format the date using intl
-  final dateFormatter = DateFormat('MMM dd, yyyy hh:mm a'); // Example: Jan 21, 2025 08:41 AM
+  Widget _buildPortraitLayout(BuildContext context, scalingFactor, firstName,
+      dateJoined, quizScores) {
+    // Sort quizScores by date (latest first)
+    quizScores?.sort((a, b) => DateTime.parse(b['date_taken']).compareTo(
+        DateTime.parse(a['date_taken'])));
 
-  return Column(
-    children: <Widget>[
-      SizedBox(
-        height: baseSize * (isTablet(context) ? 0.05 : 0.09),
-      ),
-      Text(
-        "Submitted CME History",
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: baseSize * (isTablet(context) ? 0.08 : 0.08),
-          fontWeight: FontWeight.w400,
-          color: Color(0xFF325BFF),
+    // Format the date using intl
+    final dateFormatter = DateFormat(
+        'MMM dd, yyyy hh:mm a'); // Example: Jan 21, 2025 08:41 AM
+
+    return Column(
+      children: <Widget>[
+        SizedBox(
+          height: scalingFactor * (isTablet(context) ? 25 : 25),
         ),
-      ),
-      SizedBox(
-        height: baseSize * (isTablet(context) ? 0.05 : 0.03),
-      ),
-      Flexible(
-        child: Stack(
-          children: [
-            Container(
-              child: quizScores != null && quizScores.isNotEmpty
-                  ? ListView.builder(
-                      itemCount: quizScores.length,
-                      itemBuilder: (context, index) {
-                        final quiz = quizScores[index];
-                        final module = quiz['module'];
-                        final dateTaken = quiz['date_taken'];
-                        final formattedDate = dateFormatter.format(DateTime.parse(dateTaken));
-                        return ListTile(
-                          title: Text(
-                            module != null && module['name'] != null
-                                ? module['name']
-                                : 'Unknown',
+        Text(
+          "Submitted CME History",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: scalingFactor * (isTablet(context) ? 22 : 28),
+            fontWeight: FontWeight.w400,
+            color: Color(0xFF325BFF),
+          ),
+        ),
+        SizedBox(
+          height: scalingFactor * (isTablet(context) ? 5 : 5),
+        ),
+        Flexible(
+            child: Stack(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 5 : 3)),
+                    child: Container(
+                        child: quizScores != null && quizScores.isNotEmpty
+                            ? ListView.builder(
+                            itemCount: quizScores.length + 1,
+                            // +1 for the extra space at the end
+                            itemBuilder: (context, index) {
+                              if (index == quizScores.length) {
+                                return SizedBox(height: scalingFactor * (isTablet(context) ? 55 : 55)); // Extra space at the end
+                              }
+                              final quiz = quizScores[index];
+                              final module = quiz['module'];
+                              final dateTaken = quiz['date_taken'];
+                              final formattedDate = dateFormatter.format(
+                                  DateTime.parse(dateTaken));
+
+                              return ListTile(
+                                title: Text(
+                                  module != null && module['name'] != null
+                                      ? module['name']
+                                      : 'Unknown',
+                                  style: TextStyle(
+                                    fontSize: scalingFactor * (isTablet(context) ? 14 : 18),
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.black,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                                subtitle: RichText(
+                                  text: TextSpan(
+                                    style: TextStyle(
+                                      fontSize: scalingFactor * (isTablet(context) ? 12 : 16),
+                                      color: Colors.black, // Default text color
+                                    ),
+                                    children: [
+                                      const TextSpan(
+                                        text: 'Score: ',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w500, // Bold for title
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: '${double.parse(quiz['score']).toStringAsFixed(2)}%\n',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.normal, // Regular for value
+                                        ),
+                                      ),
+                                      const TextSpan(
+                                        text: 'Module ID: ',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w500, // Bold for title
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: module != null &&
+                                            module['module_id'] != null
+                                            ? module['module_id'].toString()
+                                            : 'N/A',
+                                        style: const TextStyle(
+                                          color: Color(0xFF325BFF),
+                                          // Custom color
+                                          fontWeight: FontWeight.normal, // Regular for value
+                                        ),
+                                      ),
+                                      const TextSpan(
+                                        text: '\nDate Submitted: ',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight
+                                              .w500, // Bold for title
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: formattedDate,
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight
+                                              .normal, // Regular for value
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }
+                        )
+                            : Center(
+                          child: Text(
+                            "No completed credits",
                             style: TextStyle(
-                              fontSize: baseSize * (isTablet(context) ? 0.0385 : 0.044),
-                              fontWeight: FontWeight.w500,
+                              fontSize: scalingFactor *
+                                  (isTablet(context) ? 24 : 24),
+                              fontWeight: FontWeight.w300,
                               color: Colors.black,
-                              decoration: TextDecoration.underline,
                             ),
                           ),
-                          subtitle: RichText(
-                            text: TextSpan(
-                              style: TextStyle(
-                                fontSize: baseSize * 0.04,
-                                color: Colors.black, // Default text color
-                              ),
-                              children: [
-                                TextSpan(
-                                  text: 'Score: ',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w500, // Bold for title
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: '${quiz['score']}%\n',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.normal, // Regular for value
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: 'Module ID: ',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w500, // Bold for title
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: module != null && module['module_id'] != null
-                                      ? module['module_id']
-                                      : 'N/A',
-                                  style: TextStyle(
-                                    color: Color(0xFF325BFF), // Custom color
-                                    fontWeight: FontWeight.normal, // Regular for value
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: '\nDate Submitted: ',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w500, // Bold for title
-                                  ),
-                                ),
-                                TextSpan(
-                                  text: formattedDate,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.normal, // Regular for value
-                                  ),
-                                ),
+                        )
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: IgnorePointer(
+                      child: Container(
+                          height: 120,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              stops: [0.0, 1.0],
+                              colors: [
+                                // Colors.transparent,
+                                // Color(0xFFFFF0DC),
+                                //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                                Color(0xFFFECF97).withOpacity(0.0),
+                                Color(0xFFFECF97),
                               ],
                             ),
-                          ),
-                        );
-                      }
-                    )
-                  : Center(
-                      child: Text(
-                        "No completed credits",
-                        style: TextStyle(
-                          fontSize: baseSize * (isTablet(context) ? 0.0385 : 0.044),
-                          fontWeight: FontWeight.w300,
-                          color: Colors.black,
-                        ),
+                          )
                       ),
-                    )
-            ),
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: IgnorePointer(
-                child: Container(
-                    height: 120,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        stops: [0.0, 1.0],
-                        colors: [
-                          // Colors.transparent,
-                          // Color(0xFFFFF0DC),
-                          //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                          Color(0xFFFECF97).withOpacity(0.0),
-                          Color(0xFFFECF97),
-                        ],
-                      ),
-                    )
-                ),
-              ),
-            ),
-          ]
-        )
-      ),
-    ],
-  );
-}
-
-Widget _buildLandscapeLayout(BuildContext context, baseSize, firstName, dateJoined, quizScores) {
-  return Column(
-    children: <Widget>[
-      SizedBox(
-        height: baseSize * (isTablet(context) ? 0.05 : 0.09),
-      ),
-      Text(
-        "CME Completed Credits",
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: baseSize * (isTablet(context) ? 0.08 : 0.09),
-          fontWeight: FontWeight.w400,
-          color: Color(0xFF325BFF),
+                    ),
+                  ),
+                ]
+            )
         ),
-      ),
-    ],
-  );
+      ],
+    );
+  }
+
+  Widget _buildLandscapeLayout(BuildContext context, scalingFactor, firstName,
+      dateJoined, quizScores) {
+
+    // Format the date using intl
+    quizScores?.sort((a, b) => DateTime.parse(b['date_taken']).compareTo(
+        DateTime.parse(a['date_taken'])));
+
+    // Format the date using intl
+    final dateFormatter = DateFormat(
+        'MMM dd, yyyy hh:mm a'); // Example: Jan 21, 2025 08:41 AM
+
+    return Column(
+      children: <Widget>[
+        SizedBox(
+          height: scalingFactor * (isTablet(context) ? 20 : 10),
+        ),
+        Text(
+          "Submitted CME History",
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: scalingFactor * (isTablet(context) ? 20 : 24),
+            fontWeight: FontWeight.w400,
+            color: Color(0xFF325BFF),
+          ),
+        ),
+        SizedBox(
+          height: scalingFactor * (isTablet(context) ? 10 : 2),
+        ),
+        Flexible(
+            child: Stack(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 30 : 40)),
+                    child: Container(
+                        child: quizScores != null && quizScores.isNotEmpty
+                            ? ListView.builder(
+                            itemCount: quizScores.length + 1,
+                            // +1 for the extra space at the end
+                            itemBuilder: (context, index) {
+                              if (index == quizScores.length) {
+                                return SizedBox(height: scalingFactor * (isTablet(context) ? 55 : 55)); // Extra space at the end
+                              }
+                              final quiz = quizScores[index];
+                              final module = quiz['module'];
+                              final dateTaken = quiz['date_taken'];
+                              final formattedDate = dateFormatter.format(
+                                  DateTime.parse(dateTaken));
+
+                              return ListTile(
+                                title: Text(
+                                  module != null && module['name'] != null
+                                      ? module['name']
+                                      : 'Unknown',
+                                  style: TextStyle(
+                                    fontSize: scalingFactor * (isTablet(context) ? 12 : 14),
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.black,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                                subtitle: RichText(
+                                  text: TextSpan(
+                                    style: TextStyle(
+                                      fontSize: scalingFactor * (isTablet(context) ? 10 : 12),
+                                      color: Colors.black, // Default text color
+                                    ),
+                                    children: [
+                                      TextSpan(
+                                        text: 'Score: ',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight
+                                              .w500, // Bold for title
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: '${quiz['score']}%\n',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight
+                                              .normal, // Regular for value
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: 'Module ID: ',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight
+                                              .w500, // Bold for title
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: module != null &&
+                                            module['module_id'] != null
+                                            ? module['module_id']
+                                            : 'N/A',
+                                        style: TextStyle(
+                                          color: Color(0xFF325BFF),
+                                          // Custom color
+                                          fontWeight: FontWeight
+                                              .normal, // Regular for value
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: '\nDate Submitted: ',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight
+                                              .w500, // Bold for title
+                                        ),
+                                      ),
+                                      TextSpan(
+                                        text: formattedDate,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight
+                                              .normal, // Regular for value
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            }
+                        )
+                            : Center(
+                          child: Text(
+                            "No completed credits",
+                            style: TextStyle(
+                              fontSize: scalingFactor *
+                                  (isTablet(context) ? 24 : 24),
+                              fontWeight: FontWeight.w300,
+                              color: Colors.black,
+                            ),
+                          ),
+                        )
+                    ),
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: IgnorePointer(
+                      child: Container(
+                          height: 120,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              stops: [0.0, 1.0],
+                              colors: [
+                                // Colors.transparent,
+                                // Color(0xFFFFF0DC),
+                                //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                                Color(0xFFFECF97).withOpacity(0.0),
+                                Color(0xFFFECF97),
+                              ],
+                            ),
+                          )
+                      ),
+                    ),
+                  ),
+                ]
+            )
+        ),
+      ],
+    );
+  }
 }

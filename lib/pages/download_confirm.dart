@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:wired_test/pages/home_page.dart';
-import 'package:wired_test/pages/policy.dart';
-
+import '../providers/auth_guard.dart';
 import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
 import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
 import 'cme/cme_info.dart';
-import 'menu.dart';
+import 'cme/cme_tracker.dart';
+import 'menu/guestMenu.dart';
+import 'menu/menu.dart';
 import 'module_library.dart';
 
 class DownloadConfirm extends StatefulWidget {
@@ -59,6 +59,7 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                   onBackPressed: () {
                     Navigator.pop(context);
                   },
+                  requireAuth: false,
                 ),
                 // Expanded layout for the main content
                 Expanded(
@@ -69,7 +70,7 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                           onHomeTap: () {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (context) => MyHomePage()),
+                              MaterialPageRoute(builder: (context) => const MyHomePage()),
                             );
                           },
                           onLibraryTap: () {
@@ -79,12 +80,24 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                             );
                           },
                           onTrackerTap: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (
-                                context) => CmeInfo()));
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => AuthGuard(
+                                  child: CMETracker(),
+                                ),
+                              ),
+                            );
                           },
-                          onMenuTap: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (
-                                context) => Menu()));
+                          onMenuTap: () async {
+                            bool isLoggedIn = await checkIfUserIsLoggedIn();
+                            print("Navigating to menu. Logged in: $isLoggedIn");
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                              ),
+                            );
                           },
                         ),
 
@@ -106,7 +119,7 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (context) => MyHomePage()),
+                            builder: (context) => const MyHomePage()),
                       );
                     },
                     onLibraryTap: () {
@@ -116,12 +129,24 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                       );
                     },
                     onTrackerTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (
-                          context) => CmeInfo()));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AuthGuard(
+                            child: CMETracker(),
+                          ),
+                        ),
+                      );
                     },
-                    onMenuTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (
-                          context) => Menu()));
+                    onMenuTap: () async {
+                      bool isLoggedIn = await checkIfUserIsLoggedIn();
+                      print("Navigating to menu. Logged in: $isLoggedIn");
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                        ),
+                      );
                     },
                   ),
               ],

@@ -5,13 +5,16 @@ import 'package:http/http.dart' as http;
 import 'package:wired_test/pages/policy.dart';
 import 'package:wired_test/pages/topic_list.dart';
 
+import '../providers/auth_guard.dart';
 import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
 import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
 import 'cme/cme_info.dart';
+import 'cme/cme_tracker.dart';
 import 'home_page.dart';
-import 'menu.dart';
+import 'menu/guestMenu.dart';
+import 'menu/menu.dart';
 import 'module_by_alphabet.dart';
 import 'module_info.dart';
 import 'module_library.dart';
@@ -132,6 +135,7 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
                   onBackPressed: () {
                     Navigator.pop(context);
                   },
+                  requireAuth: false,
                 ),
                 // Expanded layout for the main content
                 Expanded(
@@ -143,7 +147,7 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (context) => MyHomePage()),
+                                  builder: (context) => const MyHomePage()),
                             );
                           },
                           onLibraryTap: () {
@@ -154,12 +158,24 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
                             );
                           },
                           onTrackerTap: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (
-                                context) => CmeInfo()));
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => AuthGuard(
+                                  child: CMETracker(),
+                                ),
+                              ),
+                            );
                           },
-                          onMenuTap: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (
-                                context) => Menu()));
+                          onMenuTap: () async {
+                            bool isLoggedIn = await checkIfUserIsLoggedIn();
+                            print("Navigating to menu. Logged in: $isLoggedIn");
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                              ),
+                            );
                           },
                         ),
 
@@ -181,7 +197,7 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (context) => MyHomePage()),
+                            builder: (context) => const MyHomePage()),
                       );
                     },
                     onLibraryTap: () {
@@ -192,12 +208,24 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
                       );
                     },
                     onTrackerTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (
-                          context) => CmeInfo()));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AuthGuard(
+                            child: CMETracker(),
+                          ),
+                        ),
+                      );
                     },
-                    onMenuTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (
-                          context) => Menu()));
+                    onMenuTap: () async {
+                      bool isLoggedIn = await checkIfUserIsLoggedIn();
+                      print("Navigating to menu. Logged in: $isLoggedIn");
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                        ),
+                      );
                     },
                   ),
               ],

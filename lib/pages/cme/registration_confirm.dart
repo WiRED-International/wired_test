@@ -8,13 +8,16 @@ import 'package:wired_test/utils/side_nav_bar.dart';
 import 'package:wired_test/utils/custom_nav_bar.dart';
 import 'package:wired_test/pages/policy.dart';
 
-import '../menu.dart';
+import '../../providers/auth_guard.dart';
+import '../menu/guestMenu.dart';
+import '../menu/menu.dart';
 import '../module_library.dart';
+import 'cme_tracker.dart';
 import 'login.dart';
 
 class RegistrationConfirm extends StatefulWidget {
 
-  RegistrationConfirm();
+  const RegistrationConfirm({super.key});
 
   @override
   _RegistrationConfirmState createState() => _RegistrationConfirmState();
@@ -23,21 +26,10 @@ class RegistrationConfirm extends StatefulWidget {
 class _RegistrationConfirmState extends State<RegistrationConfirm> {
   @override
   Widget build(BuildContext context) {
-    var screenWidth = MediaQuery
-        .of(context)
-        .size
-        .width;
-    var screenHeight = MediaQuery
-        .of(context)
-        .size
-        .height;
-    var baseSize = MediaQuery
-        .of(context)
-        .size
-        .shortestSide;
-    bool isLandscape = MediaQuery
-        .of(context)
-        .orientation == Orientation.landscape;
+    var screenWidth = MediaQuery.of(context).size.width;
+    var screenHeight = MediaQuery.of(context).size.height;
+    bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final scalingFactor = getScalingFactor(context);
 
     return Scaffold(
       body: SafeArea(
@@ -68,7 +60,7 @@ class _RegistrationConfirmState extends State<RegistrationConfirm> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (context) => MyHomePage()),
+                                  builder: (context) => const MyHomePage()),
                             );
                           },
                           onLibraryTap: () {
@@ -79,11 +71,24 @@ class _RegistrationConfirmState extends State<RegistrationConfirm> {
                             );
                           },
                           onTrackerTap: () {
-                            //Purposefully left blank
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => AuthGuard(
+                                  child: CMETracker(),
+                                ),
+                              ),
+                            );
                           },
-                          onMenuTap: () {
-                            Navigator.push(context, MaterialPageRoute(
-                                builder: (context) => Menu()));
+                          onMenuTap: () async {
+                            bool isLoggedIn = await checkIfUserIsLoggedIn();
+                            print("Navigating to menu. Logged in: $isLoggedIn");
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                              ),
+                            );
                           },
                         ),
 
@@ -92,9 +97,9 @@ class _RegistrationConfirmState extends State<RegistrationConfirm> {
                         child: Center(
                           child: isLandscape
                               ? _buildLandscapeLayout(
-                              screenWidth, screenHeight, baseSize)
+                              screenWidth, screenHeight, scalingFactor)
                               : _buildPortraitLayout(
-                              screenWidth, screenHeight, baseSize),
+                              screenWidth, screenHeight, scalingFactor),
                         ),
                       ),
                     ],
@@ -107,7 +112,7 @@ class _RegistrationConfirmState extends State<RegistrationConfirm> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (context) => MyHomePage()),
+                            builder: (context) => const MyHomePage()),
                       );
                     },
                     onLibraryTap: () {
@@ -118,11 +123,24 @@ class _RegistrationConfirmState extends State<RegistrationConfirm> {
                       );
                     },
                     onTrackerTap: () {
-                      //Purposefully left blank
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AuthGuard(
+                            child: CMETracker(),
+                          ),
+                        ),
+                      );
                     },
-                    onMenuTap: () {
-                      Navigator.push(context,
-                          MaterialPageRoute(builder: (context) => Menu()));
+                    onMenuTap: () async {
+                      bool isLoggedIn = await checkIfUserIsLoggedIn();
+                      print("Navigating to menu. Logged in: $isLoggedIn");
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                        ),
+                      );
                     },
                   ),
               ],
@@ -133,21 +151,66 @@ class _RegistrationConfirmState extends State<RegistrationConfirm> {
     );
   }
 
-  Widget _buildPortraitLayout(screenWidth, screenHeight, baseSize) {
+  Widget _buildPortraitLayout(screenWidth, screenHeight, scalingFactor) {
     return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: <Widget>[
-        Text(
-          "You have successfully registered for the CME Credits Tracker. Please login with your email and password to continue.",
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: baseSize * (isTablet(context) ? 0.08 : 0.08),
-            fontWeight: FontWeight.w500,
-            color: Colors.black,
+        SizedBox(
+          height: scalingFactor * (isTablet(context) ? 10 : 10),
+        ),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 10 : 10)),
+          child: Text(
+            "You have successfully registered for the CME Credits Tracker. Please login with your email and password to continue.",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: scalingFactor * (isTablet(context) ? 20 : 24),
+              fontWeight: FontWeight.w500,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        // SizedBox(
+        //   height: scalingFactor * (isTablet(context) ? 10 : 0.07),
+        // ),
+        GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => Login()),
+            );
+          },
+          child: Text(
+            "Login",
+            style: TextStyle(
+              fontSize: scalingFactor * (isTablet(context) ? 20 : 24),
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF0070C0),
+            ),
           ),
         ),
         SizedBox(
-          height: baseSize * (isTablet(context) ? 0.05 : 0.07),
+          height: scalingFactor * (isTablet(context) ? 20 : 20),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLandscapeLayout(screenWidth, screenHeight, scalingFactor) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: <Widget>[
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 50 : 40)),
+          child: Text(
+            "You have successfully registered for the CME Credits Tracker. Please login with your email and password to continue.",
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: scalingFactor * (isTablet(context) ? 18 : 22),
+              fontWeight: FontWeight.w500,
+              color: Colors.black,
+            ),
+          ),
         ),
         GestureDetector(
           onTap: () {
@@ -159,31 +222,14 @@ class _RegistrationConfirmState extends State<RegistrationConfirm> {
           child: Text(
             "Login",
             style: TextStyle(
-              fontSize: baseSize * (isTablet(context) ? 0.03 : 0.09),
+              fontSize: scalingFactor * (isTablet(context) ? 18 : 22),
               fontWeight: FontWeight.w500,
               color: Color(0xFF0070C0),
             ),
           ),
-        )
-      ],
-    );
-  }
-
-  Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: <Widget>[
-        Text(
-          "You have successfully registered for the CME Credits Tracker. Please Log In with your email and password to continue.",
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: baseSize * (isTablet(context) ? 0.08 : 0.08),
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF0070C0),
-          ),
         ),
         SizedBox(
-          height: baseSize * (isTablet(context) ? 0.05 : 0.03),
+          height: scalingFactor * (isTablet(context) ? 20 : 20),
         ),
       ],
     );

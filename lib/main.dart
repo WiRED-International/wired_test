@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wired_test/pages/home_page.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:wired_test/providers/auth_guard.dart';
 import 'package:wired_test/providers/auth_provider.dart';
 import 'package:wired_test/providers/user_provider.dart';
 // import 'package:flutter/rendering.dart';
@@ -51,6 +52,12 @@ class MyApp extends StatelessWidget {
       ),
       home: const MyHomePage(title: 'WiRED International'),
       debugShowCheckedModeBanner: false,
+      // initialRoute: '/',
+      // routes: {
+      //   '/': (context) => const MyHomePage(title: 'WiRED International'), // Open to all users
+      //   '/restricted': (context) =>  AuthGuard(child: RestrictedPage()), // Restricted page
+      //   '/open': (context) => const OpenPage(), // Open to all users
+      // },
     );
   }
 }
