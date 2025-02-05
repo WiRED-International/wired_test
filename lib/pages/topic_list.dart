@@ -6,13 +6,16 @@ import 'package:wired_test/pages/module_by_topic.dart';
 import 'package:wired_test/pages/policy.dart';
 import 'package:wired_test/pages/topic_list.dart';
 
+import '../providers/auth_guard.dart';
 import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
 import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
 import 'cme/cme_info.dart';
+import 'cme/cme_tracker.dart';
 import 'home_page.dart';
-import 'menu.dart';
+import 'menu/guestMenu.dart';
+import 'menu/menu.dart';
 import 'module_library.dart';
 
 class TopicList extends StatefulWidget {
@@ -131,6 +134,7 @@ class _TopicListState extends State<TopicList> {
                   onBackPressed: () {
                     Navigator.pop(context);
                   },
+                  requireAuth: false,
                 ),
                 // Expanded layout for the main content
                 Expanded(
@@ -142,7 +146,7 @@ class _TopicListState extends State<TopicList> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (context) => MyHomePage()),
+                                  builder: (context) => const MyHomePage()),
                             );
                           },
                           onLibraryTap: () {
@@ -156,12 +160,21 @@ class _TopicListState extends State<TopicList> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (context) => CmeInfo()),
+                                builder: (context) => AuthGuard(
+                                  child: CMETracker(),
+                                ),
+                              ),
                             );
                           },
-                          onMenuTap: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (
-                                context) => Menu()));
+                          onMenuTap: () async {
+                            bool isLoggedIn = await checkIfUserIsLoggedIn();
+                            print("Navigating to menu. Logged in: $isLoggedIn");
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                              ),
+                            );
                           },
                         ),
 
@@ -183,7 +196,7 @@ class _TopicListState extends State<TopicList> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (context) => MyHomePage()),
+                            builder: (context) => const MyHomePage()),
                       );
                     },
                     onLibraryTap: () {
@@ -197,12 +210,21 @@ class _TopicListState extends State<TopicList> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                            builder: (context) => CmeInfo()),
+                          builder: (context) => AuthGuard(
+                            child: CMETracker(),
+                          ),
+                        ),
                       );
                     },
-                    onMenuTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (
-                          context) => Menu()));
+                    onMenuTap: () async {
+                      bool isLoggedIn = await checkIfUserIsLoggedIn();
+                      print("Navigating to menu. Logged in: $isLoggedIn");
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                        ),
+                      );
                     },
                   ),
               ],

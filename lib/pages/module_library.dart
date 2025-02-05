@@ -4,13 +4,16 @@ import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:wired_test/pages/policy.dart';
 import '.././utils/webview_screen.dart';
+import '../providers/auth_guard.dart';
 import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
 import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
 import 'cme/cme_info.dart';
+import 'cme/cme_tracker.dart';
 import 'home_page.dart';
-import 'menu.dart';
+import 'menu/guestMenu.dart';
+import 'menu/menu.dart';
 
 
 class ModuleLibrary extends StatefulWidget {
@@ -223,6 +226,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                   onBackPressed: () {
                     Navigator.pop(context);
                   },
+                  requireAuth: false,
                 ),
                 // Expanded layout for the main content
                 Expanded(
@@ -233,19 +237,31 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                           onHomeTap: () {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (context) => MyHomePage()),
+                              MaterialPageRoute(builder: (context) => const MyHomePage()),
                             );
                           },
                           onLibraryTap: () {
                             // Intentionally left blank
                           },
                           onTrackerTap: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (
-                                context) => CmeInfo()));
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => AuthGuard(
+                                  child: CMETracker(),
+                                ),
+                              ),
+                            );
                           },
-                          onMenuTap: () {
-                            Navigator.push(context, MaterialPageRoute(builder: (
-                                context) => Menu()));
+                          onMenuTap: () async {
+                            bool isLoggedIn = await checkIfUserIsLoggedIn();
+                            print("Navigating to menu. Logged in: $isLoggedIn");
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                              ),
+                            );
                           },
                         ),
 
@@ -274,12 +290,24 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                       // Intentionally left blank
                     },
                     onTrackerTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (
-                          context) => CmeInfo()));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AuthGuard(
+                            child: CMETracker(),
+                          ),
+                        ),
+                      );
                     },
-                    onMenuTap: () {
-                      Navigator.push(context, MaterialPageRoute(builder: (
-                          context) => Menu()));
+                    onMenuTap: () async {
+                      bool isLoggedIn = await checkIfUserIsLoggedIn();
+                      print("Navigating to menu. Logged in: $isLoggedIn");
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                        ),
+                      );
                     },
                   ),
               ],

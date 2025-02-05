@@ -2,16 +2,21 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:wired_test/pages/policy.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_guard.dart';
+import '../../providers/auth_provider.dart';
 import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
 import '../../utils/side_nav_bar.dart';
 import '../../utils/webview_screen.dart';
 import '../home_page.dart';
-import '../menu.dart';
-import 'cme_info.dart';
+import '../menu/guestMenu.dart';
+import '../menu/menu.dart';
+import '../module_library.dart';
+import 'cme_tracker.dart';
 import 'enter_score.dart';
+
 
 
 class SubmitCredits extends StatefulWidget {
@@ -216,10 +221,10 @@ class _SubmitCreditsState extends State<SubmitCredits> {
 
   @override
   Widget build(BuildContext context) {
-    var screenWidth = MediaQuery.of(context).size.width;
-    var screenHeight = MediaQuery.of(context).size.height;
-    var baseSize = MediaQuery.of(context).size.shortestSide;
     bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    double scalingFactor = getScalingFactor(context);
+
 
     return Scaffold(
       body: SafeArea(
@@ -245,6 +250,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                   onBackPressed: () {
                     Navigator.pop(context);
                   },
+                  requireAuth: true,
                 ),
                 // Expanded layout for the main content
                 Expanded(
@@ -256,19 +262,32 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (context) => MyHomePage()),
+                                  builder: (context) => const MyHomePage()),
                             );
                           },
                           onLibraryTap: () {
-                            // Intentionally left blank
+                            Navigator.push(context,
+                                MaterialPageRoute(builder: (context) => ModuleLibrary()));
                           },
                           onTrackerTap: () {
-                            Navigator.push(context, MaterialPageRoute(
-                                builder: (context) => CmeInfo()));
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => AuthGuard(
+                                  child: CMETracker(),
+                                ),
+                              ),
+                            );
                           },
-                          onMenuTap: () {
-                            Navigator.push(context, MaterialPageRoute(
-                                builder: (context) => Menu()));
+                          onMenuTap: () async {
+                            bool isLoggedIn = await checkIfUserIsLoggedIn();
+                            print("Navigating to menu. Logged in: $isLoggedIn");
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                              ),
+                            );
                           },
                         ),
 
@@ -277,9 +296,9 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                         child: Center(
                           child: isLandscape
                               ? _buildLandscapeLayout(
-                              screenWidth, screenHeight, baseSize)
+                              scalingFactor, authProvider)
                               : _buildPortraitLayout(
-                              screenWidth, screenHeight, baseSize),
+                              scalingFactor, authProvider),
                         ),
                       ),
                     ],
@@ -296,15 +315,28 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                       );
                     },
                     onLibraryTap: () {
-                      // Intentionally left blank
+                      Navigator.push(context,
+                          MaterialPageRoute(builder: (context) => ModuleLibrary()));
                     },
                     onTrackerTap: () {
-                      Navigator.push(context,
-                          MaterialPageRoute(builder: (context) => CmeInfo()));
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => AuthGuard(
+                            child: CMETracker(),
+                          ),
+                        ),
+                      );
                     },
-                    onMenuTap: () {
-                      Navigator.push(context,
-                          MaterialPageRoute(builder: (context) => Menu()));
+                    onMenuTap: () async {
+                      bool isLoggedIn = await checkIfUserIsLoggedIn();
+                      print("Navigating to menu. Logged in: $isLoggedIn");
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                        ),
+                      );
                     },
                   ),
               ],
@@ -315,16 +347,16 @@ class _SubmitCreditsState extends State<SubmitCredits> {
     );
   }
 
-  Widget _buildPortraitLayout(screenWidth, screenHeight, baseSize) {
+  Widget _buildPortraitLayout(scalingFactor, authProvider) {
     return Column(
       children: [
         SizedBox(
-          height: baseSize * (isTablet(context) ? 0.031 : 0.031),
+          height: scalingFactor * (isTablet(context) ? 5 : 5),
         ),
         Text(
           "Submit CME Credits",
           style: TextStyle(
-            fontSize: baseSize * (isTablet(context) ? 0.08 : 0.08),
+            fontSize: scalingFactor * (isTablet(context) ? 24 : 32),
             fontWeight: FontWeight.w500,
             color: Color(0xFF646BFF),
           ),
@@ -335,7 +367,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
         // ),
 
         SizedBox(
-          height: baseSize * (isTablet(context) ? 0.02 : 0.02),
+          height: scalingFactor * (isTablet(context) ? 10 : 10),
         ),
         Flexible(
           child: Stack(
@@ -349,11 +381,11 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                     return const Center(child: Text(
                         'Error loading modules'));
                   } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Center(
+                    return Center(
                         child: Text(
                           'You have not downloaded any modules yet. Please download the modules first.',
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: scalingFactor * (isTablet(context) ? 24 : 24),
                             fontWeight: FontWeight.w500,
                             color: Color(0xFF548235),
                           ),
@@ -361,13 +393,11 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                         ));
                   } else {
                     return ListView.builder(
-                        itemCount: snapshot.data!.length + 1,
+                        itemCount: snapshot.data!.length + 1, // +1 for the extra space at the end
                         itemBuilder: (context, index) {
                           if (index == snapshot.data!.length) {
                             return SizedBox(
-                              height: baseSize * (isTablet(context)
-                                  ? 0.135
-                                  : 0.135), // This is the last item
+                              height: scalingFactor * (isTablet(context) ? 85 : 85), // This is the last item
                             );
                           }
                           final moduleFile = snapshot.data![index];
@@ -375,16 +405,16 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                           return Column(
                             children: [
                               Padding(
-                                padding: EdgeInsets.symmetric(horizontal: baseSize * (isTablet(context) ? 0.0385 : 0.02),),
+                                padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 7 : 7),),
                                 child: Container(
-                                  padding: EdgeInsets.all(baseSize * 0.02),
+                                  padding: EdgeInsets.all(scalingFactor * (isTablet(context) ? 6 : 6)),
                                   decoration: BoxDecoration(
                                       color: Color(0xFFFFF5E1),
                                     //color: Colors.transparent,
                                     borderRadius: BorderRadius.circular(10),
                                     border: Border.all(
                                       color: Color(0xFF9DA2FF),
-                                      width: baseSize * (isTablet(context) ? 0.0385 : 0.005),
+                                      width: scalingFactor * (isTablet(context) ? 1 : 2),
                                     ),
                                     boxShadow: [
                                       BoxShadow(
@@ -405,18 +435,18 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                           Text(
                                             "Module Name: ",
                                             style: TextStyle(
-                                              fontSize: baseSize * (isTablet(context) ? 0.0385 : 0.044),
+                                              fontSize: scalingFactor * (isTablet(context) ? 14 : 16),
                                               fontWeight: FontWeight.w500,
                                               color: Color(0xFF646BFF),
                                             ),
                                             textAlign: TextAlign.center, // Center the text
                                           ),
-                                          SizedBox(width: baseSize * 0.02), // Space between text and buttons
+                                          SizedBox(width: scalingFactor * (isTablet(context) ? 5 : 7)), // Space between text and buttons
                                           Expanded(
                                             child: Text(
                                               moduleFile.title,
                                               style: TextStyle(
-                                                fontSize: baseSize * (isTablet(context) ? 0.0385 : 0.044),
+                                                fontSize: scalingFactor * (isTablet(context) ? 14 : 16),
                                                 fontWeight: FontWeight.w500,
                                                 color: Colors.black,
                                               ),
@@ -425,25 +455,35 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                           ),
                                         ],
                                       ),
-                                      SizedBox(height: baseSize * 0.02), // Space between text and buttons
+                                      SizedBox(height: scalingFactor * (isTablet(context) ? 0.04 : 0.04)), // Space between text and buttons
                                       Row(
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Text(
                                             "Module Id: ",
                                             style: TextStyle(
-                                              fontSize: baseSize * (isTablet(context) ? 0.0385 : 0.044),
+                                              fontSize: scalingFactor * (isTablet(context) ? 14 : 16),
                                               fontWeight: FontWeight.w500,
                                               color: Color(0xFF646BFF),
                                             ),
                                             textAlign: TextAlign.center, // Center the text
                                           ),
-                                          SizedBox(width: baseSize * 0.02), // Space between text and buttons
+                                          SizedBox(width: scalingFactor * (isTablet(context) ? 5 : 7)), // Space between text and buttons
                                           Expanded(
                                             child: Text(
-                                              moduleFile.moduleId ?? 'Unknown',
+                                              () {
+                                                if (moduleFile.moduleId == null) {
+                                                  return 'Unknown';
+                                                } else if (moduleFile.moduleId!.length == 4) {
+                                                  return moduleFile.moduleId!; // Display full 4-digit ID
+                                                } else if (moduleFile.moduleId!.length == 8) {
+                                                  return '****${moduleFile.moduleId!.substring(4)}'; // Mask first 4 digits, show last 4
+                                                } else {
+                                                  return 'Unknown'; // Fallback for unexpected lengths
+                                                }
+                                              }(),
                                               style: TextStyle(
-                                                fontSize: baseSize * (isTablet(context) ? 0.0385 : 0.044),
+                                                fontSize: scalingFactor * (isTablet(context) ? 14 : 16),
                                                 fontWeight: FontWeight.w500,
                                                 color: Colors.black,
                                               ),
@@ -452,7 +492,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                           ),
                                         ],
                                       ),
-                                      SizedBox(height: baseSize * 0.04), // Space between text and buttons
+                                      SizedBox(height: scalingFactor * (isTablet(context) ? 20 : 20)), // Space between text and buttons
                                       // Buttons (Play and Delete)
                                       Row(
                                         mainAxisAlignment: MainAxisAlignment.center,
@@ -476,9 +516,9 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                                   );
                                                 },
                                                 child: FractionallySizedBox(
-                                                  widthFactor: isTablet(context) ? 0.33 : 0.65,
+                                                  widthFactor: isTablet(context) ? 0.45 : 0.65,
                                                   child: Container(
-                                                    height: baseSize * (isTablet(context) ? 0.09 : 0.15),
+                                                    height: scalingFactor * (isTablet(context) ? 34 : 54),
                                                     decoration: BoxDecoration(
                                                       gradient: const LinearGradient(
                                                         colors: [
@@ -521,7 +561,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                                               Icon(
                                                                 Icons.play_arrow,
                                                                 color: Color(0xFFE8E8E8),
-                                                                size: fontSize * 1.2,
+                                                                size: fontSize * 1.4,
                                                               ),
                                                             ],
                                                           ),
@@ -534,6 +574,84 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                             ),
                                           ),
 
+                                          // Submit Button
+                                          Expanded(
+                                            child: Semantics(
+                                              label: 'Submit Button',
+                                              hint: 'Tap to submit the module',
+                                              child: GestureDetector(
+                                                onTap: () {
+                                                  Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      builder: (context) => AuthGuard(
+                                                        child: EnterScore(
+                                                          moduleId: moduleFile.moduleId,
+                                                          moduleName: moduleFile.title,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                                child: FractionallySizedBox(
+                                                  widthFactor: isTablet(context) ? 0.45 : 0.65,
+                                                  child: Container(
+                                                    height: scalingFactor * (isTablet(context) ? 34 : 54),
+                                                    decoration: BoxDecoration(
+                                                      gradient: const LinearGradient(
+                                                        colors: [
+                                                          Color(0xFF325BFF),
+                                                          Color(0xFF5A88FE),
+                                                          Color(0xFF69AEFE),
+                                                        ],
+                                                        begin: Alignment.topCenter,
+                                                        end: Alignment.bottomCenter,
+                                                      ),
+                                                      borderRadius: BorderRadius.circular(30),
+                                                      boxShadow: [
+                                                        BoxShadow(
+                                                          color: Colors.black.withOpacity(0.5),
+                                                          spreadRadius: 1,
+                                                          blurRadius: 5,
+                                                          offset: const Offset(1, 3),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    child: LayoutBuilder(
+                                                      builder: (context, constraints) {
+                                                        double buttonWidth = constraints.maxWidth;
+                                                        double fontSize = buttonWidth * 0.2;
+                                                        double padding = buttonWidth * 0.02;
+                                                        return Padding(
+                                                          padding: EdgeInsets.all(padding),
+                                                          child: Row(
+                                                            mainAxisAlignment: MainAxisAlignment.center,
+                                                            children: [
+                                                              Text(
+                                                                "Submit",
+                                                                style: TextStyle(
+                                                                  fontSize: fontSize,
+                                                                  fontWeight: FontWeight.w500,
+                                                                  color: Color(0xFFE8E8E8),
+                                                                ),
+                                                              ),
+                                                              SizedBox(width: padding),
+                                                              Icon(
+                                                                Icons.check_circle,
+                                                                color: Color(0xFFE8E8E8),
+                                                                size: fontSize * 1.2,
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        );
+                                                      },
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ), // Space between containers
+
                                           // Delete Button
                                           Expanded(
                                             child: Semantics(
@@ -544,9 +662,9 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                                   _showDeleteConfirmation(moduleFile.file.path.split('/').last);
                                                 },
                                                 child: FractionallySizedBox(
-                                                  widthFactor: isTablet(context) ? 0.33 : 0.65,
+                                                  widthFactor: isTablet(context) ? 0.45 : 0.65,
                                                   child: Container(
-                                                    height: baseSize * (isTablet(context) ? 0.09 : 0.15),
+                                                    height: scalingFactor * (isTablet(context) ? 34 : 54),
                                                     decoration: BoxDecoration(
                                                       gradient: const LinearGradient(
                                                         colors: [
@@ -601,6 +719,279 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                               ),
                                             ),
                                           ),
+                                        ],
+                                      ),
+                                      SizedBox(height: scalingFactor * (isTablet(context) ? 10 : 10)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              SizedBox(height: scalingFactor * (isTablet(context) ? 12 : 12)),
+                            ],
+                          );
+                        }
+                    );
+                  }
+                },
+              ),
+              // Fade in the module list
+              Positioned(
+                bottom: 0,
+                left: 0,
+                right: 0,
+                child: IgnorePointer(
+                  child: Container(
+                      height: 120,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          stops: [0.0, 1.0],
+                          colors: [
+                            // Colors.transparent,
+                            // Color(0xFFFFF0DC),
+                            //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                            Color(0xFFFECF97).withOpacity(0.0),
+                            Color(0xFFFECF97),
+                          ],
+                        ),
+                      )
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLandscapeLayout(scalingFactor, authProvider) {
+    return Column(
+      children: [
+        SizedBox(
+          height: scalingFactor * (isTablet(context) ? 3 : 3),
+        ),
+        Text(
+          "Submit CME Credits",
+          style: TextStyle(
+            fontSize: scalingFactor * (isTablet(context) ? 22 : 24),
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF646BFF),
+          ),
+          textAlign: TextAlign.center,
+        ),
+        // SizedBox(
+        //   height: baseSize * (isTablet(context) ? 0.02 : 0.02),
+        // ),
+
+        SizedBox(
+          height: scalingFactor * (isTablet(context) ? 7 : 7),
+        ),
+        Flexible(
+          child: Stack(
+            children: [
+              FutureBuilder<List<ModuleFile>>(
+                future: futureModules,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  } else if (snapshot.hasError) {
+                    return const Center(child: Text(
+                        'Error loading modules'));
+                  } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return Center(
+                        child: Text(
+                          'You have not downloaded any modules yet. Please download the modules first.',
+                          style: TextStyle(
+                            fontSize: scalingFactor * (isTablet(context) ? 16 : 20),
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF548235),
+                          ),
+                          textAlign: TextAlign.center,
+                        ));
+                  } else {
+                    return ListView.builder(
+                        itemCount: snapshot.data!.length + 1, // +1 for the extra space at the end
+                        itemBuilder: (context, index) {
+                          if (index == snapshot.data!.length) {
+                            return SizedBox(
+                              height: scalingFactor * (isTablet(context) ? 85 : 85), // This is the last item
+                            );
+                          }
+                          final moduleFile = snapshot.data![index];
+
+                          return Column(
+                            children: [
+                              Padding(
+                                padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 77 : 47),),
+                                child: Container(
+                                  padding: EdgeInsets.all(scalingFactor * (isTablet(context) ? 4 : 4)),
+                                  decoration: BoxDecoration(
+                                    color: Color(0xFFFFF5E1),
+                                    //color: Colors.transparent,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: Color(0xFF9DA2FF),
+                                      width: scalingFactor * (isTablet(context) ? 1.5 : 1.5),
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.3),
+                                        blurRadius: 5,
+                                        offset: Offset(2, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min, // Shrink-wrap the column to its content
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Module name text
+                                      Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            "Module Name: ",
+                                            style: TextStyle(
+                                              fontSize: scalingFactor * (isTablet(context) ? 14 : 14),
+                                              fontWeight: FontWeight.w500,
+                                              color: Color(0xFF646BFF),
+                                            ),
+                                            textAlign: TextAlign.center, // Center the text
+                                          ),
+                                          SizedBox(width: scalingFactor * (isTablet(context) ? 5 : 5)), // Space between text and buttons
+                                          Expanded(
+                                            child: Text(
+                                              moduleFile.title,
+                                              style: TextStyle(
+                                                fontSize: scalingFactor * (isTablet(context) ? 14 : 14),
+                                                fontWeight: FontWeight.w500,
+                                                color: Colors.black,
+                                              ),
+                                              //textAlign: TextAlign.start, // Center the text
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      SizedBox(height: scalingFactor * (isTablet(context) ? 5 : 5)), // Space between text and buttons
+                                      Row(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            "Module Id: ",
+                                            style: TextStyle(
+                                              fontSize: scalingFactor * (isTablet(context) ? 14 : 14),
+                                              fontWeight: FontWeight.w500,
+                                              color: Color(0xFF646BFF),
+                                            ),
+                                            textAlign: TextAlign.center, // Center the text
+                                          ),
+                                          SizedBox(width: scalingFactor * (isTablet(context) ? 5 : 5)), // Space between text and buttons
+                                          Expanded(
+                                            child: Text(
+                                                  () {
+                                                if (moduleFile.moduleId == null) {
+                                                  return 'Unknown';
+                                                } else if (moduleFile.moduleId!.length == 4) {
+                                                  return moduleFile.moduleId!; // Display full 4-digit ID
+                                                } else if (moduleFile.moduleId!.length == 8) {
+                                                  return '****${moduleFile.moduleId!.substring(4)}'; // Mask first 4 digits, show last 4
+                                                } else {
+                                                  return 'Unknown'; // Fallback for unexpected lengths
+                                                }
+                                              }(),
+                                              style: TextStyle(
+                                                fontSize: scalingFactor * (isTablet(context) ? 14 : 14),
+                                                fontWeight: FontWeight.w500,
+                                                color: Colors.black,
+                                              ),
+                                              //textAlign: TextAlign.start, // Center the text
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      SizedBox(height: scalingFactor * (isTablet(context) ? 20 : 20)), // Space between text and buttons
+                                      // Buttons (Play and Delete)
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          // Play Button
+                                          Expanded(
+                                            child: Semantics(
+                                              label: 'Play Button',
+                                              hint: 'Tap to play the module',
+                                              child: GestureDetector(
+                                                onTap: () {
+                                                  Navigator.push(
+                                                    context,
+                                                    MaterialPageRoute(
+                                                      builder: (context) => WebViewScreen(
+                                                        urlRequest: URLRequest(
+                                                          url: Uri.file(moduleFile.path),
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  );
+                                                },
+                                                child: FractionallySizedBox(
+                                                  widthFactor: isTablet(context) ? 0.45 : 0.45,
+                                                  child: Container(
+                                                    height: scalingFactor * (isTablet(context) ? 35 : 44),
+                                                    decoration: BoxDecoration(
+                                                      gradient: const LinearGradient(
+                                                        colors: [
+                                                          Color(0xFF1A4314),
+                                                          Color(0xFF3E8914),
+                                                          Color(0xFF74B72E),
+                                                        ],
+                                                        begin: Alignment.topCenter,
+                                                        end: Alignment.bottomCenter,
+                                                      ),
+                                                      borderRadius: BorderRadius.circular(30),
+                                                      boxShadow: [
+                                                        BoxShadow(
+                                                          color: Colors.black.withOpacity(0.5),
+                                                          spreadRadius: 1,
+                                                          blurRadius: 5,
+                                                          offset: const Offset(1, 3),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    child: LayoutBuilder(
+                                                      builder: (context, constraints) {
+                                                        double buttonWidth = constraints.maxWidth;
+                                                        double fontSize = buttonWidth * 0.2;
+                                                        double padding = buttonWidth * 0.02;
+                                                        return Padding(
+                                                          padding: EdgeInsets.all(padding),
+                                                          child: Row(
+                                                            mainAxisAlignment: MainAxisAlignment.center,
+                                                            children: [
+                                                              Text(
+                                                                "Play",
+                                                                style: TextStyle(
+                                                                  fontSize: fontSize,
+                                                                  fontWeight: FontWeight.w500,
+                                                                  color: Color(0xFFE8E8E8),
+                                                                ),
+                                                              ),
+                                                              SizedBox(width: padding),
+                                                              Icon(
+                                                                Icons.play_arrow,
+                                                                color: Color(0xFFE8E8E8),
+                                                                size: fontSize * 1.4,
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        );
+                                                      },
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
 
                                           // Submit Button
                                           Expanded(
@@ -612,23 +1003,25 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                                   Navigator.push(
                                                     context,
                                                     MaterialPageRoute(
-                                                      builder: (context) => EnterScore(
+                                                      builder: (context) => AuthGuard(
+                                                        child: EnterScore(
                                                           moduleId: moduleFile.moduleId,
                                                           moduleName: moduleFile.title,
-                                                      )
+                                                        ),
+                                                      ),
                                                     ),
                                                   );
                                                 },
                                                 child: FractionallySizedBox(
-                                                  widthFactor: isTablet(context) ? 0.33 : 0.65,
+                                                  widthFactor: isTablet(context) ? 0.45 : 0.45,
                                                   child: Container(
-                                                    height: baseSize * (isTablet(context) ? 0.09 : 0.15),
+                                                    height: scalingFactor * (isTablet(context) ? 35 : 44),
                                                     decoration: BoxDecoration(
                                                       gradient: const LinearGradient(
                                                         colors: [
-                                                          Color(0xFF4361EE),
-                                                          Color(0xFF4895EF),
-                                                          Color(0xFF4CC9F0),
+                                                          Color(0xFF325BFF),
+                                                          Color(0xFF5A88FE),
+                                                          Color(0xFF69AEFE),
                                                         ],
                                                         begin: Alignment.topCenter,
                                                         end: Alignment.bottomCenter,
@@ -677,14 +1070,82 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                               ),
                                             ),
                                           ), // Space between containers
+
+                                          // Delete Button
+                                          Expanded(
+                                            child: Semantics(
+                                              label: 'Delete Button',
+                                              hint: 'Tap to delete the module',
+                                              child: GestureDetector(
+                                                onTap: () {
+                                                  _showDeleteConfirmation(moduleFile.file.path.split('/').last);
+                                                },
+                                                child: FractionallySizedBox(
+                                                  widthFactor: isTablet(context) ? 0.45 : 0.45,
+                                                  child: Container(
+                                                    height: scalingFactor * (isTablet(context) ? 35 : 44),
+                                                    decoration: BoxDecoration(
+                                                      gradient: const LinearGradient(
+                                                        colors: [
+                                                          Color(0xFF790000),
+                                                          Color(0xFFB71C1C),
+                                                          Color(0xFFF05545),
+                                                        ],
+                                                        begin: Alignment.topCenter,
+                                                        end: Alignment.bottomCenter,
+                                                      ),
+                                                      borderRadius: BorderRadius.circular(30),
+                                                      boxShadow: [
+                                                        BoxShadow(
+                                                          color: Colors.black.withOpacity(0.5),
+                                                          spreadRadius: 1,
+                                                          blurRadius: 5,
+                                                          offset: const Offset(1, 3),
+                                                        ),
+                                                      ],
+                                                    ),
+                                                    child: LayoutBuilder(
+                                                      builder: (context, constraints) {
+                                                        double buttonWidth = constraints.maxWidth;
+                                                        double fontSize = buttonWidth * 0.2;
+                                                        double padding = buttonWidth * 0.02;
+                                                        return Padding(
+                                                          padding: EdgeInsets.all(padding),
+                                                          child: Row(
+                                                            mainAxisAlignment: MainAxisAlignment.center,
+                                                            children: [
+                                                              Text(
+                                                                "Delete",
+                                                                style: TextStyle(
+                                                                  fontSize: fontSize,
+                                                                  fontWeight: FontWeight.w500,
+                                                                  color: Color(0xFFE8E8E8),
+                                                                ),
+                                                              ),
+                                                              SizedBox(width: padding),
+                                                              Icon(
+                                                                Icons.delete,
+                                                                color: Color(0xFFE8E8E8),
+                                                                size: fontSize * 1.2,
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        );
+                                                      },
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
                                         ],
                                       ),
-                                      SizedBox(height: baseSize * 0.02),
+                                      SizedBox(height: scalingFactor * (isTablet(context) ? 7 : 7)),
                                     ],
                                   ),
                                 ),
                               ),
-                              SizedBox(height: baseSize * 0.03), // Space between containers
+                              SizedBox(height: scalingFactor * (isTablet(context) ? 8 : 8)), // Space between containers
                             ],
                           );
                         }
@@ -718,367 +1179,6 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                 ),
               ),
             ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
-    var baseSize = MediaQuery
-        .of(context)
-        .size
-        .shortestSide;
-    return Column(
-      children: [
-        SizedBox(
-          height: baseSize * (isTablet(context) ? 0.03 : 0.03),
-        ),
-        Text(
-          "My Library",
-          style: TextStyle(
-            fontSize: baseSize * (isTablet(context) ? 0.08 : 0.08),
-            fontWeight: FontWeight.w500,
-            color: Color(0xFF0070C0),
-          ),
-          textAlign: TextAlign.center,
-        ),
-        SizedBox(
-          height: baseSize * (isTablet(context) ? 0.02 : 0.02),
-        ),
-        // Display the modules or resources
-        // Container(
-        //   child: Row(
-        //     children: [
-        //       Expanded(
-        //         child: GestureDetector(
-        //           onTap: () {
-        //             setState(() {
-        //               selectedType = DisplayType.modules;
-        //             });
-        //           },
-        //           child: Container(
-        //               height: baseSize * (isTablet(context) ? 0.075 : 0.075),
-        //               color: selectedType == DisplayType.modules
-        //                   ? Colors.white
-        //                   : Colors.grey[300],
-        //               child: Center(
-        //                 child: Text(
-        //                   "Modules",
-        //                   style: TextStyle(
-        //                     fontSize: baseSize * (isTablet(context) ? 0.0535 : 0.0535),
-        //                     fontWeight: FontWeight.w500,
-        //                     color: Colors.black,
-        //                   ),
-        //                 ),
-        //               )
-        //           ),
-        //         ),
-        //       ),
-        //       Container(
-        //         width: 1,
-        //         height: baseSize * (isTablet(context) ? 0.075 : 0.075),
-        //         color: Colors.black,
-        //       ),
-        //       Expanded(
-        //         child: GestureDetector(
-        //           onTap: () {
-        //             setState(() {
-        //               selectedType = DisplayType.resources;
-        //             });
-        //           },
-        //           child: Container(
-        //               height: baseSize * (isTablet(context) ? 0.075 : 0.075),
-        //               color: Colors.white,
-        //               child: Center(
-        //                 child: Text(
-        //                   "Resources",
-        //                   style: TextStyle(
-        //                     fontSize: baseSize * (isTablet(context) ? 0.0535 : 0.0535),
-        //                     fontWeight: FontWeight.w500,
-        //                     color: Colors.black,
-        //                   ),
-        //                 ),
-        //               )
-        //           ),
-        //         ),
-        //       ),
-        //     ],
-        //   ),
-        // ),
-        // Display appropriate list based on selectedType
-        SizedBox(
-          height: baseSize * (isTablet(context) ? 0.02 : 0.02),
-        ),
-        Flexible(
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.only(
-                topLeft: Radius.circular(10), // Top left corner
-                topRight: Radius.circular(10), // Top right corne
-              ),
-              color: const Color(0x00000000),
-              border: Border(
-                top: BorderSide(color: Colors.black, width: 2), // Top border
-                left: BorderSide(color: Colors.black, width: 2), // Left border
-                right: BorderSide(
-                    color: Colors.black, width: 2), // Right border
-              ),
-            ),
-            child: Stack(
-              children: [
-                Container(
-                  //height: baseSize * (isTablet(context) ? 0.6 : 0.6),
-                  child: FutureBuilder<List<ModuleFile>>(
-                    future: futureModules,
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      } else if (snapshot.hasError) {
-                        return const Center(child: Text(
-                            'Error loading modules'));
-                      } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                        return const Center(child: Text('No modules found'));
-                      } else {
-                        return ListView.builder(
-                            itemCount: snapshot.data!.length + 1,
-                            itemBuilder: (context, index) {
-                              if (index == snapshot.data!.length) {
-                                return SizedBox(
-                                  //height: 120,// This is the last item
-                                  height: baseSize *
-                                      (isTablet(context) ? 0.135 : 0.135),
-                                );
-                              }
-                              final moduleFile = snapshot.data![index];
-
-                              return Column(
-                                children: [
-                                  Container(
-                                    height: baseSize *
-                                        (isTablet(context) ? 0.18 : 0.18),
-                                    // height of the parent container
-                                    child: Padding(
-                                      padding: EdgeInsets.all(baseSize * 0.02),
-                                      child: Row(
-                                        crossAxisAlignment: CrossAxisAlignment
-                                            .center,
-                                        // Align items to the center
-                                        children: [
-                                          // Module name text (Expanded to take available space)
-                                          Expanded(
-                                            child: Text(
-                                              moduleFile.title,
-                                              style: TextStyle(
-                                                fontSize: baseSize *
-                                                    (isTablet(context)
-                                                        ? 0.04
-                                                        : 0.04),
-                                                fontWeight: FontWeight.w300,
-                                                color: Colors.black,
-                                              ),
-                                            ),
-                                          ),
-                                          // Buttons (Play and Delete)
-                                          Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              // Play button
-                                              Container(
-                                                height: baseSize *
-                                                    (isTablet(context)
-                                                        ? 0.1
-                                                        : 0.11),
-                                                // button height
-                                                width: baseSize *
-                                                    (isTablet(context)
-                                                        ? 0.14
-                                                        : 0.14),
-                                                // button width
-                                                decoration: BoxDecoration(
-                                                  gradient: const LinearGradient(
-                                                    begin: Alignment.centerLeft,
-                                                    end: Alignment.centerRight,
-                                                    colors: [
-                                                      Color(0xFF87C9F8),
-                                                      Color(0xFF70E1F5),
-                                                    ],
-                                                  ),
-                                                  borderRadius: BorderRadius
-                                                      .circular(5),
-                                                ),
-                                                child: GestureDetector(
-                                                  onTap: () {
-                                                    // Play the module
-                                                    Navigator.push(
-                                                      context,
-                                                      MaterialPageRoute(
-                                                          builder: (context) =>
-                                                              WebViewScreen(
-                                                                urlRequest: URLRequest(
-                                                                  url: Uri.file(
-                                                                      moduleFile
-                                                                          .path),
-                                                                ),
-                                                              )),
-                                                    );
-                                                  },
-                                                  child: FittedBox(
-                                                    fit: BoxFit.scaleDown,
-                                                    // Ensures the content scales down if too large
-                                                    child: Column(
-                                                      mainAxisAlignment: MainAxisAlignment
-                                                          .center,
-                                                      // Center vertically
-                                                      crossAxisAlignment: CrossAxisAlignment
-                                                          .center,
-                                                      // Center horizontally
-                                                      children: [
-                                                        Icon(
-                                                          Icons.play_arrow,
-                                                          color: Color(
-                                                              0xFF545454),
-                                                          size: baseSize *
-                                                              (isTablet(context)
-                                                                  ? 0.07
-                                                                  : 0.07), // icon size
-                                                        ),
-                                                        Text(
-                                                          "Play",
-                                                          style: TextStyle(
-                                                            fontSize: baseSize *
-                                                                (isTablet(
-                                                                    context)
-                                                                    ? 0.04
-                                                                    : 0.04),
-                                                            fontWeight: FontWeight
-                                                                .w500,
-                                                            color: Color(
-                                                                0xFF545454),
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                              SizedBox(width: baseSize * 0.02),
-                                              // Spacing between buttons
-
-                                              // Delete button
-                                              Container(
-                                                height: baseSize *
-                                                    (isTablet(context)
-                                                        ? 0.1
-                                                        : 0.11),
-                                                // button height
-                                                width: baseSize *
-                                                    (isTablet(context)
-                                                        ? 0.14
-                                                        : 0.14),
-                                                // button width
-                                                decoration: BoxDecoration(
-                                                  gradient: const LinearGradient(
-                                                    begin: Alignment.centerLeft,
-                                                    end: Alignment.centerRight,
-                                                    colors: [
-                                                      Color(0xFF70E1F5),
-                                                      Color(0xFF86A8E7),
-                                                    ],
-                                                  ),
-                                                  borderRadius: BorderRadius
-                                                      .circular(5),
-                                                ),
-                                                child: GestureDetector(
-                                                  onTap: () {
-                                                    print("Delete tapped");
-                                                    _showDeleteConfirmation(
-                                                        moduleFile.file.path
-                                                            .split('/')
-                                                            .last);
-                                                  },
-                                                  child: FittedBox(
-                                                    child: Column(
-                                                      mainAxisAlignment: MainAxisAlignment
-                                                          .center,
-                                                      // Center vertically
-                                                      crossAxisAlignment: CrossAxisAlignment
-                                                          .center,
-                                                      // Center horizontally
-                                                      children: [
-                                                        Icon(
-                                                          Icons.delete,
-                                                          color: Color(
-                                                              0xFF545454),
-                                                          size: baseSize *
-                                                              (isTablet(context)
-                                                                  ? 0.07
-                                                                  : 0.07),
-                                                        ),
-                                                        Text(
-                                                          "Delete",
-                                                          style: TextStyle(
-                                                            fontSize: baseSize *
-                                                                (isTablet(
-                                                                    context)
-                                                                    ? 0.04
-                                                                    : 0.04),
-                                                            fontWeight: FontWeight
-                                                                .w500,
-                                                            color: Color(
-                                                                0xFF545454),
-                                                          ),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  Container(
-                                    height: 2,
-                                    color: Colors.grey,
-                                  )
-                                ],
-                              );
-                            }
-                        );
-                      }
-                    },
-                  ),
-                ),
-                // Fade in the module list
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: IgnorePointer(
-                    child: Container(
-                        height: 120,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            stops: [0.0, 1.0],
-                            colors: [
-                              // Colors.transparent,
-                              // Color(0xFFFFF0DC),
-                              //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                              Color(0xFFFECF97).withOpacity(0.0),
-                              Color(0xFFFECF97),
-                            ],
-                          ),
-                        )
-                    ),
-                  ),
-                ),
-              ],
-            ),
           ),
         ),
       ],

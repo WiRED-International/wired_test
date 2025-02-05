@@ -1,18 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/svg.dart';
-import 'package:provider/provider.dart';
 import 'package:wired_test/providers/auth_guard.dart';
 import 'package:wired_test/utils/functions.dart';
 import '../pages/search.dart';
-import '../providers/user_provider.dart';
 import '../utils/custom_nav_bar.dart';
-import 'cme/cme_info.dart';
 import 'cme/cme_tracker.dart';
-import 'cme/login.dart';
-import 'menu.dart';
+import 'menu/guestMenu.dart';
+import 'menu/menu.dart';
 import 'module_library.dart';
-import 'policy.dart';
 import 'package:wired_test/utils/side_nav_bar.dart';
 import 'package:http/http.dart' as http;
 
@@ -94,122 +89,107 @@ class _MyHomePageState extends State<MyHomePage> {
     bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
     return Scaffold(
-      body: Row(
+      backgroundColor: Colors.transparent, // ✅ Ensures no default white background
+      body: Stack(
         children: [
-          // Conditionally show the side navigation bar in landscape mode
-          if (isLandscape)
-            CustomSideNavBar(
-              onHomeTap: () {
-                // Navigator.push(context,
-                //     MaterialPageRoute(builder: (context) => MyHomePage()));
-              },
-              onLibraryTap: () {
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (context) => ModuleLibrary()));
-              },
-              onTrackerTap: () {
-                // Retrieve user data from UserProvider
-                final userProvider = Provider.of<UserProvider>(context, listen: false);
-
-                // Check if the user data is available
-                if (userProvider.firstName != null && userProvider.email != null) {
-                  // Navigate to CMETracker with user data
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => CMETracker(),
-                    ),
-                  );
-                } else {
-                  // Handle the case where user data is not available (e.g., redirect to login)
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => Login(), // Redirect to Login if no user data
-                    ),
-                  );
-                }
-              },
-              onMenuTap: () {
-                Navigator.push(context, MaterialPageRoute(builder: (
-                    context) => Menu()));
-              },
+          Positioned.fill(
+            child: Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFFFFF0DC),
+                    Color(0xFFF9EBD9),
+                    Color(0xFFFFC888),
+                  ],
+                ),
+              ),
             ),
-
-          // Main content area (expanded to fill remaining space)
-          Expanded(
-            child: Stack(
-              children: <Widget>[
-                Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Color(0xFFFFF0DC),
-                        Color(0xFFF9EBD9),
-                        Color(0xFFFFC888),
-                      ],
-                    ),
-                  ),
-                  child: SafeArea(
-                    child: Center(
-                      child: isLandscape
-                          ? _buildLandscapeLayout(screenWidth, screenHeight, baseSize)
-                          : _buildPortraitLayout(screenWidth, screenHeight, baseSize),
+          ),
+          Row(
+            children: [
+              // ✅ Side Nav Bar with transparent background
+              if (isLandscape)
+                SafeArea(
+                  child: Container(
+                    color: Colors.transparent, // Ensures no white background
+                    child: CustomSideNavBar(
+                      onHomeTap: () {},
+                      onLibraryTap: () {
+                        Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
+                      },
+                      onTrackerTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => AuthGuard(child: CMETracker()),
+                          ),
+                        );
+                      },
+                      onMenuTap: () async {
+                        bool isLoggedIn = await checkIfUserIsLoggedIn();
+                        print("Navigating to menu. Logged in: $isLoggedIn");
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ),
-                // Conditionally show the bottom navigation bar in portrait mode
-                if (!isLandscape)
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: CustomBottomNavBar(
-                      onHomeTap: () {
-                        // Navigator.push(context, MaterialPageRoute(builder: (context) => DownloadConfirm(moduleName: moduleName)));
-                      },
-                      onLibraryTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (
-                            context) => ModuleLibrary()));
-                      },
-                      onTrackerTap: () {
-                        // Retrieve user data from UserProvider
-                        final userProvider = Provider.of<UserProvider>(context, listen: false);
 
-                        // Check if the user data is available
-                        if (userProvider.firstName != null && userProvider.email != null) {
-                          // Navigate to CMETracker with user data
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => CMETracker(),
-                            ),
-                          );
-                        } else {
-                          // Handle the case where user data is not available (e.g., redirect to login)
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => Login(), // Redirect to Login if no user data
-                            ),
-                          );
-                        }
-                      },
-                      onMenuTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (
-                            context) => Menu()));
-                      },
-                    ),
+              // ✅ Main Content
+              Expanded(
+                child: SafeArea(
+                  child: Center(
+                    child: isLandscape
+                        ? _buildLandscapeLayout(screenWidth, screenHeight, baseSize)
+                        : _buildPortraitLayout(screenWidth, screenHeight, baseSize),
                   ),
-              ],
-            ),
+                ),
+              ),
+            ],
           ),
+
+          // ✅ Bottom Nav Bar only in portrait mode
+          if (!isLandscape)
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: CustomBottomNavBar(
+                onHomeTap: () {},
+                onLibraryTap: () {
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
+                },
+                onTrackerTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AuthGuard(child: CMETracker()),
+                    ),
+                  );
+                },
+                onMenuTap: () async {
+                  bool isLoggedIn = await checkIfUserIsLoggedIn();
+                  print("Navigating to menu. Logged in: $isLoggedIn");
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                    ),
+                  );
+                },
+              ),
+            ),
         ],
       ),
     );
   }
+
 
   Widget _buildPortraitLayout(double screenWidth, double screenHeight, double baseSize) {
     return Column(
