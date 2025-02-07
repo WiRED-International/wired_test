@@ -189,7 +189,7 @@ class _GuestMenuState extends State<GuestMenu> {
                   height: imageHeight,
                   decoration: BoxDecoration(
                     image: DecorationImage(
-                      image: AssetImage('assets/images/menu-pic.png'),
+                      image: AssetImage('assets/images/menu-pic-optimized.webp'),
                       fit: BoxFit.cover,
                     ),
                   ),
@@ -384,9 +384,9 @@ class _GuestMenuState extends State<GuestMenu> {
                   child: Container(
                     width: double.infinity,
                     height: imageHeight,
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       image: DecorationImage(
-                        image: AssetImage('assets/images/menu-pic.png'),
+                        image: AssetImage('assets/images/menu-pic-optimized.webp'),
                         fit: BoxFit.fitWidth,
                       ),
                     ),

@@ -198,7 +198,7 @@ class _MyHomePageState extends State<MyHomePage> {
         Semantics(
           label: 'Wired Logo',
           child: Image.asset(
-            'assets/images/wired-logo.png',
+            'assets/images/wired-logo-optimized.webp',
             height: baseSize * (isTablet(context) ? 0.3 : 0.3),
           ),
         ),
@@ -346,7 +346,7 @@ class _MyHomePageState extends State<MyHomePage> {
           child: Semantics(
             label: 'Wired Logo',
             child: Image.asset(
-              'assets/images/wired-logo.png',
+              'assets/images/wired-logo-optimized.webp',
               height: baseSize * (isTablet(context) ? 0.2 : 0.2),
             ),
           ),

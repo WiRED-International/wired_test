@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:wired_test/pages/policy.dart';
@@ -75,6 +76,52 @@ class _ByAlphabetState extends State<ByAlphabet> {
 
     return albums;
   }
+  final Map<String, double> _buttonScales = {};
+  final Map<String, List<Color>> _buttonColors = {};
+
+  void _onTapDown(String label) {
+    setState(() {
+      _buttonScales.putIfAbsent(label, () => 1.0);
+      _buttonColors.putIfAbsent(label, () => [
+        const Color(0xFF548235),
+        const Color(0xFF6BA644),
+        const Color(0xFF93C573),
+      ]);
+
+      _buttonScales[label] = 0.95; // Shrink effect
+
+      // Use new colors on tap down
+      _buttonColors[label] = [
+        Colors.green[900]!, // Change to a darker shade
+        Colors.green[700]!,
+        Colors.green[500]!,
+      ];
+    });
+  }
+
+
+  void _onTapUp(String label, VoidCallback onTap) {
+    Future.delayed(const Duration(milliseconds: 100), () {
+      setState(() {
+        _buttonScales.putIfAbsent(label, () => 1.0);
+        _buttonColors.putIfAbsent(label, () => [
+          const Color(0xFF548235),
+          const Color(0xFF6BA644),
+          const Color(0xFF93C573),
+        ]);
+
+        _buttonScales[label] = 1.0; // Restore size
+
+        // Restore original color
+        _buttonColors[label] = [
+          const Color(0xFF548235),
+          const Color(0xFF6BA644),
+          const Color(0xFF93C573),
+        ];
+      });
+      onTap(); // Execute navigation
+    });
+  }
 
   @override
   void initState() {
@@ -87,6 +134,7 @@ class _ByAlphabetState extends State<ByAlphabet> {
     var screenWidth = MediaQuery.of(context).size.width;
     var screenHeight = MediaQuery.of(context).size.height;
     var baseSize = MediaQuery.of(context).size.shortestSide;
+    double scalingFactor = getScalingFactor(context);
     final appBarHeight = screenHeight * 0.055;
     final bottomNavBarHeight = screenHeight * 0.09;
     bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
@@ -163,8 +211,8 @@ class _ByAlphabetState extends State<ByAlphabet> {
                       Expanded(
                         child: Center(
                           child: isLandscape
-                              ? _buildLandscapeLayout(screenWidth, screenHeight, baseSize)
-                              : _buildPortraitLayout(screenWidth, screenHeight, baseSize),
+                              ? _buildLandscapeLayout(screenWidth, screenHeight, scalingFactor)
+                              : _buildPortraitLayout(screenWidth, screenHeight, scalingFactor),
                         ),
                       ),
                     ],
@@ -216,26 +264,23 @@ class _ByAlphabetState extends State<ByAlphabet> {
     );
   }
 
-  Widget _buildPortraitLayout(screenWidth, screenHeight, baseSize) {
-    final appBarHeight = baseSize * (isTablet(context) ? 0.001 : 0.055);
-    final bottomNavBarHeight = baseSize * (isTablet(context) ? 0.001 : 0.09);
+  Widget _buildPortraitLayout(screenWidth, screenHeight, scalingFactor) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        const SizedBox(height: 15),
         Text(
           "Search by Alphabet",
           style: TextStyle(
-            fontSize: baseSize * (isTablet(context) ? 0.08 : 0.08),
+            fontSize: scalingFactor * (isTablet(context) ? 30 : 30),
             fontWeight: FontWeight.w500,
-            color: Color(0xFF0070C0),
+            color: const Color(0xFF0070C0),
           ),
         ),
-        const SizedBox(height: 30),
+        SizedBox(height: scalingFactor * (isTablet(context) ? 20 : 20)),
         Expanded(
           child: Padding(
             padding: EdgeInsets.symmetric(
-              horizontal: baseSize * (isTablet(context) ? 0.02 : 0.02),
+              horizontal: scalingFactor * (isTablet(context) ? 10 : 10),
             ),
             child: FutureBuilder<List<Album>>(
               future: futureAlbums,
@@ -248,57 +293,34 @@ class _ByAlphabetState extends State<ByAlphabet> {
                   return const Center(child: Text('No Albums Found'));
                 } else {
                   albums = snapshot.data!;
-                  // final screenWidth = MediaQuery.of(context).size.width;
-                  final crossAxisCount = (isTablet(context) ? 4 : 4).floor();
-                  final availableHeight = baseSize - (appBarHeight + bottomNavBarHeight + (baseSize * (isTablet(context) ? 0.4 : 0.1))); // Adjust based on AppBar and BottomNavigationBar
-                  final itemHeight = availableHeight / (albums.length / crossAxisCount).ceil();
-                  //final childAspectRatio = baseSize / (itemHeight * (isTablet(context) ? 7.0 : 4.0));
-                  final childAspectRatio = baseSize / (itemHeight * (isTablet(context) ? 7 : 5.5));
+
+                  /// Maintain dynamic grid sizing based on screen type
+                  final crossAxisCount = isTablet(context) ? 4 : 4;
+                  final buttonHeight = scalingFactor * (isTablet(context) ? 60 : 50); // Adjusted for tablets
+                  final childAspectRatio = isTablet(context) ? 1.6 : 1.5; // Adjusted for tablet scaling
 
                   return GridView.builder(
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: crossAxisCount,
-                      mainAxisSpacing: baseSize * (isTablet(context) ? 0.02 : 0.02),
-                      crossAxisSpacing: baseSize * (isTablet(context) ? 0.02 : 0.02),
+                      mainAxisSpacing: scalingFactor * (isTablet(context) ? 9 : 8),
+                      crossAxisSpacing: scalingFactor * (isTablet(context) ? 9 : 8),
                       childAspectRatio: childAspectRatio,
                     ),
                     itemCount: albums.length,
                     itemBuilder: (context, index) {
-                      return InkWell(
+                      return _buildAnimatedGridButton(
+                        label: albums[index].name,
                         onTap: () {
                           Navigator.push(
                             context,
                             MaterialPageRoute(
                               builder: (context) => ModuleByAlphabet(
                                 letter: albums[index].name,
-
                               ),
                             ),
                           );
                         },
-                        child: Container(
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Color(0xFF548235),
-                                Color(0xFF6BA644),
-                                Color(0xFF93C573),
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            albums[index].name,
-                            style: TextStyle(
-                              color: Colors.white,
-                              //fontSize: 36,
-                              fontSize: baseSize * (isTablet(context) ? 0.07 : 0.075),
-                            ),
-                          ),
-                        ),
+                        scalingFactor: scalingFactor,
                       );
                     },
                   );
@@ -307,30 +329,88 @@ class _ByAlphabetState extends State<ByAlphabet> {
             ),
           ),
         ),
-        //SizedBox(height: baseSize * (isTablet(context) ? .17 : 0.25)),
       ],
     );
   }
 
-  Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
-    final appBarHeight = baseSize * (isTablet(context) ? 0.001 : 0.1);
-    final bottomNavBarHeight = baseSize * (isTablet(context) ? 0.001 : 0.1);
+  Widget _buildAnimatedGridButton({
+    required String label,
+    required VoidCallback onTap,
+    required double scalingFactor,
+  }) {
+    return GestureDetector(
+      onTapDown: (_) => _onTapDown(label),
+      onTapUp: (_) => _onTapUp(label, onTap),
+      onTapCancel: () {
+        setState(() {
+          _buttonScales[label] = 1.0;
+          _buttonColors[label] = [
+            const Color(0xFF548235),
+            const Color(0xFF6BA644),
+            const Color(0xFF93C573),
+          ];
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+        transform: Matrix4.diagonal3Values(
+          _buttonScales[label] ?? 1.0,
+          _buttonScales[label] ?? 1.0,
+          1.0,
+        ),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: _buttonColors[label] ?? [
+              const Color(0xFF548235),
+              const Color(0xFF6BA644),
+              const Color(0xFF93C573),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(isTablet(context) ? 12 : 8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              spreadRadius: 1,
+              blurRadius: 5,
+              offset: const Offset(1, 3),
+            ),
+          ],
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: scalingFactor * (isTablet(context) ? 24 : 24),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+
+
+  Widget _buildLandscapeLayout(screenWidth, screenHeight, scalingFactor) {
     return Column(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
-        const SizedBox(height: 15),
         Text(
           "Search by Alphabet",
           style: TextStyle(
-            fontSize: baseSize * (isTablet(context) ? 0.08 : 0.08),
+            fontSize: scalingFactor * (isTablet(context) ? 24 : 24),
             fontWeight: FontWeight.w500,
-            color: Color(0xFF0070C0),
+            color: const Color(0xFF0070C0),
           ),
         ),
-        SizedBox(height: baseSize * (isTablet(context) ? 0.03 : 0.03),),
+        SizedBox(height: scalingFactor * (isTablet(context) ? 10 : 10)),
         Expanded(
           child: Padding(
             padding: EdgeInsets.symmetric(
-              horizontal: baseSize * (isTablet(context) ? 0.1 : 0.1),
+              horizontal: scalingFactor * (isTablet(context) ? 15 : 10),
             ),
             child: FutureBuilder<List<Album>>(
               future: futureAlbums,
@@ -344,21 +424,22 @@ class _ByAlphabetState extends State<ByAlphabet> {
                 } else {
                   albums = snapshot.data!;
 
-                  final crossAxisCount = (isTablet(context) ? 6 : 6).floor();
-                  final availableHeight = baseSize - (appBarHeight + bottomNavBarHeight + (baseSize * (isTablet(context) ? 0.4 : 0.2)));  // Adjust based on AppBar and BottomNavigationBar
-                  final itemHeight = availableHeight / (albums.length / crossAxisCount).ceil();
-                  final childAspectRatio = screenWidth / (itemHeight * (isTablet(context) ? 7.0 : 7.0));
+                  /// Maintain dynamic grid sizing based on screen type
+                  final crossAxisCount = isTablet(context) ? 6 : 5;
+                  final buttonHeight = scalingFactor * (isTablet(context) ? 55 : 50); // Adjusted for tablets
+                  final childAspectRatio = isTablet(context) ? 1.9 : 2.2; // Adjusted for tablet scaling
 
                   return GridView.builder(
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: crossAxisCount,
-                      mainAxisSpacing: baseSize * (isTablet(context) ? 0.02 : 0.02),
-                      crossAxisSpacing: baseSize * (isTablet(context) ? 0.02 : 0.02),
+                      mainAxisSpacing: scalingFactor * (isTablet(context) ? 10 : 8),
+                      crossAxisSpacing: scalingFactor * (isTablet(context) ? 10 : 8),
                       childAspectRatio: childAspectRatio,
                     ),
                     itemCount: albums.length,
                     itemBuilder: (context, index) {
-                      return InkWell(
+                      return _buildAnimatedGridButtonLandscape(
+                        label: albums[index].name,
                         onTap: () {
                           Navigator.push(
                             context,
@@ -369,29 +450,7 @@ class _ByAlphabetState extends State<ByAlphabet> {
                             ),
                           );
                         },
-                        child: Container(
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Color(0xFF548235),
-                                Color(0xFF6BA644),
-                                Color(0xFF93C573),
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            albums[index].name,
-                            style: TextStyle(
-                              color: Colors.white,
-                              //fontSize: 36,
-                              fontSize: baseSize * (isTablet(context) ? 0.07 : 0.07),
-                            ),
-                          ),
-                        ),
+                        scalingFactor: scalingFactor,
                       );
                     },
                   );
@@ -400,7 +459,67 @@ class _ByAlphabetState extends State<ByAlphabet> {
             ),
           ),
         ),
+        SizedBox(height: scalingFactor * (isTablet(context) ? 10 : 10)),
       ],
+    );
+  }
+
+  Widget _buildAnimatedGridButtonLandscape({
+    required String label,
+    required VoidCallback onTap,
+    required double scalingFactor,
+  }) {
+    return GestureDetector(
+      onTapDown: (_) => _onTapDown(label),
+      onTapUp: (_) => _onTapUp(label, onTap),
+      onTapCancel: () {
+        setState(() {
+          _buttonScales[label] = 1.0;
+          _buttonColors[label] = [
+            const Color(0xFF548235),
+            const Color(0xFF6BA644),
+            const Color(0xFF93C573),
+          ];
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
+        transform: Matrix4.diagonal3Values(
+          _buttonScales[label] ?? 1.0,
+          _buttonScales[label] ?? 1.0,
+          1.0,
+        ),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: _buttonColors[label] ?? [
+              const Color(0xFF548235),
+              const Color(0xFF6BA644),
+              const Color(0xFF93C573),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(isTablet(context) ? 12 : 8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              spreadRadius: 1,
+              blurRadius: 5,
+              offset: const Offset(1, 3),
+            ),
+          ],
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          label,
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: scalingFactor * (isTablet(context) ? 21 : 24),
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
     );
   }
 }
