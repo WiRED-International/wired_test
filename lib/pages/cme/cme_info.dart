@@ -149,7 +149,7 @@ class _CmeInfoState extends State<CmeInfo> {
                 height: imageHeight,
                 decoration: BoxDecoration(
                   image: DecorationImage(
-                    image: AssetImage('assets/images/cme-pic.png'),
+                    image: AssetImage('assets/images/cme-pic-optimized.webp'),
                     fit: BoxFit.cover,
                   ),
                 ),
@@ -291,7 +291,7 @@ class _CmeInfoState extends State<CmeInfo> {
                   height: imageHeight,
                   decoration: BoxDecoration(
                     image: DecorationImage(
-                      image: AssetImage('assets/images/cme-pic.png'),
+                      image: AssetImage('assets/images/cme-pic-optimized.webp'),
                       fit: BoxFit.cover,
                     ),
                   ),

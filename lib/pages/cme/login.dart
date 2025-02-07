@@ -44,7 +44,7 @@ class _LoginState extends State<Login> {
 
   Future<http.Response?> _submitForm() async {
     const remoteServer = 'http://widm.wiredhealthresources.net/apiv2/auth/login';
-    const localServer = '''http://10.0.2.2:3000/auth/login''';
+    const localServer = 'http://10.0.2.2:3000/auth/login';
    print("Submitting form");
 
     if (_formKey.currentState!.validate()) {

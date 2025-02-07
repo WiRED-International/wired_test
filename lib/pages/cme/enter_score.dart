@@ -1,17 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:wired_test/pages/cme/cme_tracker.dart';
-
 import '../../providers/auth_guard.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
-import '../../utils/profile_section.dart';
 import '../../utils/side_nav_bar.dart';
 import '../home_page.dart';
 import '../menu/guestMenu.dart';
@@ -58,95 +54,130 @@ class _EnterScoreState extends State<EnterScore> {
   }
 
   Future<void> _handleSubmit(BuildContext context) async {
-    String scoreString = _controllers.map((controller) => controller.text).join();
+    // Get user input as a list of characters (keeping blank spaces)
+    List<String> rawInputList = _controllers.map((controller) => controller.text.trim()).toList();
 
-    if (scoreString.isNotEmpty) {
-      String formattedScore = scoreString.padLeft(5, '0');
+    print('Raw score input list: $rawInputList');
 
-      double? parsedScore = double.tryParse(
-        '${formattedScore[0]}${formattedScore[1]}${formattedScore[2]}.${formattedScore[3]}${formattedScore[4]}',
-      );
+    // Ensure the list has exactly 5 elements (padding missing ones with "0")
+    while (rawInputList.length < 5) {
+      rawInputList.insert(0, "0"); // Insert "0" at the beginning for missing values
+    }
 
-      if (parsedScore != null && parsedScore >= 0 && parsedScore <= 100) {
-        print('Valid score: $parsedScore');
+    print('Corrected input list: $rawInputList');
 
-        final authProvider = Provider.of<AuthProvider>(context, listen: false);
-        final token = authProvider.authToken;
-        final userId = authProvider.getUserIdFromToken();
+    // **First three characters form the integer part**
+    String integerPart = rawInputList.sublist(0, 3).join();
+    // **Last two characters form the decimal part**
+    String decimalPart = rawInputList.sublist(3, 5).join();
 
-        if (token == null || userId == null) {
-          print('Token or user_id is missing');
-          return;
-        }
+    // Remove non-numeric characters (just in case)
+    integerPart = integerPart.replaceAll(RegExp(r'[^0-9]'), '');
+    decimalPart = decimalPart.replaceAll(RegExp(r'[^0-9]'), '');
 
-        try {
-          print('Submitting module_id: ${widget.moduleId}, Type: ${widget.moduleId.runtimeType}');
+    // Ensure integer part is valid (default to "0" if empty)
+    integerPart = integerPart.isEmpty ? "0" : integerPart;
 
-          final response = await http.post(
-            Uri.parse('http://widm.wiredhealthresources.net/apiv2/quiz-scores'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $token',
+    // Ensure decimal part is exactly two digits (default to "00" if empty)
+    decimalPart = decimalPart.padRight(2, '0');
+
+    // Construct final score string
+    String formattedScore = '$integerPart.$decimalPart';
+
+    print('Final formatted score: $formattedScore');
+
+    // Convert to double
+    double? parsedScore = double.tryParse(formattedScore);
+    print('Parsed Score: $parsedScore, Type: ${parsedScore.runtimeType}');
+
+    // **Reject scores greater than 100.00**
+    if (parsedScore != null && parsedScore > 100.00) {
+      print('Error: Score exceeds 100.00!');
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Invalid score. The maximum allowed score is 100.00.'),
+      ));
+      return;
+    }
+
+    // Ensure valid range
+    if (parsedScore != null && parsedScore >= 0.00 && parsedScore <= 100.00) {
+      print('Valid score: $parsedScore');
+
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final token = authProvider.authToken;
+      final userId = authProvider.getUserIdFromToken();
+
+      if (token == null || userId == null) {
+        print('Token or user_id is missing');
+        return;
+      }
+
+      try {
+        print('Submitting module_id: ${widget.moduleId}, Type: ${widget.moduleId.runtimeType}');
+
+        final response = await http.post(
+          Uri.parse('http://widm.wiredhealthresources.net/apiv2/quiz-scores'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $token',
+          },
+          body: json.encode({
+            'module_id': widget.moduleId.toString().substring(widget.moduleId.toString().length - 4),
+            'user_id': userId,
+            'score': parsedScore,
+            'date_taken': DateTime.now().toIso8601String(),
+          }),
+        );
+
+        print('Server response: ${response.statusCode} - ${response.body}');
+
+        if (response.statusCode == 201 || response.statusCode == 200) {
+          print('Score submitted successfully: ${response.body}');
+
+          // Show success alert
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (BuildContext context) {
+              return AlertDialog(
+                title: Text('Success'),
+                content: Text('Your score has been submitted successfully!'),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (context) => CMETracker()),
+                      );
+                    },
+                    child: Text('OK'),
+                  ),
+                ],
+              );
             },
-            body: json.encode({
-              'module_id': widget.moduleId.toString().substring(widget.moduleId.toString().length - 4),
-              'user_id': userId,
-              'score': parsedScore,
-              'date_taken': DateTime.now().toIso8601String(),
-            }),
           );
-
-          if (response.statusCode == 201 || response.statusCode == 200) {
-            print('Score submitted successfully: ${response.body}');
-
-            // Show success alert
-            showDialog(
-              context: context,
-              barrierDismissible: false, // Prevents closing the dialog by tapping outside
-              builder: (BuildContext context) {
-                return AlertDialog(
-                  title: Text('Success'),
-                  content: Text('Your score has been submitted successfully!'),
-                  actions: [
-                    TextButton(
-                      onPressed: () {
-                        Navigator.of(context).pop(); // Close the alert
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(builder: (context) => CMETracker()),
-                        );
-                      },
-                      child: Text('OK'),
-                    ),
-                  ],
-                );
-              },
-            );
-          } else {
-            print('Failed to submit score: ${response.statusCode} - ${response.body}');
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text('Failed to submit score. Please try again.'),
-            ));
-          }
-        } catch (e) {
-          print('Error submitting score: $e');
+        } else {
+          print('Failed to submit score: ${response.statusCode} - ${response.body}');
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('An error occurred. Please try again.'),
+            content: Text('Failed to submit score. Please try again.'),
           ));
         }
-      } else {
-        print('Invalid score');
+      } catch (e) {
+        print('Error submitting score: $e');
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Invalid score. Please enter a valid score between 000.00 and 100.00.'),
+          content: Text('An error occurred. Please try again.'),
         ));
       }
     } else {
-      print('Please fill all boxes');
+      print('Invalid score');
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Please fill all score boxes.'),
+        content: Text('Invalid score. Please enter a valid score between 000.00 and 100.00.'),
       ));
     }
   }
+
+
 
 
   @override

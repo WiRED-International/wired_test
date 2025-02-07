@@ -12,7 +12,6 @@ import '../home_page.dart';
 import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
 import '../module_library.dart';
-import 'cme_info.dart';
 import 'cme_tracker.dart';
 import 'login.dart';
 
@@ -97,7 +96,7 @@ class _RegisterState extends State<Register> {
             if (value == null || value.isEmpty) {
               return 'Please enter your country';
             }
-            if (_selectedCountry == null) {
+            if (_selectedCountry == null && _countrySuggestions.isEmpty) {
               return 'Please select a valid country from the dropdown';
             }
             return null;
@@ -136,14 +135,20 @@ class _RegisterState extends State<Register> {
   }
 
   void _showErrorAlert(String message) {
+    String title = "Error"; // Default title
+
+    if (message.toLowerCase().contains("email")) {
+      title = "Invalid Email"; // If the error is about email, set title accordingly
+    } else if (message.toLowerCase().contains("country")) {
+      title = "Invalid Country"; // If the error is about country, set title accordingly
+    }
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Invalid Country'),
-          content: Text(
-            "$message\n\nSuggestions:\n- Ensure the spelling is correct.\n- Use the dropdown to select the correct country.",
-          ),
+          title: Text(title), // ✅ Now the title matches the error type
+          content: Text(message),
           actions: [
             TextButton(
               onPressed: () {
@@ -158,69 +163,67 @@ class _RegisterState extends State<Register> {
   }
 
   Future<bool> _submitForm() async {
-    if (_formKey.currentState!.validate()) {
-      // Validate the country field
-      if (_selectedCountry == null) {
-        _showErrorAlert(
-          "The country '${_countryController.text.trim()}' is not recognized. Please select a valid country from the dropdown.",
-        );
-        return false;
-      }
-
-      // Collect form data
-      final firstName = _firstNameController.text.trim();
-      final lastName = _lastNameController.text.trim();
-      final email = _emailController.text.trim();
-      final country = _selectedCountry!['id'];
-      final city = _cityController.text.trim();
-      final organization = _organizationController.text.trim();
-      final password = _passwordController.text.trim();
-
-      final userData = {
-        "first_name": firstName,
-        "last_name": lastName,
-        "email": email,
-        "country_id": country,
-        "city": city,
-        "organization": organization,
-        "password": password,
-      };
-
-      print('User data being sent: $userData');
-
-      final url = Uri.parse('http://widm.wiredhealthresources.net/apiv2/auth/register');
-
-      try {
-        final response = await http.post(
-          url,
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: json.encode(userData),
-        );
-
-        print('Response status: ${response.statusCode}');
-        print('Response body: ${response.body}');
-
-        if (response.statusCode == 201) {
-          // Successfully registered
-          final responseData = json.decode(response.body);
-          print('User registered: ${responseData['message']}');
-          return true;
-          // Navigate to a success page or show a success message
-        } else {
-          // Error occurred
-          final errorData = json.decode(response.body);
-          _showErrorAlert(errorData['message']);
-          return false;
-        }
-      } catch (error) {
-        _showErrorAlert('An unexpected error occurred. Please try again.');
-        return false;
-      }
+    const remoteServerUrl = 'http://widm.wiredhealthresources.net/apiv2/auth/register';
+    const localServerUrl = 'http://10.0.2.2:3000/auth/register';
+    // Validate the email field first
+    if (_emailController.text.isEmpty || _validateEmail(_emailController.text) != null) {
+      _showErrorAlert("Please enter a valid email address.");
+      return false;
     }
-    return false;
+
+    // Validate the full form (excluding email since it was already checked)
+    if (!_formKey.currentState!.validate()) {
+      return false;
+    }
+
+    // Validate the country field only if the email is valid
+    if (_selectedCountry == null) {
+      _showErrorAlert(
+        "The country '${_countryController.text.trim()}' is not recognized. Please select a valid country from the dropdown.",
+      );
+      return false;
+    }
+
+    // Proceed with registration if all validations pass
+    final userData = {
+      "first_name": _firstNameController.text.trim(),
+      "last_name": _lastNameController.text.trim(),
+      "email": _emailController.text.trim(),
+      "country_id": _selectedCountry!['id'],
+      "city": _cityController.text.trim(),
+      "organization": _organizationController.text.trim(),
+      "password": _passwordController.text.trim(),
+    };
+
+    final url = Uri.parse(remoteServerUrl);
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {"Content-Type": "application/json"},
+        body: json.encode(userData),
+      );
+
+      final responseBody = json.decode(response.body);
+      print('Response Status: ${response.statusCode}');
+      print('Response Body: $responseBody');
+
+      if (response.statusCode == 201) {
+        return true;
+      } else {
+        final errorData = json.decode(response.body);
+        if (errorData.containsKey('message')) {
+          _showErrorAlert(errorData['message']);
+        }
+        return false;
+      }
+    } catch (error) {
+      _showErrorAlert('An unexpected error occurred. Please try again.');
+      return false;
+    }
   }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -463,15 +466,6 @@ class _RegisterState extends State<Register> {
                       height: scalingFactor * (isTablet(context) ? 30 : 40),
                       decoration: BoxDecoration(
                         color: Color(0xFF0070C0),
-                        // gradient: const LinearGradient(
-                        //   colors: [
-                        //     Color(0xFF0070C0),
-                        //     Color(0xFF00C1FF),
-                        //     Color(0xFF0070C0),
-                        //   ], // Your gradient colors
-                        //   begin: Alignment.topCenter,
-                        //   end: Alignment.bottomCenter,
-                        // ),
                         borderRadius: BorderRadius.circular(10),
                         boxShadow: [
                           BoxShadow(
