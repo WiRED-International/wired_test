@@ -138,19 +138,22 @@ class _CmeInfoState extends State<CmeInfo> {
 
 
   Widget _buildPortraitLayout(scalingFactor) {
-    final double imageHeight = scalingFactor * (isTablet(context) ? 150 : 170);
+    final double imageHeight = scalingFactor * (isTablet(context) ? 210 : 210);
     return Center(
       child: Column(
         children: <Widget>[
           Stack(
             children: [
-              Container(
-                width: double.infinity,
-                height: imageHeight,
-                decoration: BoxDecoration(
-                  image: DecorationImage(
-                    image: AssetImage('assets/images/cme-pic-optimized.webp'),
-                    fit: BoxFit.cover,
+              Padding(
+                padding: EdgeInsets.only(top: scalingFactor * (isTablet(context) ? 10 : 20)),
+                child: Container(
+                  width: double.infinity,
+                  height: imageHeight,
+                  decoration: BoxDecoration(
+                    image: DecorationImage(
+                      image: AssetImage('assets/images/cme-tracker-optimized.webp'),
+                      fit: BoxFit.cover,
+                    ),
                   ),
                 ),
               ),
@@ -160,18 +163,7 @@ class _CmeInfoState extends State<CmeInfo> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Padding(
-                  padding: EdgeInsets.only(top: scalingFactor * (isTablet(context) ? 10 : 10)),
-                  child: Text(
-                    "CME Credits Tracker",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: scalingFactor * (isTablet(context) ? 24 : 28),
-                      fontWeight: FontWeight.w400,
-                      color: Color(0xFF0070C0),
-                    ),
-                  ),
-                ),
+                SizedBox(height: scalingFactor * (isTablet(context) ? 10 : 10)),
                 Padding(
                   padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 10 : 10)),
                   child: RichText(
@@ -277,7 +269,7 @@ class _CmeInfoState extends State<CmeInfo> {
   }
 
   Widget _buildLandscapeLayout(scalingFactor) {
-    final double imageHeight = scalingFactor * (isTablet(context) ? 120 : 130);
+    final double imageHeight = scalingFactor * (isTablet(context) ? 180 : 200);
 
     return Center(
       child: SingleChildScrollView(
@@ -291,7 +283,7 @@ class _CmeInfoState extends State<CmeInfo> {
                   height: imageHeight,
                   decoration: BoxDecoration(
                     image: DecorationImage(
-                      image: AssetImage('assets/images/cme-pic-optimized.webp'),
+                      image: AssetImage('assets/images/cme-tracker-small-optimized.webp'),
                       fit: BoxFit.cover,
                     ),
                   ),
@@ -300,21 +292,10 @@ class _CmeInfoState extends State<CmeInfo> {
             ),
 
             // Main Content with Spacing
+
+            SizedBox(height: scalingFactor * (isTablet(context) ? 15 : 10)),
             Padding(
-              padding: EdgeInsets.only(top: scalingFactor * (isTablet(context) ? 10 : 10)),
-              child: Text(
-                "CME Credits Tracker",
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: scalingFactor * (isTablet(context) ? 24 : 28),
-                  fontWeight: FontWeight.w400,
-                  color: Color(0xFF0070C0),
-                ),
-              ),
-            ),
-            SizedBox(height: scalingFactor * (isTablet(context) ? 15 : 0)),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 40 : 10)),
+              padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 40 : 0)),
               child: RichText(
                 textAlign: TextAlign.center,
                 text: TextSpan(
@@ -322,7 +303,7 @@ class _CmeInfoState extends State<CmeInfo> {
                     TextSpan(
                       text: 'WiRED International is proud to introduce our new continuing medical education tracker. Submit and track all of your CME credits for the year using WiRED\'s extensive health module library. For more information on how to manage and incorporate WiRED\'s CME Tracker into your curriculum please visit here:\n',
                       style: TextStyle(
-                        fontSize: scalingFactor * (isTablet(context) ? 15 : 18),
+                        fontSize: scalingFactor * (isTablet(context) ? 15 : 15),
                         fontWeight: FontWeight.w400,
                         color: Color(0xFF548235),
                       ),
@@ -335,7 +316,7 @@ class _CmeInfoState extends State<CmeInfo> {
                     TextSpan(
                       text: 'www.wiredinternational.org',
                       style: TextStyle(
-                        fontSize: scalingFactor * (isTablet(context) ? 18 : 22),
+                        fontSize: scalingFactor * (isTablet(context) ? 18 : 20),
                         fontWeight: FontWeight.w500,
                         color: Color(0xFF0070C0),
                       ),
@@ -368,7 +349,7 @@ class _CmeInfoState extends State<CmeInfo> {
                   child: Text(
                     "Login",
                     style: TextStyle(
-                      fontSize: scalingFactor * (isTablet(context) ? 22 : 26),
+                      fontSize: scalingFactor * (isTablet(context) ? 22 : 24),
                       fontWeight: FontWeight.w500,
                       color: Color(0xFF0070C0),
                     ),
@@ -378,7 +359,7 @@ class _CmeInfoState extends State<CmeInfo> {
                 Text(
                   "or",
                   style: TextStyle(
-                    fontSize: scalingFactor * (isTablet(context) ? 18 : 26),
+                    fontSize: scalingFactor * (isTablet(context) ? 18 : 22),
                     fontWeight: FontWeight.w500,
                     color: Color(0xFF548235),
                   ),
@@ -391,7 +372,7 @@ class _CmeInfoState extends State<CmeInfo> {
                   child: Text(
                     "Register",
                     style: TextStyle(
-                      fontSize: scalingFactor * (isTablet(context) ? 22 : 26),
+                      fontSize: scalingFactor * (isTablet(context) ? 22 : 24),
                       fontWeight: FontWeight.w500,
                       color: Color(0xFF0070C0),
                     ),
