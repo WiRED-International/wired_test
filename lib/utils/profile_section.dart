@@ -9,7 +9,6 @@ class ProfileSection  extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    var baseSize = MediaQuery.of(context).size.shortestSide;
     double scalingFactor = getScalingFactor(context);
     final double circleDiameter = scalingFactor * (isTablet(context) ? 70 : 110);
     final double circleDiameterSmall = scalingFactor * (isTablet(context) ? 64 : 100);

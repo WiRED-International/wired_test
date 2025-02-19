@@ -6,7 +6,6 @@ import 'package:provider/provider.dart';
 import 'package:wired_test/pages/cme/register.dart';
 import 'package:wired_test/providers/auth_provider.dart';
 import '../../providers/auth_guard.dart';
-import '../../providers/user_provider.dart';
 import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
@@ -15,7 +14,6 @@ import '../home_page.dart';
 import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
 import '../module_library.dart';
-import 'cme_info.dart';
 import 'cme_tracker.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -61,8 +59,7 @@ class _LoginState extends State<Login> {
       // Collect form data
       final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
-
-      final url = Uri.parse(remoteServer);
+      final url = Uri.parse(localServer);
 
       try {
         final response = await http.post(
@@ -76,18 +73,17 @@ class _LoginState extends State<Login> {
           }),
         );
 
-        print('Response status: ${response.statusCode}');
-        print('Response body: ${response.body}');
-
         if (response.statusCode == 200) {
           // Successfully logged in
           final responseData = json.decode(response.body);
           final authToken = responseData['token'];
+          final userId = responseData['user']['id'];
 
-          if (authToken is String && authToken.isNotEmpty) {
+          if (authToken is String && authToken.isNotEmpty && userId != null) {
             try {
               await _storage.write(key: 'authToken', value: authToken);
-              print("Auth token successfully saved!");
+              await _storage.write(key: 'user_id', value: userId.toString());
+              print("Auth token and user_id successfully saved!");
             } catch (e) {
               print('SecureStorage Error: $e');
               if (mounted) _showErrorAlert("Failed to save login data securely.");
@@ -119,6 +115,7 @@ class _LoginState extends State<Login> {
       // Parse the response
       final responseData = json.decode(response.body);
       final authToken = responseData['token'];
+      final userId = responseData['user']['id'];
 
       if (authToken != null && authToken.isNotEmpty) {
         final normalizedTokenPayload = normalizeBase64(authToken.split('.')[1]);
@@ -137,6 +134,9 @@ class _LoginState extends State<Login> {
         String dateJoined = user['createdAt'] ?? 'Unknown';
 
         debugPrint('User Data: firstName=$firstName, lastName=$lastName, email=$email, dateJoined=$dateJoined');
+
+        // Store user_id securely
+        await _storage.write(key: 'user_id', value: userId.toString());
 
         // Navigate to CMETracker screen
         Navigator.pushReplacement(

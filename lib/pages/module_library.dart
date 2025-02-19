@@ -336,66 +336,6 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
             SizedBox(
               height: baseSize * (isTablet(context) ? 0.02 : 0.02),
             ),
-            // Display the modules or resources
-            // Container(
-            //   child: Row(
-            //     children: [
-            //       Expanded(
-            //         child: GestureDetector(
-            //           onTap: () {
-            //             setState(() {
-            //               selectedType = DisplayType.modules;
-            //             });
-            //           },
-            //           child: Container(
-            //               height: baseSize * (isTablet(context) ? 0.075 : 0.075),
-            //               color: selectedType == DisplayType.modules
-            //                   ? Colors.white
-            //                   : Colors.grey[300],
-            //               child: Center(
-            //                 child: Text(
-            //                   "Modules",
-            //                   style: TextStyle(
-            //                     fontSize: baseSize * (isTablet(context) ? 0.0535 : 0.0535),
-            //                     fontWeight: FontWeight.w500,
-            //                     color: Colors.black,
-            //                   ),
-            //                 ),
-            //               )
-            //           ),
-            //         ),
-            //       ),
-            //       Container(
-            //         width: 1,
-            //         height: baseSize * (isTablet(context) ? 0.075 : 0.075),
-            //         color: Colors.black,
-            //       ),
-            //       Expanded(
-            //         child: GestureDetector(
-            //           onTap: () {
-            //             setState(() {
-            //               selectedType = DisplayType.resources;
-            //             });
-            //           },
-            //           child: Container(
-            //               height: baseSize * (isTablet(context) ? 0.075 : 0.075),
-            //               color: Colors.white,
-            //               child: Center(
-            //                 child: Text(
-            //                   "Resources",
-            //                   style: TextStyle(
-            //                     fontSize: baseSize * (isTablet(context) ? 0.0535 : 0.0535),
-            //                     fontWeight: FontWeight.w500,
-            //                     color: Colors.black,
-            //                   ),
-            //                 ),
-            //               )
-            //           ),
-            //         ),
-            //       ),
-            //     ],
-            //   ),
-            // ),
             // Display appropriate list based on selectedType
             SizedBox(
               height: baseSize * (isTablet(context) ? 0.02 : 0.02),

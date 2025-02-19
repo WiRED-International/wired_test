@@ -85,9 +85,9 @@ class _CreditsHistoryState extends State<CreditsHistory> {
     if (token == null) {
       throw Exception('User is not logged in');
     }
-
-    final url = Uri.parse(
-        'http://widm.wiredhealthresources.net/apiv2/users/me'); // Replace with your API URL
+    const remoteServer = 'http://widm.wiredhealthresources.net/apiv2/users/me';
+    const localServer = 'http://10.0.2.2:3000/users/me';
+    final url = Uri.parse(localServer);
     final response = await http.get(
       url,
       headers: {
@@ -512,7 +512,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                                       TextSpan(
                                         text: module != null &&
                                             module['module_id'] != null
-                                            ? module['module_id']
+                                            ? module['module_id'].toString()
                                             : 'N/A',
                                         style: TextStyle(
                                           color: Color(0xFF325BFF),
