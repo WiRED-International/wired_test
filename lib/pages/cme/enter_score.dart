@@ -115,8 +115,10 @@ class _EnterScoreState extends State<EnterScore> {
       try {
         print('Submitting module_id: ${widget.moduleId}, Type: ${widget.moduleId.runtimeType}');
 
+        const remoteServer = 'http://widm.wiredhealthresources.net/apiv2/quiz-scores';
+        const localServer = 'http://10.0.2.2:3000/quiz-scores';
         final response = await http.post(
-          Uri.parse('http://widm.wiredhealthresources.net/apiv2/quiz-scores'),
+          Uri.parse(localServer),
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer $token',

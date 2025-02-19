@@ -137,139 +137,122 @@ class _CmeInfoState extends State<CmeInfo> {
   }
 
 
-  Widget _buildPortraitLayout(scalingFactor) {
-    final double imageHeight = scalingFactor * (isTablet(context) ? 210 : 210);
-    return Center(
-      child: Column(
-        children: <Widget>[
-          Stack(
-            children: [
-              Padding(
-                padding: EdgeInsets.only(top: scalingFactor * (isTablet(context) ? 10 : 20)),
-                child: Container(
-                  width: double.infinity,
-                  height: imageHeight,
-                  decoration: BoxDecoration(
-                    image: DecorationImage(
-                      image: AssetImage('assets/images/cme-tracker-optimized.webp'),
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildPortraitLayout(double scalingFactor) {
+    final double imageHeight = scalingFactor * (isTablet(context) ? 140 : 160);
+    return SingleChildScrollView(
+      child: Center(
+        child: Column(
+          children: <Widget>[
+            Stack(
               children: [
-                SizedBox(height: scalingFactor * (isTablet(context) ? 10 : 10)),
                 Padding(
-                  padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 10 : 10)),
-                  child: RichText(
-                    textAlign: TextAlign.center,
-                    text: TextSpan(
-                      children: [
-                        TextSpan(
-                          text: 'WiRED International is proud to introduce our new continuing medical education tracker. Submit and track all of your CME credits for the year using WiRED\'s extensive health module library. For more information on how to manage and incorporate WiRED\'s CME Tracker into your curriculum please visit here:\n',
-                          style: TextStyle(
-                            fontSize: scalingFactor * (isTablet(context) ? 15 : 18),
-                            fontWeight: FontWeight.w400,
-                            color: Color(0xFF548235),
-                          ),
-                        ),
-                        WidgetSpan(
-                          child: SizedBox(
-                            height: scalingFactor * (isTablet(context) ? 30 : 40),
-                          ),
-                        ),
-                        TextSpan(
-                          text: 'www.wiredinternational.org',
-                          style: TextStyle(
-                            fontSize: scalingFactor * (isTablet(context) ? 18 : 22),
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF0070C0),
-                          ),
-                          recognizer: TapGestureRecognizer()
-                            ..onTap = () async {
-                              final url = Uri.parse(
-                                  'https://www.wiredinternational.org');
-                              if (await canLaunchUrl(url)) {
-                                await launchUrl(url);
-                              } else {
-                                throw 'Could not launch $url';
-                              }
-                            },
-                        ),
-                      ],
+                  padding: EdgeInsets.only(top: scalingFactor * (isTablet(context) ? 10 : 15)),
+                  child: Container(
+                    width: double.infinity,
+                    height: imageHeight,
+                    decoration: BoxDecoration(
+                      image: DecorationImage(
+                        image: AssetImage('assets/images/cme-tracker-optimized.webp'),
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
-                ),
-                SizedBox(
-                  height: scalingFactor * (isTablet(context) ? 10 : 10),
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    GestureDetector(
-                      onTap: () {
-                        print("Login Tapped");
-                        Navigator.push(context, MaterialPageRoute(builder: (
-                            context) => Login()));
-                      },
-                      child: Text(
-                        "Login",
-                        style: TextStyle(
-                          fontSize: scalingFactor * (isTablet(context) ? 22 : 26),
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF0070C0),
-                        ),
-                      ),
-                    ),
-                    SizedBox(
-                      width: scalingFactor * (isTablet(context) ? 15 : 10),
-                    ),
-                    Text(
-                      "or",
-                      style: TextStyle(
-                        fontSize: scalingFactor * (isTablet(context) ? 18 : 26),
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF548235),
-                      ),
-                    ),
-                    SizedBox(
-                      width: scalingFactor * (isTablet(context) ? 15 : 10),
-                    ),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (
-                            context) => Register()));
-                      },
-                      child: Text(
-                        "Register",
-                        style: TextStyle(
-                          fontSize: scalingFactor * (isTablet(context) ? 22 : 26),
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF0070C0),
-                        ),
-                      ),
-                    )
-                  ],
                 ),
               ],
             ),
-          ),
-
-          SizedBox(
-            height: scalingFactor * (isTablet(context) ? 20 : 20),
-          ),
-        ],
+            SizedBox(height: scalingFactor * (isTablet(context) ? 20 : 15)),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 10 : 10)),
+              child: RichText(
+                textAlign: TextAlign.center,
+                text: TextSpan(
+                  children: [
+                    TextSpan(
+                      text: 'WiRED International is proud to introduce our new continuing medical education tracker. Submit and track all of your CME credits for the year using WiRED\'s extensive health module library. For more information on how to manage and incorporate WiRED\'s CME Tracker into your curriculum please visit here:\n',
+                      style: TextStyle(
+                        fontSize: scalingFactor * (isTablet(context) ? 15 : 18),
+                        fontWeight: FontWeight.w400,
+                        color: Color(0xFF548235),
+                      ),
+                    ),
+                    WidgetSpan(
+                      child: SizedBox(
+                        height: scalingFactor * (isTablet(context) ? 30 : 40),
+                      ),
+                    ),
+                    TextSpan(
+                      text: 'www.wiredinternational.org',
+                      style: TextStyle(
+                        fontSize: scalingFactor * (isTablet(context) ? 18 : 22),
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF0070C0),
+                      ),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = () async {
+                          final url = Uri.parse('https://www.wiredinternational.org');
+                          if (await canLaunchUrl(url)) {
+                            await launchUrl(url);
+                          } else {
+                            throw 'Could not launch $url';
+                          }
+                        },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(height: scalingFactor * (isTablet(context) ? 40 : 50)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                GestureDetector(
+                  onTap: () {
+                    print("Login Tapped");
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => Login()));
+                  },
+                  child: Text(
+                    "Login",
+                    style: TextStyle(
+                      fontSize: scalingFactor * (isTablet(context) ? 22 : 26),
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF0070C0),
+                    ),
+                  ),
+                ),
+                SizedBox(width: scalingFactor * (isTablet(context) ? 15 : 10)),
+                Text(
+                  "or",
+                  style: TextStyle(
+                    fontSize: scalingFactor * (isTablet(context) ? 18 : 24),
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF548235),
+                  ),
+                ),
+                SizedBox(width: scalingFactor * (isTablet(context) ? 15 : 10)),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => Register()));
+                  },
+                  child: Text(
+                    "Register",
+                    style: TextStyle(
+                      fontSize: scalingFactor * (isTablet(context) ? 22 : 26),
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF0070C0),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: scalingFactor * (isTablet(context) ? 20 : 20)),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildLandscapeLayout(scalingFactor) {
-    final double imageHeight = scalingFactor * (isTablet(context) ? 180 : 200);
+    final double imageHeight = scalingFactor * (isTablet(context) ? 160 : 160);
 
     return Center(
       child: SingleChildScrollView(
@@ -278,13 +261,16 @@ class _CmeInfoState extends State<CmeInfo> {
             // Stack for Image and Back Button
             Stack(
               children: [
-                Container(
-                  width: double.infinity,
-                  height: imageHeight,
-                  decoration: BoxDecoration(
-                    image: DecorationImage(
-                      image: AssetImage('assets/images/cme-tracker-small-optimized.webp'),
-                      fit: BoxFit.cover,
+                Padding(
+                  padding: EdgeInsets.only(top: scalingFactor * (isTablet(context) ? 10 : 15)),
+                  child: Container(
+                    width: double.infinity,
+                    height: imageHeight,
+                    decoration: BoxDecoration(
+                      image: DecorationImage(
+                        image: AssetImage('assets/images/cme-tracker-small-optimized.webp'),
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
                 ),
@@ -293,7 +279,7 @@ class _CmeInfoState extends State<CmeInfo> {
 
             // Main Content with Spacing
 
-            SizedBox(height: scalingFactor * (isTablet(context) ? 15 : 10)),
+            SizedBox(height: scalingFactor * (isTablet(context) ? 20 : 15)),
             Padding(
               padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 40 : 0)),
               child: RichText(

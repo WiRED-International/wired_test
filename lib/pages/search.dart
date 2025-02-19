@@ -213,7 +213,7 @@ class _SearchState extends State<Search> {
           child: Text(
             'Search Modules',
             style: TextStyle(
-              fontSize: scalingFactor * (isTablet(context) ? 30 : 40),
+              fontSize: scalingFactor * (isTablet(context) ? 30 : 35),
               fontWeight: FontWeight.w500,
               color: Color(0xFF0070C0),
             ),

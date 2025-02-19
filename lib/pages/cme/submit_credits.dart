@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_guard.dart';
@@ -42,6 +43,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
   List<ModuleFile> modules = [];
   // List<FileSystemEntity> resources = []; // Store PDF files
   DisplayType selectedType = DisplayType.modules; // To track whether Modules or Resources are selected
+  final secureStorage = const FlutterSecureStorage();
 
   @override
   void initState() {
@@ -218,6 +220,9 @@ class _SubmitCreditsState extends State<SubmitCredits> {
     }
   }
 
+  Future<void> saveModuleId(String moduleId) async {
+    await secureStorage.write(key: "module_id", value: moduleId);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -504,6 +509,8 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                               hint: 'Tap to play the module',
                                               child: GestureDetector(
                                                 onTap: () {
+                                                  saveModuleId(moduleFile.moduleId!);
+                                                  print( "Saving module id: $moduleFile.moduleId");
                                                   Navigator.push(
                                                     context,
                                                     MaterialPageRoute(

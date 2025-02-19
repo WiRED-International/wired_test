@@ -70,6 +70,51 @@ class _CMETrackerState extends State<CMETracker> {
   void initState() {
     super.initState();
     userData = fetchUserData();
+
+    _buttonColors = {
+      "Credits History": [
+        Color(0xFF6B72FF),
+        Color(0xFF325BFF),
+        Color(0xFF6B72FF),
+      ],
+      "Submit New Credits": [
+        Color(0xFF6B72FF),
+        Color(0xFF325BFF),
+        Color(0xFF6B72FF),
+      ],
+    };
+
+    _buttonScales = {
+      "Credits History": 1.0,
+      "Submit New Credits": 1.0,
+    };
+  }
+
+  Map<String, double> _buttonScales = {};
+  Map<String, List<Color>> _buttonColors = {};
+
+  void _onTapDown(String label) {
+    setState(() {
+      _buttonScales[label] = 0.95; // Slightly shrink the button on press
+      _buttonColors[label] = [
+        _buttonColors[label]![0].withOpacity(0.8), // Slightly dim the color
+        _buttonColors[label]![1].withOpacity(0.8),
+        _buttonColors[label]![2].withOpacity(0.8),
+      ];
+    });
+  }
+
+  void _onTapUp(String label, VoidCallback onTap) {
+    setState(() {
+      _buttonScales[label] = 1.0; // Restore button size
+      _buttonColors[label] = [
+        _buttonColors[label]![0].withOpacity(1.0), // Restore original color
+        _buttonColors[label]![1].withOpacity(1.0),
+        _buttonColors[label]![2].withOpacity(1.0),
+      ];
+    });
+
+    onTap(); // Execute the actual button function
   }
 
   Future<String?> getAuthToken() async {
@@ -85,7 +130,7 @@ class _CMETrackerState extends State<CMETracker> {
     const remoteServer = 'http://widm.wiredhealthresources.net/apiv2/users/me';
     const localServer = '''http://10.0.2.2:3000/users/me''';
 
-    final url = Uri.parse(remoteServer);
+    final url = Uri.parse(localServer);
     final response = await http.get(
       url,
       headers: {
@@ -249,7 +294,6 @@ class _CMETrackerState extends State<CMETracker> {
       authProvider, firstName, dateJoined, quizScores) {
     // Get the current year
     final int currentYear = DateTime.now().year;
-    print('QuizScores: $quizScores');
 
     // Calculate credits earned
     final int creditsEarned = quizScores != null
@@ -274,10 +318,7 @@ class _CMETrackerState extends State<CMETracker> {
       return false;
     }).length * 5 : 0;
 
-    // Maximum credits
     const int maxCredits = 50;
-
-    // Calculate remaining credits
     final int creditsRemaining = maxCredits - creditsEarned;
 
     return SingleChildScrollView(
@@ -381,111 +422,120 @@ class _CMETrackerState extends State<CMETracker> {
             ),
           ),
           SizedBox(height: scalingFactor * (isTablet(context) ? 40 : 40)),
-          Semantics(
-            label: 'CME Credits History Button',
-            hint: 'Tap to view your CME credits history',
-            child: GestureDetector(
-              onTap: () async {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        AuthGuard(
-                          child: CreditsHistory(),
-                        ),
-                  ),
-                );
-              },
-              child: Container(
-                width: scalingFactor * (isTablet(context) ? 180 : 230),
-                height: scalingFactor * (isTablet(context) ? 35 : 40),
-                decoration: BoxDecoration(
-                  color: Color(0xFF6B72FF),
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.5),
-                      spreadRadius: 1,
-                      blurRadius: 5,
-                      offset: const Offset(
-                          1, 3), // changes position of shadow
-                    ),
-                  ],
+
+          // Credits History Button with New Style
+          _buildSearchButton(
+            label: "Credits History",
+            gradientColors: [
+              Color(0xFF6B72FF),
+              Color(0xFF325BFF),
+              Color(0xFF6B72FF),
+            ],
+            onTap: () async {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AuthGuard(child: CreditsHistory()),
                 ),
-                child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      return Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            "Credits History",
-                            style: TextStyle(
-                              fontSize: scalingFactor * (isTablet(context) ? 16 : 20),
-                              fontWeight: FontWeight.w400,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      );
-                    }
-                ),
-              ),
-            ),
+              );
+            },
+            scalingFactor: scalingFactor,
           ),
-          SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 30)),
-          Semantics(
-            label: 'Submit CME Credits Button',
-            hint: 'Tap to submit your CME credits',
-            child: GestureDetector(
-              onTap: () async {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        AuthGuard(
-                          child: SubmitCredits(),
-                        ),
-                  ),
-                );
-              },
-              child: Container(
-                width: scalingFactor * (isTablet(context) ? 180 : 230),
-                height: scalingFactor * (isTablet(context) ? 35 : 40),
-                decoration: BoxDecoration(
-                  color: Color(0xFF6B72FF),
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.5),
-                      spreadRadius: 1,
-                      blurRadius: 5,
-                      offset: const Offset(
-                          1, 3), // changes position of shadow
-                    ),
-                  ],
+          SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 40)),
+
+          // Submit New Credits Button with New Style
+          _buildSearchButton(
+            label: "Submit New Credits",
+            gradientColors: [
+              Color(0xFF6B72FF),
+              Color(0xFF325BFF),
+              Color(0xFF6B72FF),
+            ],
+            onTap: () async {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AuthGuard(child: SubmitCredits()),
                 ),
-                child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      return Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            "Submit New Credits",
-                            style: TextStyle(
-                              fontSize: scalingFactor * (isTablet(context) ? 16 : 20),
-                              fontWeight: FontWeight.w400,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      );
-                    }
-                ),
-              ),
-            ),
+              );
+            },
+            scalingFactor: scalingFactor,
           ),
           SizedBox(height: scalingFactor * (isTablet(context) ? 70 : 70)),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSearchButton({
+    required String label,
+    required List<Color> gradientColors,
+    required VoidCallback onTap,
+    required double scalingFactor,
+  }) {
+    return Semantics(
+      label: '$label Button',
+      hint: 'Tap to access $label',
+      child: FractionallySizedBox(
+        widthFactor: isTablet(context) ? 0.45 : 0.6,
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(30),
+          child: GestureDetector(
+            onTapDown: (_) => _onTapDown(label),
+            onTapUp: (_) => _onTapUp(label, onTap),
+            onTapCancel: () {
+              setState(() {
+                _buttonScales[label] = 1.0;
+                _buttonColors[label] = [
+                  _buttonColors[label]![0].withOpacity(1.0), // Restore original
+                  _buttonColors[label]![1].withOpacity(1.0),
+                  _buttonColors[label]![2].withOpacity(1.0),
+                ];
+              });
+            },
+            child: AnimatedContainer(
+              duration: Duration(milliseconds: 100),
+              curve: Curves.easeOut,
+              transform: Matrix4.diagonal3Values(
+                  _buttonScales[label] ?? 1.0, _buttonScales[label] ?? 1.0, 1.0),
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(30),
+                splashColor: Colors.white.withOpacity(0.3),
+                child: Container(
+                  height: scalingFactor * (isTablet(context) ? 35 : 45),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: _buttonColors[label] ?? gradientColors,
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.5),
+                        spreadRadius: 1,
+                        blurRadius: 5,
+                        offset: Offset(1, 3),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: scalingFactor * (isTablet(context) ? 17 : 20),
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -631,112 +681,120 @@ class _CMETrackerState extends State<CMETracker> {
               ),
             ),
           ),
-          SizedBox(height: scalingFactor * (isTablet(context) ? 35 : 35)),
-          Semantics(
-            label: 'CME Credits History Button',
-            hint: 'Tap to view your CME credits history',
-            child: GestureDetector(
-              onTap: () async {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        AuthGuard(
-                          child: CreditsHistory(),
-                        ),
-                  ),
-                );
-              },
-              child: Container(
-                width: scalingFactor * (isTablet(context) ? 150 : 200),
-                height: scalingFactor * (isTablet(context) ? 30 : 35),
-                decoration: BoxDecoration(
-                  color: Color(0xFF6B72FF),
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.5),
-                      spreadRadius: 1,
-                      blurRadius: 5,
-                      offset: const Offset(
-                          1, 3), // changes position of shadow
-                    ),
-                  ],
-                ),
-                child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      return Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            "Credits History",
-                            style: TextStyle(
-                              fontSize: scalingFactor * (isTablet(context) ? 15 : 20),
-                              fontWeight: FontWeight.w400,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      );
-                    }
-                ),
-              ),
-            ),
-          ),
+
           SizedBox(height: scalingFactor * (isTablet(context) ? 25 : 25)),
-          Semantics(
-            label: 'Submit CME Credits Button',
-            hint: 'Tap to submit your CME credits',
-            child: GestureDetector(
-              onTap: () async {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) =>
-                        AuthGuard(
-                          child: SubmitCredits(),
-                        ),
-                  ),
-                );
-              },
-              child: Container(
-                width: scalingFactor * (isTablet(context) ? 150 : 200),
-                height: scalingFactor * (isTablet(context) ? 30 : 35),
-                decoration: BoxDecoration(
-                  color: Color(0xFF6B72FF),
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.5),
-                      spreadRadius: 1,
-                      blurRadius: 5,
-                      offset: const Offset(
-                          1, 3), // changes position of shadow
-                    ),
-                  ],
+          _buildSearchButtonLandscape(
+            label: "Credits History",
+            gradientColors: [
+              Color(0xFF6B72FF),
+              Color(0xFF325BFF),
+              Color(0xFF6B72FF),
+            ],
+            onTap: () async {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AuthGuard(child: CreditsHistory()),
                 ),
-                child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      return Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            "Submit New Credits",
-                            style: TextStyle(
-                              fontSize: scalingFactor * (isTablet(context) ? 15 : 20),
-                              fontWeight: FontWeight.w400,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      );
-                    }
+              );
+            },
+            scalingFactor: scalingFactor,
+          ),
+          SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 40)),
+
+          // Submit New Credits Button with New Style
+          _buildSearchButtonLandscape(
+            label: "Submit New Credits",
+            gradientColors: [
+              Color(0xFF6B72FF),
+              Color(0xFF325BFF),
+              Color(0xFF6B72FF),
+            ],
+            onTap: () async {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AuthGuard(child: SubmitCredits()),
                 ),
-              ),
-            ),
+              );
+            },
+            scalingFactor: scalingFactor,
           ),
           SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 10)),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSearchButtonLandscape({
+    required String label,
+    required List<Color> gradientColors,
+    required VoidCallback onTap,
+    required double scalingFactor,
+  }) {
+    return Semantics(
+      label: '$label Button',
+      hint: 'Tap to access $label',
+      child: FractionallySizedBox(
+        widthFactor: isTablet(context) ? 0.35 : 0.5, // Adjust width for landscape
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(25),
+          child: GestureDetector(
+            onTapDown: (_) => _onTapDown(label),
+            onTapUp: (_) => _onTapUp(label, onTap),
+            onTapCancel: () {
+              setState(() {
+                _buttonScales[label] = 1.0;
+                _buttonColors[label] = [
+                  _buttonColors[label]![0].withOpacity(1.0),
+                  _buttonColors[label]![1].withOpacity(1.0),
+                  _buttonColors[label]![2].withOpacity(1.0),
+                ];
+              });
+            },
+            child: AnimatedContainer(
+              duration: Duration(milliseconds: 100),
+              curve: Curves.easeOut,
+              transform: Matrix4.diagonal3Values(
+                  _buttonScales[label] ?? 1.0, _buttonScales[label] ?? 1.0, 1.0),
+              child: InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(25),
+                splashColor: Colors.white.withOpacity(0.3),
+                child: Container(
+                  height: scalingFactor * (isTablet(context) ? 30 : 35), // Reduced height for landscape
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: _buttonColors[label] ?? gradientColors,
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                    borderRadius: BorderRadius.circular(25),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.5),
+                        spreadRadius: 1,
+                        blurRadius: 5,
+                        offset: Offset(1, 3),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: scalingFactor * (isTablet(context) ? 14 : 18), // Slightly smaller font size
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
