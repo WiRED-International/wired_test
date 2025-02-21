@@ -162,27 +162,23 @@ class _WebViewScreenState extends State<WebViewScreen> {
             print("✅ Page finished loading: $url");
 
             // Retrieve authentication details
-            String? authToken = await secureStorage.read(key: "authToken");
-            String? userId = await secureStorage.read(key: "user_id");
             String? moduleId = await secureStorage.read(key: "module_id");
+            String? moduleName = await secureStorage.read(key: "module_name");
 
             print("📌 Stored Data Before Injection:");
-            print("🔹 AuthToken: $authToken");
-            print("🔹 UserID: $userId");
             print("🔹 ModuleID: $moduleId");
+            print("🔹 ModuleName: $moduleName");
 
-            if (authToken != null && userId != null && moduleId != null) {
+            if (moduleId != null && moduleName != null && moduleName.isNotEmpty) {
               // Inject JavaScript into WebView
               await _webViewController.evaluateJavascript(source: """
-                window.storylineAuthToken = '$authToken';
-                window.storylineUserId = '$userId';
                 window.storylineModuleId = '$moduleId';
-                console.log('🔹 Injected Auth Data:', window.storylineAuthToken, window.storylineUserId, window.storylineModuleId);
+                window.storylineModuleName = '$moduleName';
+                console.log('🔹 Injected Data: Module ID: $moduleId, Module Name: $moduleName');
               """);
-
               print("✅ JavaScript Injection Complete: Data sent to Storyline.");
             } else {
-              print("❌ ERROR: Authentication data is missing before injection.");
+              print("❌ ERROR: Module ID or Name missing before injection.");
             }
           },
           onConsoleMessage: (controller, consoleMessage) async {
@@ -201,8 +197,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
                 final Map<String, dynamic> jsonData = json.decode(cleanMessage);
 
                 print("📥 Received Data from Storyline:");
-                print("🔹 AuthToken: ${jsonData['auth_token']}");
-                print("🔹 UserID: ${jsonData['user_id']}");
                 print("🔹 ModuleID: ${jsonData['module_id']}");
                 print("🔹 Quiz Score: ${jsonData['quiz_score']}");
 
@@ -236,14 +230,18 @@ class _WebViewScreenState extends State<WebViewScreen> {
   Future<void> _storeScoreInSecureStorage(Map<String, dynamic> data) async {
     try {
       String moduleId = data["module_id"].toString();
+      String moduleName = data["module_name"] ?? "Unknown Module";
       double score = double.tryParse(data["quiz_score"].toString()) ?? 0.0;
 
       // Retrieve existing stored scores
       String? storedScoresJson = await secureStorage.read(key: "quiz_scores");
       Map<String, dynamic> storedScores = storedScoresJson != null ? jsonDecode(storedScoresJson) : {};
 
-      // Update the score for the current module
-      storedScores[moduleId] = score;
+      // Update the score and module name for the current module
+      storedScores[moduleId] = {
+        "score": score,
+        "module_name": moduleName
+      };
 
       // Save updated scores back to Secure Storage
       await secureStorage.write(key: "quiz_scores", value: jsonEncode(storedScores));

@@ -1,15 +1,14 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:wired_test/pages/policy.dart';
 import '.././utils/webview_screen.dart';
 import '../providers/auth_guard.dart';
 import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
 import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
-import 'cme/cme_info.dart';
 import 'cme/cme_tracker.dart';
 import 'home_page.dart';
 import 'menu/guestMenu.dart';
@@ -25,10 +24,11 @@ class ModuleLibrary extends StatefulWidget {
 class ModuleFile {
   final FileSystemEntity file;
   final String path;
-  final String title;
+  final String moduleName;
+  final String moduleId;
 
 
-  ModuleFile({required this.file, required this.path, required this.title});
+  ModuleFile({required this.file, required this.path, required this.moduleName, required this.moduleId});
 }
 
 enum DisplayType { modules, resources }
@@ -47,6 +47,13 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
     futureResources = _fetchResources(); // Fetch the resources
   }
 
+  String? extractModuleId(String content) {
+    final regex = RegExp(r'content="0; url=files/(\d+)/story.html"'); // Adjust regex if needed
+    final match = regex.firstMatch(content);
+    return match?.group(1); // Return the captured group (module ID)
+  }
+
+
   Future<List<ModuleFile>> _fetchModules() async {
     final directory = await getExternalStorageDirectory();
     if (directory != null) {
@@ -55,31 +62,53 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
 
       List<ModuleFile> fetchedModules = [];
 
-      // Get all files from the packages directory
+      // Process files in packages directory
       if (packagesDirectory.existsSync()) {
         final packageFiles = packagesDirectory.listSync().whereType<File>().toList();
         fetchedModules.addAll(packageFiles.map((file) {
-          String fileName = file.path.split('/').last;
-          if (fileName.endsWith('.htm')) {
-            fileName = fileName.replaceAll('.htm', '');
+          String fileName = file.path.split('/').last.replaceAll('.htm', '');
+
+          String? moduleId;
+          try {
+            final content = file.readAsStringSync(); // Read file content
+            moduleId = extractModuleId(content); // Extract module ID
+          } catch (e) {
+            print("Error reading file: ${file.path}, $e");
           }
-          return ModuleFile(file: file, path: file.path, title: fileName);
+
+          return ModuleFile(
+            file: file,
+            path: file.path,
+            moduleName: fileName,
+            moduleId: moduleId ?? fileName, // Fallback to fileName if ID not found
+          );
         }).toList());
       }
 
-      // Get all files from the modules directory
+      // Process files in modules directory
       if (modulesDirectory.existsSync()) {
         final moduleFiles = modulesDirectory.listSync().whereType<File>().toList();
         fetchedModules.addAll(moduleFiles.map((file) {
-          String fileName = file.path.split('/').last;
-          if (fileName.endsWith('.htm')) {
-            fileName = fileName.replaceAll('.htm', '');
+          String fileName = file.path.split('/').last.replaceAll('.htm', '');
+
+          String? moduleId;
+          try {
+            final content = file.readAsStringSync(); // Read file content
+            moduleId = extractModuleId(content); // Extract module ID
+          } catch (e) {
+            print("Error reading file: ${file.path}, $e");
           }
-          return ModuleFile(file: file, path: file.path, title: fileName);
+
+          return ModuleFile(
+            file: file,
+            path: file.path,
+            moduleName: fileName,
+            moduleId: moduleId ?? fileName, // Fallback to fileName if ID not found
+          );
         }).toList());
       }
 
-      fetchedModules.sort((a, b) => a.title.compareTo(b.title));
+      fetchedModules.sort((a, b) => a.moduleName.compareTo(b.moduleName));
 
       setState(() {
         modules = fetchedModules;
@@ -193,6 +222,20 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
       print('Error deleting file or directory: $e');
     }
   }
+
+  Future<void> saveModuleInfo(String moduleId, String moduleName) async {
+    //await secureStorage.deleteAll();
+    await secureStorage.write(key: "module_id", value: moduleId);
+    await secureStorage.write(key: "module_name", value: moduleName);
+    print("✅ Module Info Saved: ID: $moduleId, Name: $moduleName");
+
+    String? savedModuleId = await secureStorage.read(key: "module_id");
+    String? savedModuleName = await secureStorage.read(key: "module_name");
+    print("🔍 Stored Module ID: $savedModuleId");
+    print("🔍 Stored Module Name: $savedModuleName");
+  }
+
+
 
 
   @override
@@ -400,7 +443,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                                               // Module name text (Expanded to take available space)
                                               Expanded(
                                                 child: Text(
-                                                  moduleFile.title,
+                                                  moduleFile.moduleName,
                                                   style: TextStyle(
                                                     fontSize: baseSize * (isTablet(context) ? 0.0385 : 0.044),
                                                     fontWeight: FontWeight.w300,
@@ -430,6 +473,8 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                                                     ),
                                                     child: GestureDetector(
                                                       onTap: () {
+                                                        saveModuleInfo(moduleFile.moduleId, moduleFile.moduleName);
+                                                        print( "Saving module id: $moduleFile.moduleId");
                                                         Navigator.push(
                                                           context,
                                                           MaterialPageRoute(
@@ -697,7 +742,7 @@ Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
                                           // Module name text (Expanded to take available space)
                                           Expanded(
                                             child: Text(
-                                              moduleFile.title,
+                                              moduleFile.moduleName,
                                               style: TextStyle(
                                                 fontSize: baseSize * (isTablet(context) ? 0.04 : 0.04),
                                                 fontWeight: FontWeight.w300,
@@ -726,6 +771,8 @@ Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
                                                 ),
                                                 child: GestureDetector(
                                                   onTap: () {
+                                                    saveModuleInfo(moduleFile.moduleId, moduleFile.moduleName);
+                                                    print( "Saving module id: $moduleFile.moduleId");
                                                     // Play the module
                                                     Navigator.push(
                                                       context,

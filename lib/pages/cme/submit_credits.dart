@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_guard.dart';
@@ -26,13 +28,20 @@ class SubmitCredits extends StatefulWidget {
 }
 
 class ModuleFile {
-  final FileSystemEntity file;
-  final String path;
-  final String title;
+  final FileSystemEntity? file;
+  final String? path;
+  final String moduleName;
   final String? moduleId;
+  final String? score;
 
 
-  ModuleFile({required this.file, required this.path, required this.title, this.moduleId,});
+  ModuleFile({
+    this.file,
+    this.path,
+    required this.moduleName,
+    this.moduleId,
+    this.score,
+  });
 }
 
 enum DisplayType { modules, resources }
@@ -48,89 +57,125 @@ class _SubmitCreditsState extends State<SubmitCredits> {
   @override
   void initState() {
     super.initState();
-    futureModules = _fetchModules();
+    futureModules = _fetchModulesFromSecureStorage();
   }
 
-  Future<List<ModuleFile>> _fetchModules() async {
-    final directory = await getExternalStorageDirectory();
-    if (directory != null) {
-      final packagesDirectory = Directory('${directory.path}/packages');
-      final modulesDirectory = Directory('${directory.path}/modules');
+  Future<List<ModuleFile>> _fetchModulesFromSecureStorage() async {
+    final FlutterSecureStorage secureStorage = const FlutterSecureStorage();
+    try {
+      // Retrieve stored modules from secure storage
+      String? storedScoresJson = await secureStorage.read(key: "quiz_scores");
 
-      List<ModuleFile> fetchedModules = [];
+      if (storedScoresJson != null) {
+        Map<String, dynamic> storedScores = jsonDecode(storedScoresJson);
+        List<ModuleFile> fetchedModules = [];
 
-      // Function to extract module ID from HTML content
-      String? extractModuleId(String content) {
-        final regex = RegExp(r'content="0; url=files/(\d+)/story.html"');
-        final match = regex.firstMatch(content);
-        return match?.group(1); // Return the captured group (module ID)
+        // Convert each stored module entry into a ModuleFile object
+        storedScores.forEach((moduleId, moduleData) {
+          if (moduleData is Map<String, dynamic>) {
+            String moduleName = moduleData['module_name'] ?? 'Unknown Module';
+            String score = moduleData['score'].toString();
+            // String score = (moduleData['score'] is double)
+            //     ? moduleData['score']
+            //     : double.tryParse(moduleData['score'].toString()) ?? 0.0;
+
+            fetchedModules.add(ModuleFile(
+              moduleId: moduleId,
+              moduleName: moduleName,
+              score: score,
+            ));
+          }
+        });
+
+        // Sort modules alphabetically by module name
+        fetchedModules.sort((a, b) => a.moduleName.compareTo(b.moduleName));
+
+        // Update state to display the modules
+        setState(() {
+          modules = fetchedModules;
+        });
+
+        return fetchedModules;
+      } else {
+        print("ℹ️ No stored modules found in Secure Storage.");
+        return [];
       }
-
-      // Process files in packages directory
-      if (packagesDirectory.existsSync()) {
-        final packageFiles = packagesDirectory.listSync().whereType<File>().toList();
-        fetchedModules.addAll(packageFiles.map((file) {
-          String fileName = file.path.split('/').last;
-          if (fileName.endsWith('.htm')) {
-            fileName = fileName.replaceAll('.htm', '');
-          }
-
-          String? moduleId;
-          try {
-            final content = file.readAsStringSync(); // Read file content
-            moduleId = extractModuleId(content); // Extract module ID
-          } catch (e) {
-            print("Error reading file: ${file.path}, $e");
-          }
-
-          return ModuleFile(
-            file: file,
-            path: file.path,
-            title: fileName,
-            moduleId: moduleId, // Associate module ID
-          );
-        }).toList());
-      }
-
-      // Process files in modules directory
-      if (modulesDirectory.existsSync()) {
-        final moduleFiles = modulesDirectory.listSync().whereType<File>().toList();
-        fetchedModules.addAll(moduleFiles.map((file) {
-          String fileName = file.path.split('/').last;
-          if (fileName.endsWith('.htm')) {
-            fileName = fileName.replaceAll('.htm', '');
-          }
-
-          String? moduleId;
-          try {
-            final content = file.readAsStringSync(); // Read file content
-            moduleId = extractModuleId(content); // Extract module ID
-          } catch (e) {
-            print("Error reading file: ${file.path}, $e");
-          }
-
-          return ModuleFile(
-            file: file,
-            path: file.path,
-            title: fileName,
-            moduleId: moduleId, // Associate module ID
-          );
-        }).toList());
-      }
-
-      fetchedModules.sort((a, b) => a.title.compareTo(b.title));
-
-      setState(() {
-        modules = fetchedModules;
-      });
-
-      return fetchedModules;
-    } else {
+    } catch (e) {
+      print("❌ Error fetching modules from Secure Storage: $e");
       return [];
     }
   }
 
-  void _showDeleteConfirmation(String fileName) {
+  Future<void> _handleSubmit(BuildContext context, ModuleFile moduleFile) async {
+    if (moduleFile.score == null || moduleFile.score!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No score available to submit.')),
+      );
+      return;
+    }
+
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final token = authProvider.authToken;
+    final userId = authProvider.getUserIdFromToken();
+
+    if (token == null || userId == null) {
+      print('Token or user_id is missing');
+      return;
+    }
+
+    try {
+      const remoteServer = 'http://widm.wiredhealthresources.net/apiv2/quiz-scores';
+
+      final response = await http.post(
+        Uri.parse(remoteServer),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({
+          'module_id': moduleFile.moduleId!.substring(moduleFile.moduleId!.length - 4),
+          'user_id': userId,
+          'score': double.tryParse(moduleFile.score!) ?? 0.0,
+          'date_taken': DateTime.now().toIso8601String(),
+        }),
+      );
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text('Success'),
+              content: Text('Your score has been submitted successfully!'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => CMETracker()),
+                    );
+                  },
+                  child: Text('OK'),
+                ),
+              ],
+            );
+          },
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to submit score. Please try again.')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('An error occurred. Please try again.')),
+      );
+    }
+  }
+
+  void _showDeleteConfirmation(String fileName, String moduleId) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -148,8 +193,8 @@ class _SubmitCreditsState extends State<SubmitCredits> {
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop(); // Close the modal
-                deleteFileAndAssociatedDirectory(
-                    fileName); // Call the delete function after confirmation
+                deleteStoredScore(moduleId);
+                deleteFileAndAssociatedDirectory(fileName); // Call the delete function after confirmation
               },
               child: Text("Yes, delete"),
             ),
@@ -220,8 +265,12 @@ class _SubmitCreditsState extends State<SubmitCredits> {
     }
   }
 
-  Future<void> saveModuleId(String moduleId) async {
-    await secureStorage.write(key: "module_id", value: moduleId);
+  Future<void> saveModuleInfo(String moduleId, String moduleName) async {
+    Map<String, String> moduleInfo = {
+      "module_id": moduleId,
+      "module_name": moduleName,
+    };
+    await secureStorage.write(key: "module_info", value: jsonEncode(moduleInfo));
   }
 
   @override
@@ -434,68 +483,102 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       // Module name text
-                                      Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            "Module Name: ",
-                                            style: TextStyle(
-                                              fontSize: scalingFactor * (isTablet(context) ? 14 : 16),
-                                              fontWeight: FontWeight.w500,
-                                              color: Color(0xFF646BFF),
-                                            ),
-                                            textAlign: TextAlign.center, // Center the text
-                                          ),
-                                          SizedBox(width: scalingFactor * (isTablet(context) ? 5 : 7)), // Space between text and buttons
-                                          Expanded(
-                                            child: Text(
-                                              moduleFile.title,
+                                      Padding(
+                                        padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 4 : 6)),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              "Module Name: ",
                                               style: TextStyle(
-                                                fontSize: scalingFactor * (isTablet(context) ? 14 : 16),
+                                                fontSize: scalingFactor * (isTablet(context) ? 14 : 18),
                                                 fontWeight: FontWeight.w500,
-                                                color: Colors.black,
+                                                color: Color(0xFF646BFF),
                                               ),
-                                              //textAlign: TextAlign.start, // Center the text
+                                              //textAlign: TextAlign.center, // Center the text
                                             ),
-                                          ),
-                                        ],
+                                            SizedBox(width: scalingFactor * (isTablet(context) ? 5 : 5)), // Space between text and value
+                                            Expanded(
+                                              child: Text(
+                                                moduleFile.moduleName,
+                                                style: TextStyle(
+                                                  fontSize: scalingFactor * (isTablet(context) ? 14 : 18),
+                                                  fontWeight: FontWeight.w500,
+                                                  color: Colors.black,
+                                                ),
+                                                //textAlign: TextAlign.start, // Center the text
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                      SizedBox(height: scalingFactor * (isTablet(context) ? 0.04 : 0.04)), // Space between text and buttons
-                                      Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            "Module Id: ",
-                                            style: TextStyle(
-                                              fontSize: scalingFactor * (isTablet(context) ? 14 : 16),
-                                              fontWeight: FontWeight.w500,
-                                              color: Color(0xFF646BFF),
-                                            ),
-                                            textAlign: TextAlign.center, // Center the text
-                                          ),
-                                          SizedBox(width: scalingFactor * (isTablet(context) ? 5 : 7)), // Space between text and buttons
-                                          Expanded(
-                                            child: Text(
-                                              () {
-                                                if (moduleFile.moduleId == null) {
-                                                  return 'Unknown';
-                                                } else if (moduleFile.moduleId!.length == 4) {
-                                                  return moduleFile.moduleId!; // Display full 4-digit ID
-                                                } else if (moduleFile.moduleId!.length == 8) {
-                                                  return '****${moduleFile.moduleId!.substring(4)}'; // Mask first 4 digits, show last 4
-                                                } else {
-                                                  return 'Unknown'; // Fallback for unexpected lengths
-                                                }
-                                              }(),
+                                      SizedBox(height: scalingFactor * (isTablet(context) ? 7 : 7)),
+                                      Padding(
+                                        padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 4 : 6)),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              "Module Id: ",
                                               style: TextStyle(
-                                                fontSize: scalingFactor * (isTablet(context) ? 14 : 16),
+                                                fontSize: scalingFactor * (isTablet(context) ? 14 : 18),
                                                 fontWeight: FontWeight.w500,
-                                                color: Colors.black,
+                                                color: Color(0xFF646BFF),
                                               ),
-                                              //textAlign: TextAlign.start, // Center the text
+                                              //textAlign: TextAlign.center, // Center the text
                                             ),
-                                          ),
-                                        ],
+                                            SizedBox(width: scalingFactor * (isTablet(context) ? 5 : 5)), // Space between text and value
+                                            Expanded(
+                                              child: Text(
+                                                () {
+                                                  if (moduleFile.moduleId == null) {
+                                                    return 'Unknown';
+                                                  } else if (moduleFile.moduleId!.length == 4) {
+                                                    return moduleFile.moduleId!; // Display full 4-digit ID
+                                                  } else if (moduleFile.moduleId!.length == 8) {
+                                                    return '****${moduleFile.moduleId!.substring(4)}'; // Mask first 4 digits, show last 4
+                                                  } else {
+                                                    return 'Unknown'; // Fallback for unexpected lengths
+                                                  }
+                                                }(),
+                                                style: TextStyle(
+                                                  fontSize: scalingFactor * (isTablet(context) ? 14 : 18),
+                                                  fontWeight: FontWeight.w500,
+                                                  color: Colors.black,
+                                                ),
+                                                //textAlign: TextAlign.start, // Center the text
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      SizedBox(height: scalingFactor * (isTablet(context) ? 7 : 7)),
+                                      Padding(
+                                        padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 4 : 6)),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              "Score: ",
+                                              style: TextStyle(
+                                                fontSize: scalingFactor * (isTablet(context) ? 14 : 18),
+                                                fontWeight: FontWeight.w500,
+                                                color: Color(0xFF646BFF),
+                                              ),
+                                            ),
+                                            SizedBox(width: scalingFactor * (isTablet(context) ? 5 : 5)),
+                                            Expanded(
+                                              child: Text(
+                                                moduleFile.score ?? 'No Score',
+                                                style: TextStyle(
+                                                  fontSize: scalingFactor * (isTablet(context) ? 14 : 18),
+                                                  fontWeight: FontWeight.w500,
+                                                  color: Colors.black,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                       SizedBox(height: scalingFactor * (isTablet(context) ? 20 : 20)), // Space between text and buttons
                                       // Buttons (Play and Delete)
@@ -509,14 +592,14 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                               hint: 'Tap to play the module',
                                               child: GestureDetector(
                                                 onTap: () {
-                                                  saveModuleId(moduleFile.moduleId!);
+                                                  saveModuleInfo(moduleFile.moduleId!, moduleFile.moduleName);
                                                   print( "Saving module id: $moduleFile.moduleId");
                                                   Navigator.push(
                                                     context,
                                                     MaterialPageRoute(
                                                       builder: (context) => WebViewScreen(
                                                         urlRequest: URLRequest(
-                                                          url: Uri.file(moduleFile.path),
+                                                          url: Uri.file(moduleFile.path ?? ''),
                                                         ),
                                                       ),
                                                     ),
@@ -588,17 +671,18 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                               hint: 'Tap to submit the module',
                                               child: GestureDetector(
                                                 onTap: () {
-                                                  Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder: (context) => AuthGuard(
-                                                        child: EnterScore(
-                                                          moduleId: moduleFile.moduleId,
-                                                          moduleName: moduleFile.title,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  );
+                                                  _handleSubmit(context, moduleFile);
+                                                  // Navigator.push(
+                                                  //   context,
+                                                  //   MaterialPageRoute(
+                                                  //     builder: (context) => AuthGuard(
+                                                  //       child: EnterScore(
+                                                  //         moduleId: moduleFile.moduleId,
+                                                  //         moduleName: moduleFile.moduleName,
+                                                  //       ),
+                                                  //     ),
+                                                  //   ),
+                                                  // );
                                                 },
                                                 child: FractionallySizedBox(
                                                   widthFactor: isTablet(context) ? 0.45 : 0.65,
@@ -666,7 +750,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                               hint: 'Tap to delete the module',
                                               child: GestureDetector(
                                                 onTap: () {
-                                                  _showDeleteConfirmation(moduleFile.file.path.split('/').last);
+                                                  _showDeleteConfirmation(moduleFile.file!.path.split('/').last, moduleFile.moduleId!);
                                                 },
                                                 child: FractionallySizedBox(
                                                   widthFactor: isTablet(context) ? 0.45 : 0.65,
@@ -855,68 +939,102 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       // Module name text
-                                      Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            "Module Name: ",
-                                            style: TextStyle(
-                                              fontSize: scalingFactor * (isTablet(context) ? 14 : 14),
-                                              fontWeight: FontWeight.w500,
-                                              color: Color(0xFF646BFF),
-                                            ),
-                                            textAlign: TextAlign.center, // Center the text
-                                          ),
-                                          SizedBox(width: scalingFactor * (isTablet(context) ? 5 : 5)), // Space between text and buttons
-                                          Expanded(
-                                            child: Text(
-                                              moduleFile.title,
+                                      Padding(
+                                        padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 4 : 6)),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              "Module Name: ",
                                               style: TextStyle(
                                                 fontSize: scalingFactor * (isTablet(context) ? 14 : 14),
                                                 fontWeight: FontWeight.w500,
-                                                color: Colors.black,
+                                                color: Color(0xFF646BFF),
                                               ),
-                                              //textAlign: TextAlign.start, // Center the text
+                                              //textAlign: TextAlign.center, // Center the text
                                             ),
-                                          ),
-                                        ],
+                                            SizedBox(width: scalingFactor * (isTablet(context) ? 5 : 5)), // Space between text and buttons
+                                            Expanded(
+                                              child: Text(
+                                                moduleFile.moduleName,
+                                                style: TextStyle(
+                                                  fontSize: scalingFactor * (isTablet(context) ? 14 : 14),
+                                                  fontWeight: FontWeight.w500,
+                                                  color: Colors.black,
+                                                ),
+                                                //textAlign: TextAlign.start, // Center the text
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
-                                      SizedBox(height: scalingFactor * (isTablet(context) ? 5 : 5)), // Space between text and buttons
-                                      Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            "Module Id: ",
-                                            style: TextStyle(
-                                              fontSize: scalingFactor * (isTablet(context) ? 14 : 14),
-                                              fontWeight: FontWeight.w500,
-                                              color: Color(0xFF646BFF),
-                                            ),
-                                            textAlign: TextAlign.center, // Center the text
-                                          ),
-                                          SizedBox(width: scalingFactor * (isTablet(context) ? 5 : 5)), // Space between text and buttons
-                                          Expanded(
-                                            child: Text(
-                                                  () {
-                                                if (moduleFile.moduleId == null) {
-                                                  return 'Unknown';
-                                                } else if (moduleFile.moduleId!.length == 4) {
-                                                  return moduleFile.moduleId!; // Display full 4-digit ID
-                                                } else if (moduleFile.moduleId!.length == 8) {
-                                                  return '****${moduleFile.moduleId!.substring(4)}'; // Mask first 4 digits, show last 4
-                                                } else {
-                                                  return 'Unknown'; // Fallback for unexpected lengths
-                                                }
-                                              }(),
+                                      SizedBox(height: scalingFactor * (isTablet(context) ? 5 : 5)),
+                                      Padding(
+                                        padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 4 : 6)),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              "Module Id: ",
                                               style: TextStyle(
                                                 fontSize: scalingFactor * (isTablet(context) ? 14 : 14),
                                                 fontWeight: FontWeight.w500,
-                                                color: Colors.black,
+                                                color: Color(0xFF646BFF),
                                               ),
-                                              //textAlign: TextAlign.start, // Center the text
+                                              //textAlign: TextAlign.center, // Center the text
                                             ),
-                                          ),
-                                        ],
+                                            SizedBox(width: scalingFactor * (isTablet(context) ? 5 : 5)), // Space between text and value
+                                            Expanded(
+                                              child: Text(
+                                                    () {
+                                                  if (moduleFile.moduleId == null) {
+                                                    return 'Unknown';
+                                                  } else if (moduleFile.moduleId!.length == 4) {
+                                                    return moduleFile.moduleId!; // Display full 4-digit ID
+                                                  } else if (moduleFile.moduleId!.length == 8) {
+                                                    return '****${moduleFile.moduleId!.substring(4)}'; // Mask first 4 digits, show last 4
+                                                  } else {
+                                                    return 'Unknown'; // Fallback for unexpected lengths
+                                                  }
+                                                }(),
+                                                style: TextStyle(
+                                                  fontSize: scalingFactor * (isTablet(context) ? 14 : 14),
+                                                  fontWeight: FontWeight.w500,
+                                                  color: Colors.black,
+                                                ),
+                                                //textAlign: TextAlign.start, // Center the text
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      SizedBox(height: scalingFactor * (isTablet(context) ? 5 : 5)),
+                                      Padding(
+                                        padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 4 : 6)),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              "Score: ",
+                                              style: TextStyle(
+                                                fontSize: scalingFactor * (isTablet(context) ? 14 : 14),
+                                                fontWeight: FontWeight.w500,
+                                                color: Color(0xFF646BFF),
+                                              ),
+                                            ),
+                                            SizedBox(width: scalingFactor * (isTablet(context) ? 5 : 5)),
+                                            Expanded(
+                                              child: Text(
+                                                moduleFile.score ?? 'No Score',
+                                                style: TextStyle(
+                                                  fontSize: scalingFactor * (isTablet(context) ? 14 : 14),
+                                                  fontWeight: FontWeight.w500,
+                                                  color: Colors.black,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
                                       ),
                                       SizedBox(height: scalingFactor * (isTablet(context) ? 20 : 20)), // Space between text and buttons
                                       // Buttons (Play and Delete)
@@ -930,14 +1048,14 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                               hint: 'Tap to play the module',
                                               child: GestureDetector(
                                                 onTap: () {
-                                                  saveModuleId(moduleFile.moduleId!);
+                                                  saveModuleInfo(moduleFile.moduleId!, moduleFile.moduleName);
                                                   print( "Saving module id: $moduleFile.moduleId");
                                                   Navigator.push(
                                                     context,
                                                     MaterialPageRoute(
                                                       builder: (context) => WebViewScreen(
                                                         urlRequest: URLRequest(
-                                                          url: Uri.file(moduleFile.path),
+                                                          url: Uri.file(moduleFile.path ?? ''),
                                                         ),
                                                       ),
                                                     ),
@@ -1009,17 +1127,18 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                               hint: 'Tap to submit the module',
                                               child: GestureDetector(
                                                 onTap: () {
-                                                  Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder: (context) => AuthGuard(
-                                                        child: EnterScore(
-                                                          moduleId: moduleFile.moduleId,
-                                                          moduleName: moduleFile.title,
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  );
+                                                  _handleSubmit(context, moduleFile);
+                                                  // Navigator.push(
+                                                  //   context,
+                                                  //   MaterialPageRoute(
+                                                  //     builder: (context) => AuthGuard(
+                                                  //       child: EnterScore(
+                                                  //         moduleId: moduleFile.moduleId,
+                                                  //         moduleName: moduleFile.moduleName,
+                                                  //       ),
+                                                  //     ),
+                                                  //   ),
+                                                  // );
                                                 },
                                                 child: FractionallySizedBox(
                                                   widthFactor: isTablet(context) ? 0.45 : 0.45,
@@ -1087,7 +1206,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                               hint: 'Tap to delete the module',
                                               child: GestureDetector(
                                                 onTap: () {
-                                                  _showDeleteConfirmation(moduleFile.file.path.split('/').last);
+                                                  _showDeleteConfirmation(moduleFile.file!.path.split('/').last, moduleFile.moduleId!);
                                                 },
                                                 child: FractionallySizedBox(
                                                   widthFactor: isTablet(context) ? 0.45 : 0.45,
