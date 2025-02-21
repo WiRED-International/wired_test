@@ -87,7 +87,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
     }
     const remoteServer = 'http://widm.wiredhealthresources.net/apiv2/users/me';
     const localServer = 'http://10.0.2.2:3000/users/me';
-    final url = Uri.parse(localServer);
+    final url = Uri.parse(remoteServer);
     final response = await http.get(
       url,
       headers: {

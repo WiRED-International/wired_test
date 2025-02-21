@@ -81,15 +81,17 @@ class ProfileSection  extends StatelessWidget {
             Positioned(
               bottom: scalingFactor * (isTablet(context) ? 4 : 6),
               // Position slightly above the bottom of the container
-              left: 0,
-              right: scalingFactor * (isTablet(context) ? 105 : 22),
-              child: Text(
-                "Hi, ${firstName ?? 'Guest'}",
-                textAlign: TextAlign.center, // Center the text horizontally
-                style: TextStyle(
-                  fontSize: scalingFactor * (isTablet(context) ? 15 : 22),
-                  color: Colors.black,
-                  fontWeight: FontWeight.w500,
+              left: scalingFactor * (isTablet(context) ? 98 : 127),
+              child: SizedBox(
+                width: scalingFactor * (isTablet(context) ? 220 : 200),
+                child: Text(
+                  "Hi, ${firstName ?? 'Guest'}",
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: scalingFactor * (isTablet(context) ? 14 : 20),
+                    color: Colors.black,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
@@ -105,6 +107,7 @@ class ProfileSection  extends StatelessWidget {
             ),
             Text(
               "Joined: ${formatDate(dateJoined)}",
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: scalingFactor * (isTablet(context) ? 12 : 17),
                 fontWeight: FontWeight.w400,

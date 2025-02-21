@@ -81,15 +81,17 @@ class LandscapeProfileSection  extends StatelessWidget {
             Positioned(
               bottom: scalingFactor * (isTablet(context) ? 3 : 3),
               // Position slightly above the bottom of the container
-              left: 0,
-              right: scalingFactor * (isTablet(context) ? 215 : 210),
-              child: Text(
-                "Hi, ${firstName ?? 'Guest'}",
-                textAlign: TextAlign.center, // Center the text horizontally
-                style: TextStyle(
-                  fontSize: scalingFactor * (isTablet(context) ? 14 : 15),
-                  color: Colors.black,
-                  fontWeight: FontWeight.w500,
+              left: scalingFactor * (isTablet(context) ? 103 : 117),
+              child: SizedBox(
+                width: scalingFactor * (isTablet(context) ? 400 : 400),
+                child: Text(
+                  "Hi, ${firstName ?? 'Guest'}",
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: scalingFactor * (isTablet(context) ? 13 : 15),
+                    color: Colors.black,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
@@ -101,12 +103,12 @@ class LandscapeProfileSection  extends StatelessWidget {
         Row(
           children: [
             SizedBox(
-              width: scalingFactor * (isTablet(context) ? 105 : 113),
+              width: scalingFactor * (isTablet(context) ? 100 : 113),
             ),
             Text(
               "Joined: ${formatDate(dateJoined)}",
               style: TextStyle(
-                fontSize: scalingFactor * (isTablet(context) ? 11 : 11),
+                fontSize: scalingFactor * (isTablet(context) ? 10 : 11),
                 fontWeight: FontWeight.w400,
                 color: Colors.black,
               ),

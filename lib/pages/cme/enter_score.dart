@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:wired_test/pages/cme/cme_tracker.dart';
@@ -30,157 +31,153 @@ class EnterScore extends StatefulWidget {
 }
 
 class _EnterScoreState extends State<EnterScore> {
-  List<TextEditingController> _controllers = List.generate(
-      5, (index) => TextEditingController());
+  final FlutterSecureStorage secureStorage = const FlutterSecureStorage();
+  List<TextEditingController> _controllers = List.generate(5, (index) => TextEditingController());
+  double? _storedScore;
 
-  // Example token that contains the user_id
-  String token = 'your_encoded_jwt_token_here';
+  @override
+  void initState() {
+    super.initState();
+    _loadStoredScore();
+  }
 
-  // Decode the JWT token to extract the user_id
-  String? _getUserIdFromToken(String token) {
+  /// Load stored score from Secure Storage and auto-fill if it matches the module_id
+  Future<void> _loadStoredScore() async {
+    String? storedScoresJson = await secureStorage.read(key: "quiz_scores");
+
+    if (storedScoresJson != null) {
+      try {
+        print("📌 Raw Stored Scores Data: $storedScoresJson");
+
+        // Convert stored string back into a Map
+        Map<String, dynamic> scoreMap = jsonDecode(storedScoresJson);
+        print("📌 Parsed Score Data: $scoreMap");
+
+        // Ensure the map contains an entry for the current module ID
+        if (widget.moduleId != null) {
+          String normalizedModuleId = widget.moduleId!.trim();
+          print("🔍 Normalized Module ID: $normalizedModuleId");
+
+          if (scoreMap.containsKey(normalizedModuleId)) {
+            double storedScore = scoreMap[normalizedModuleId];
+            print("🆔 Stored Module ID: $normalizedModuleId, Score: $storedScore");
+            setState(() {
+              _storedScore = storedScore;
+            });
+            _autoFillScore(storedScore);
+          } else {
+            print("⚠️ No score found for normalized module_id: $normalizedModuleId");
+          }
+        }
+      } catch (e) {
+        print("❌ Error parsing stored scores data: $e");
+      }
+    } else {
+      print("ℹ️ No stored scores found.");
+    }
+  }
+
+
+  /// Auto-fill score into the text fields
+  void _autoFillScore(double score) {
+    String scoreString = score.toStringAsFixed(2); // Ensure two decimal places
+    List<String> scoreParts = scoreString.split(".");
+    List<String> integerPart = scoreParts[0].padLeft(3, "0").split("");
+    List<String> decimalPart = scoreParts[1].padRight(2, "0").split("");
+    List<String> fullScore = [...integerPart, ...decimalPart];
+
+    for (int i = 0; i < _controllers.length; i++) {
+      _controllers[i].text = fullScore[i];
+    }
+  }
+
+  Future<void> _updateStoredScore(String moduleId, double score) async {
     try {
-      final parts = token.split('.');
-      if (parts.length != 3) return null;
+      // Retrieve existing stored scores
+      String? storedScoresJson = await secureStorage.read(key: "quiz_scores");
+      Map<String, dynamic> storedScores = storedScoresJson != null ? jsonDecode(storedScoresJson) : {};
 
-      final payload = utf8.decode(
-          base64Url.decode(base64Url.normalize(parts[1])));
-      final payloadMap = json.decode(payload) as Map<String, dynamic>;
+      // Update the score for the module
+      storedScores[moduleId] = score;
 
-      return payloadMap['user_id']?.toString();
+      // Save updated scores back to Secure Storage
+      await secureStorage.write(key: "quiz_scores", value: jsonEncode(storedScores));
+
+      print("✅ Successfully updated score: Module ID: $moduleId, Score: $score");
     } catch (e) {
-      print('Error decoding token: $e');
-      return null;
+      print("❌ Error updating quiz score: $e");
     }
   }
 
   Future<void> _handleSubmit(BuildContext context) async {
-    // Get user input as a list of characters (keeping blank spaces)
-    List<String> rawInputList = _controllers.map((controller) => controller.text.trim()).toList();
-
-    print('Raw score input list: $rawInputList');
-
-    // Ensure the list has exactly 5 elements (padding missing ones with "0")
-    while (rawInputList.length < 5) {
-      rawInputList.insert(0, "0"); // Insert "0" at the beginning for missing values
-    }
-
-    print('Corrected input list: $rawInputList');
-
-    // **First three characters form the integer part**
-    String integerPart = rawInputList.sublist(0, 3).join();
-    // **Last two characters form the decimal part**
-    String decimalPart = rawInputList.sublist(3, 5).join();
-
-    // Remove non-numeric characters (just in case)
-    integerPart = integerPart.replaceAll(RegExp(r'[^0-9]'), '');
-    decimalPart = decimalPart.replaceAll(RegExp(r'[^0-9]'), '');
-
-    // Ensure integer part is valid (default to "0" if empty)
-    integerPart = integerPart.isEmpty ? "0" : integerPart;
-
-    // Ensure decimal part is exactly two digits (default to "00" if empty)
-    decimalPart = decimalPart.padRight(2, '0');
-
-    // Construct final score string
-    String formattedScore = '$integerPart.$decimalPart';
-
-    print('Final formatted score: $formattedScore');
-
-    // Convert to double
-    double? parsedScore = double.tryParse(formattedScore);
-    print('Parsed Score: $parsedScore, Type: ${parsedScore.runtimeType}');
-
-    // **Reject scores greater than 100.00**
-    if (parsedScore != null && parsedScore > 100.00) {
-      print('Error: Score exceeds 100.00!');
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Invalid score. The maximum allowed score is 100.00.'),
-      ));
+    if (_storedScore == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No score available to submit.')),
+      );
       return;
     }
 
-    // Ensure valid range
-    if (parsedScore != null && parsedScore >= 0.00 && parsedScore <= 100.00) {
-      print('Valid score: $parsedScore');
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final token = authProvider.authToken;
+    final userId = authProvider.getUserIdFromToken();
 
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final token = authProvider.authToken;
-      final userId = authProvider.getUserIdFromToken();
+    if (token == null || userId == null) {
+      print('Token or user_id is missing');
+      return;
+    }
 
-      if (token == null || userId == null) {
-        print('Token or user_id is missing');
-        return;
-      }
+    try {
+      const remoteServer = 'http://widm.wiredhealthresources.net/apiv2/quiz-scores';
 
-      try {
-        print('Submitting module_id: ${widget.moduleId}, Type: ${widget.moduleId.runtimeType}');
+      final response = await http.post(
+        Uri.parse(remoteServer),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: json.encode({
+          'module_id': widget.moduleId.toString().substring(widget.moduleId.toString().length - 4),
+          'user_id': userId,
+          'score': _storedScore,
+          'date_taken': DateTime.now().toIso8601String(),
+        }),
+      );
 
-        const remoteServer = 'http://widm.wiredhealthresources.net/apiv2/quiz-scores';
-        const localServer = 'http://10.0.2.2:3000/quiz-scores';
-        final response = await http.post(
-          Uri.parse(localServer),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $token',
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        await _updateStoredScore(widget.moduleId.toString(), _storedScore!);
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              title: Text('Success'),
+              content: Text('Your score has been submitted successfully!'),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (context) => CMETracker()),
+                    );
+                  },
+                  child: Text('OK'),
+                ),
+              ],
+            );
           },
-          body: json.encode({
-            'module_id': widget.moduleId.toString().substring(widget.moduleId.toString().length - 4),
-            'user_id': userId,
-            'score': parsedScore,
-            'date_taken': DateTime.now().toIso8601String(),
-          }),
         );
-
-        print('Server response: ${response.statusCode} - ${response.body}');
-
-        if (response.statusCode == 201 || response.statusCode == 200) {
-          print('Score submitted successfully: ${response.body}');
-
-          // Show success alert
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (BuildContext context) {
-              return AlertDialog(
-                title: Text('Success'),
-                content: Text('Your score has been submitted successfully!'),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (context) => CMETracker()),
-                      );
-                    },
-                    child: Text('OK'),
-                  ),
-                ],
-              );
-            },
-          );
-        } else {
-          print('Failed to submit score: ${response.statusCode} - ${response.body}');
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Failed to submit score. Please try again.'),
-          ));
-        }
-      } catch (e) {
-        print('Error submitting score: $e');
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('An error occurred. Please try again.'),
-        ));
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to submit score. Please try again.')),
+        );
       }
-    } else {
-      print('Invalid score');
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Invalid score. Please enter a valid score between 000.00 and 100.00.'),
-      ));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('An error occurred. Please try again.')),
+      );
     }
   }
-
-
-
 
   @override
   void dispose() {
@@ -237,17 +234,15 @@ class _EnterScoreState extends State<EnterScore> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (context) => ModuleLibrary()),
+                                  builder: (context) => ModuleLibrary()
+                              ),
                             );
                           },
                           onTrackerTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                builder: (context) =>
-                                    AuthGuard(
-                                      child: CMETracker(),
-                                    ),
+                                builder: (context) => AuthGuard(child: CMETracker()),
                               ),
                             );
                           },
@@ -320,7 +315,6 @@ class _EnterScoreState extends State<EnterScore> {
                   Navigator.pop(context);
                 },
               ),
-
             ),
           ],
         ),
@@ -329,8 +323,6 @@ class _EnterScoreState extends State<EnterScore> {
   }
 
   Widget _buildPortraitLayout(scalingFactor) {
-    TextEditingController moduleIdController = TextEditingController();
-
     return SingleChildScrollView(
       child : Column(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -351,8 +343,9 @@ class _EnterScoreState extends State<EnterScore> {
 
           // Box Container
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 5 : 5)),
+            padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 5 : 25)),
             child: Container(
+              width: double.infinity,
               padding: EdgeInsets.all(scalingFactor * (isTablet(context) ? 5 : 5)),
               decoration: BoxDecoration(
                 color: Color(0xFFFFF5E1),
@@ -434,37 +427,23 @@ class _EnterScoreState extends State<EnterScore> {
 
                   // Score Entry Section
                   Text(
-                    'Enter your quiz score',
+                    'Score:',
                     style: TextStyle(
-                      fontSize: scalingFactor * (isTablet(context) ? 18 : 24),
+                      fontSize: scalingFactor * (isTablet(context) ? 18 : 28),
                       fontWeight: FontWeight.w500,
-                      color: Colors.black,
+                      color: Color(0xFF646BFF),
                     ),
                     textAlign: TextAlign.center,
                   ),
                   SizedBox(height: scalingFactor * (isTablet(context) ? 10 : 10)),
-                  Center(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        ...List.generate(3, (index) {
-                          return _buildScoreBox(context, index, scalingFactor);
-                        }),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 5 : 5)),
-                          child: Text(
-                            '.',
-                            style: TextStyle(
-                              fontSize: scalingFactor * (isTablet(context) ? 20 : 24),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        ...List.generate(2, (index) {
-                          return _buildScoreBox(context, index + 3, scalingFactor);
-                        }),
-                      ],
+                  Text(
+                    _storedScore?.toStringAsFixed(2) ?? 'No Score',
+                    style: TextStyle(
+                      fontSize: scalingFactor * (isTablet(context) ? 18 : 22),
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black,
                     ),
+                    textAlign: TextAlign.center,
                   ),
                   SizedBox(height: scalingFactor * (isTablet(context) ? 10 : 10)),
                 ],
@@ -540,42 +519,6 @@ class _EnterScoreState extends State<EnterScore> {
     );
   }
 
-// Helper function to build a score input box
-  Widget _buildScoreBox(BuildContext context, int index, double scalingFactor) {
-    return Container(
-      alignment: Alignment.center,
-      margin: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 4 : 4)),
-      width: scalingFactor * (isTablet(context) ? 35 : 45),
-      height: scalingFactor * (isTablet(context) ? 35 : 45),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.black),
-        borderRadius: BorderRadius.circular(4),
-        color: Colors.grey[300],
-      ),
-      child: TextField(
-        controller: _controllers[index],
-        keyboardType: TextInputType.number,
-        maxLength: 1,
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: scalingFactor * (isTablet(context) ? 16 : 18),
-          fontWeight: FontWeight.bold,
-        ),
-        decoration: InputDecoration(
-          counterText: '',
-          border: InputBorder.none,
-        ),
-        onChanged: (value) {
-          if (value.length == 1) {
-            FocusScope.of(context).nextFocus();
-          } else if (value.isEmpty && index > 0) {
-            FocusScope.of(context).previousFocus();
-          }
-        },
-      ),
-    );
-  }
-
   Widget _buildLandscapeLayout(scalingFactor) {
     return SingleChildScrollView(
       child : Column(
@@ -597,8 +540,9 @@ class _EnterScoreState extends State<EnterScore> {
 
           // Box Container
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 25 : 25)),
+            padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 25 : 65)),
             child: Container(
+              width: double.infinity,
               padding: EdgeInsets.all(scalingFactor * (isTablet(context) ? 5 : 5)),
               decoration: BoxDecoration(
                 color: Color(0xFFFFF5E1),
@@ -680,37 +624,23 @@ class _EnterScoreState extends State<EnterScore> {
 
                   // Score Entry Section
                   Text(
-                    'Enter your quiz score',
+                    'Score:',
                     style: TextStyle(
                       fontSize: scalingFactor * (isTablet(context) ? 18 : 22),
                       fontWeight: FontWeight.w500,
-                      color: Colors.black,
+                      color: Color(0xFF646BFF),
                     ),
                     textAlign: TextAlign.center,
                   ),
                   SizedBox(height: scalingFactor * (isTablet(context) ? 10 : 10)),
-                  Center(
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        ...List.generate(3, (index) {
-                          return _buildScoreBox(context, index, scalingFactor);
-                        }),
-                        Padding(
-                          padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 5 : 5)),
-                          child: Text(
-                            '.',
-                            style: TextStyle(
-                              fontSize: scalingFactor * (isTablet(context) ? 22 : 24),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        ...List.generate(2, (index) {
-                          return _buildScoreBox(context, index + 3, scalingFactor);
-                        }),
-                      ],
+                  Text(
+                    _storedScore?.toStringAsFixed(2) ?? 'No Score',
+                    style: TextStyle(
+                      fontSize: scalingFactor * (isTablet(context) ? 16 : 22),
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black,
                     ),
+                    textAlign: TextAlign.center,
                   ),
                   SizedBox(height: scalingFactor * (isTablet(context) ? 10 : 10)),
                 ],

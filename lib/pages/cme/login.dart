@@ -59,7 +59,7 @@ class _LoginState extends State<Login> {
       // Collect form data
       final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
-      final url = Uri.parse(localServer);
+      final url = Uri.parse(remoteServer);
 
       try {
         final response = await http.post(
