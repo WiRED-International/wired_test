@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -129,7 +130,7 @@ class WebViewScreen extends StatefulWidget {
 
 class _WebViewScreenState extends State<WebViewScreen> {
   late InAppWebViewController _webViewController;
-  final FlutterSecureStorage secureStorage = FlutterSecureStorage();
+  final FlutterSecureStorage secureStorage = const FlutterSecureStorage();
 
   @override
   Widget build(BuildContext context) {
@@ -185,16 +186,33 @@ class _WebViewScreenState extends State<WebViewScreen> {
             }
           },
           onConsoleMessage: (controller, consoleMessage) async {
-            print("📢 JavaScript Console Message: ${consoleMessage.message}");
+            print("📝 JavaScript console message: ${consoleMessage.message}");
 
             try {
-              final message = consoleMessage.message;
-              if (message.contains("quiz_score")) {
-                final Map<String, dynamic> receivedData = _parseJavaScriptMessage(message);
-                await _storeScoreInSecureStorage(receivedData);
+              // Extract and clean the JSON message
+              String cleanMessage = consoleMessage.message.trim();
+              final int jsonStartIndex = cleanMessage.indexOf("{");
+              if (jsonStartIndex != -1) {
+                cleanMessage = cleanMessage.substring(jsonStartIndex);
+              }
+
+              // Validate JSON
+              if (cleanMessage.startsWith("{") && cleanMessage.endsWith("}")) {
+                final Map<String, dynamic> jsonData = json.decode(cleanMessage);
+
+                print("📥 Received Data from Storyline:");
+                print("🔹 AuthToken: ${jsonData['auth_token']}");
+                print("🔹 UserID: ${jsonData['user_id']}");
+                print("🔹 ModuleID: ${jsonData['module_id']}");
+                print("🔹 Quiz Score: ${jsonData['quiz_score']}");
+
+                // Store the quiz score in Secure Storage
+                await _storeScoreInSecureStorage(jsonData);
+              } else {
+                print("⚠️ Warning: Message does not appear to be valid JSON.");
               }
             } catch (e) {
-              print("❌ Error processing JavaScript message: $e");
+              print("❌ Error parsing WebView message: $e");
             }
           },
           onDownloadStartRequest: (controller, downloadStartRequest) async {
@@ -214,45 +232,23 @@ class _WebViewScreenState extends State<WebViewScreen> {
     );
   }
 
-  // Function to parse JavaScript message
-  Map<String, dynamic> _parseJavaScriptMessage(String message) {
-    try {
-      return {
-        "auth_token": _extractValue(message, "auth_token"),
-        "user_id": _extractValue(message, "user_id"),
-        "module_id": _extractValue(message, "module_id"),
-        "quiz_score": double.tryParse(_extractValue(message, "quiz_score") ?? "0") ?? 0.0
-      };
-    } catch (e) {
-      print("❌ Error parsing JavaScript message: $e");
-      return {};
-    }
-  }
-
-  // Function to extract values from JavaScript message
-  String? _extractValue(String message, String key) {
-    final regex = RegExp(r'"' + key + r'":"?([^",]+)"?');
-    final match = regex.firstMatch(message);
-    return match?.group(1);
-  }
-
-  // Function to store quiz score in secure storage
+  // Function to store quiz scores in secure storage
   Future<void> _storeScoreInSecureStorage(Map<String, dynamic> data) async {
     try {
-      final String userId = data["user_id"];
-      final String moduleId = data["module_id"];
-      final double score = data["quiz_score"];
+      String moduleId = data["module_id"].toString();
+      double score = double.tryParse(data["quiz_score"].toString()) ?? 0.0;
 
-      // Create a map object and store it in Secure Storage
-      Map<String, dynamic> quizData = {
-        "user_id": userId,
-        "module_id": moduleId,
-        "score": score,
-        "date_taken": DateTime.now().toIso8601String()
-      };
+      // Retrieve existing stored scores
+      String? storedScoresJson = await secureStorage.read(key: "quiz_scores");
+      Map<String, dynamic> storedScores = storedScoresJson != null ? jsonDecode(storedScoresJson) : {};
 
-      await secureStorage.write(key: "quiz_score", value: quizData.toString());
-      print("✅ Successfully stored quiz score in Secure Storage: $quizData");
+      // Update the score for the current module
+      storedScores[moduleId] = score;
+
+      // Save updated scores back to Secure Storage
+      await secureStorage.write(key: "quiz_scores", value: jsonEncode(storedScores));
+
+      print("✅ Successfully stored quiz score: Module ID: $moduleId, Score: $score");
     } catch (e) {
       print("❌ Error storing quiz score: $e");
     }

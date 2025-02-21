@@ -930,6 +930,8 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                               hint: 'Tap to play the module',
                                               child: GestureDetector(
                                                 onTap: () {
+                                                  saveModuleId(moduleFile.moduleId!);
+                                                  print( "Saving module id: $moduleFile.moduleId");
                                                   Navigator.push(
                                                     context,
                                                     MaterialPageRoute(
