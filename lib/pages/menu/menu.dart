@@ -205,6 +205,7 @@ class _MenuState extends State<Menu> {
                       ProfileSection(
                         firstName: user.firstName ?? 'Guest',
                         dateJoined: user.dateJoined ?? 'Unknown',
+                        creditsEarned: user.quizScores != null ? user.quizScores!.length * 5 : 0,
                       ),
                       SizedBox(height: screenSize.height *
                           (isTabletDevice ? 0.05 : .04)),

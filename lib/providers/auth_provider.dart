@@ -46,7 +46,7 @@ class AuthProvider with ChangeNotifier {
 
     await storage.delete(key: 'authToken');
     await storage.delete(key: 'tokenExpiry');
-    await storage.deleteAll();
+
 
     _authToken = null;
     _tokenExpiry = null;
