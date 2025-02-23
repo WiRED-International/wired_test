@@ -4,14 +4,21 @@ import '../../utils/functions.dart';
 class ProfileSection  extends StatelessWidget {
   final String firstName;
   final String dateJoined;
+  final int creditsEarned;
 
-  ProfileSection({required this.firstName, required this.dateJoined});
+  ProfileSection({
+    required this.firstName,
+    required this.dateJoined,
+    required this.creditsEarned,
+  });
 
   @override
   Widget build(BuildContext context) {
     double scalingFactor = getScalingFactor(context);
     final double circleDiameter = scalingFactor * (isTablet(context) ? 70 : 110);
     final double circleDiameterSmall = scalingFactor * (isTablet(context) ? 64 : 100);
+
+    String badgeImage = getBadgeImage(creditsEarned);
 
     return Column(
       children: [
@@ -58,23 +65,17 @@ class ProfileSection  extends StatelessWidget {
               //left: scalingFactor * (isTablet(context) ? 0.05 : 60) - (circleDiameterSmall / 2),
               left: MediaQuery.of(context).size.width * (isTablet(context) ? 0.15 : 0.18) - (circleDiameterSmall / 2),
               // Smaller circle horizontally centered
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: circleDiameterSmall, // Smaller circle
-                    height: circleDiameterSmall,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.grey, // Different color for the second circle
-                    ),
+              child: Container(
+                width: circleDiameterSmall, // Smaller circle
+                height: circleDiameterSmall,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.grey,
+                  image: DecorationImage(
+                    image: AssetImage(badgeImage),
+                    fit: BoxFit.cover,
                   ),
-                  Icon(
-                    Icons.person_2_sharp, // Flutter icon
-                    size: scalingFactor * (isTablet(context) ? 60 : 90),
-                    color: Colors.white,
-                  ),
-                ],
+                ),
               ),
             ),
             // Text at the Bottom Center
@@ -85,7 +86,7 @@ class ProfileSection  extends StatelessWidget {
               child: SizedBox(
                 width: scalingFactor * (isTablet(context) ? 220 : 200),
                 child: Text(
-                  "Hi, ${firstName ?? 'Guest'}",
+                  "Hi, $firstName",
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: scalingFactor * (isTablet(context) ? 14 : 20),

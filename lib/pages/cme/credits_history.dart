@@ -202,6 +202,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                     ProfileSection(
                       firstName: user.firstName ?? 'Guest',
                       dateJoined: user.dateJoined ?? 'Unknown',
+                      creditsEarned: user.quizScores != null ? user.quizScores!.length * 5 : 0,
                     ),
                     Expanded(
                       child: Row(

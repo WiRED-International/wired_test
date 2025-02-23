@@ -246,6 +246,7 @@ class _CMETrackerState extends State<CMETracker> {
                     ProfileSection(
                       firstName: user.firstName ?? 'Guest',
                       dateJoined: user.dateJoined ?? 'Unknown',
+                      creditsEarned: user.quizScores != null ? user.quizScores!.length * 5 : 0,
                     ),
                     SizedBox(height: screenSize.height * (isTabletDevice ? 0.05 : .04)),
                     Expanded(
@@ -316,10 +317,10 @@ class _CMETrackerState extends State<CMETracker> {
         return isValid;
       }
       return false;
-    }).length * 5 : 0;
+    }).length * 20 : 0;
 
-    const int maxCredits = 50;
-    final int creditsRemaining = maxCredits - creditsEarned;
+    final int maxCredits = getMaxCredits(creditsEarned);
+    final int creditsRemaining = creditsEarned >= maxCredits ? 0 : maxCredits - creditsEarned;
 
     return SingleChildScrollView(
       child: Column(
@@ -403,21 +404,7 @@ class _CMETrackerState extends State<CMETracker> {
                   fontWeight: FontWeight.w400,
                   color: Colors.black, // Default color for the text
                 ),
-                children: [
-                  TextSpan(text: "You have earned "),
-                  TextSpan(
-                    text: "$creditsEarned credits",
-                    style: TextStyle(
-                        color: Color(0xFFBD34FD)), // Purple for credits earned
-                  ),
-                  TextSpan(text: " this year, and you have "),
-                  TextSpan(
-                    text: "$creditsRemaining more credits",
-                    style: TextStyle(
-                        color: Color(0xFFBD34FD)), // Purple for credits remaining
-                  ),
-                  TextSpan(text: " to go before Dec. 31."),
-                ],
+                children: _buildConditionalText(creditsEarned, creditsRemaining, scalingFactor),
               ),
             ),
           ),
@@ -466,6 +453,48 @@ class _CMETrackerState extends State<CMETracker> {
       ),
     );
   }
+
+  // Helper method to build text spans for the badge message
+  List<TextSpan> _buildConditionalText(int creditsEarned, int creditsRemaining, double scalingFactor) {
+    String message = getNextBadgeMessage(creditsEarned, creditsRemaining);
+
+    // If both placeholders are present
+    if (message.contains("$creditsEarned") && message.contains("$creditsRemaining")) {
+      return [
+        TextSpan(text: message.split("$creditsEarned")[0]),
+        TextSpan(
+          text: "$creditsEarned credits",
+          style: TextStyle(color: Color(0xFFBD34FD)),
+        ),
+        TextSpan(text: message.split("$creditsEarned")[1].split("$creditsRemaining")[0]),
+        TextSpan(
+          text: "$creditsRemaining credits",
+          style: TextStyle(color: Color(0xFFBD34FD)),
+        ),
+        TextSpan(text: message.split("$creditsRemaining").last),
+      ];
+    }
+
+    // If only creditsEarned placeholder is present
+    if (message.contains("$creditsEarned")) {
+      final parts = message.split("$creditsEarned");
+      return [
+        TextSpan(text: parts[0]),
+        TextSpan(
+          text: "$creditsEarned credits",
+          style: TextStyle(color: Color(0xFFBD34FD)),
+        ),
+        TextSpan(text: parts.length > 1 ? parts[1] : ""),
+      ];
+    }
+
+    // No placeholders present (likely for Supreme rank message)
+    return [
+      TextSpan(text: message),
+    ];
+  }
+
+
 
   Widget _buildSearchButton({
     required String label,

@@ -126,5 +126,78 @@ Future<void> deleteStoredScore(String moduleId) async {
   }
 }
 
+// Function to get the badge image based on the number of credits earned
+String getBadgeImage(int creditsEarned) {
+  if (creditsEarned >= 200) {
+    return "assets/images/supreme_badge.png";
+  } else if (creditsEarned >= 150) {
+    return "assets/images/diamond_badge.png";
+  } else if (creditsEarned >= 110) {
+    return "assets/images/platinum_badge.png";
+  } else if (creditsEarned >= 80) {
+    return "assets/images/gold_badge.png";
+  } else if (creditsEarned >= 60) {
+    return "assets/images/silver_badge.png";
+  } else if (creditsEarned >= 50) {
+    return "assets/images/circular_bronze_badge.png";
+  } else {
+    return "assets/images/no_badge.png"; // Default badge or placeholder
+  }
+}
 
+// Function to get the max credits based on the number of credits earned
+int getMaxCredits(int creditsEarned) {
+  if (creditsEarned >= 200) {
+    return 200; // Supreme
+  } else if (creditsEarned >= 150) {
+    return 200; // Still aiming for Supreme
+  } else if (creditsEarned >= 110) {
+    return 150; // Diamond goal
+  } else if (creditsEarned >= 80) {
+    return 110; // Platinum goal
+  } else if (creditsEarned >= 60) {
+    return 80; // Gold goal
+  } else if (creditsEarned >= 50) {
+    return 60; // Silver goal
+  } else {
+    return 50; // Bronze goal
+  }
+}
 
+// Function to get the text message for the badge
+String getNextBadgeMessage(int creditsEarned, int creditsRemaining) {
+  if (creditsEarned >= 200) {
+    return "Congratulations! You've reached the highest rank: Supreme! You've earned $creditsEarned credits and your current position is x";
+  } else if (creditsEarned >= 150) {
+    return "Congratulations! You've completed the necessary CME credits for this year. You've earned $creditsEarned credits, and you have $creditsRemaining more credits to go before reaching Supreme rank. Keep going!";
+  } else if (creditsEarned >= 110) {
+    return "Congratulations! You've completed the necessary CME credits for this year. You've earned $creditsEarned credits, and you have $creditsRemaining more credits to go before reaching Diamond rank. You're doing great!";
+  } else if (creditsEarned >= 80) {
+    return "Congratulations! You've completed the necessary CME credits for this year. You've earned $creditsEarned credits, and you have $creditsRemaining more credits to go before reaching Platinum rank. Almost there!";
+  } else if (creditsEarned >= 60) {
+    return "Congratulations! You've completed the necessary CME credits for this year. You've earned $creditsEarned credits, and you have $creditsRemaining more credits to go before reaching Gold rank. Keep up the momentum!";
+  } else if (creditsEarned >= 50) {
+    return "Congratulations! You've completed the necessary CME credits for this year. You've earned $creditsEarned credits, and you have $creditsRemaining more credits to go before reaching Silver rank. Good luck!";
+  } else {
+    return "You have earned $creditsEarned credits this year, and you have $creditsRemaining more credits to go before Dec. 31.";
+    return "Congratulations! You've reached the highest rank: Supreme! You've earned $creditsEarned credits and your current position is x";
+  }
+}
+
+// String getNextBadgeMessage(int creditsEarned, int creditsRemaining) {
+//   if (creditsEarned >= 200) {
+//     return "Supreme";
+//   } else if (creditsEarned >= 150) {
+//     return "Supreme";
+//   } else if (creditsEarned >= 110) {
+//     return "Diamond";
+//   } else if (creditsEarned >= 80) {
+//     return "Platinum";
+//   } else if (creditsEarned >= 60) {
+//     return "Gold";
+//   } else if (creditsEarned >= 50) {
+//     return "Silver";
+//   } else {
+//     return "Bronze";
+//   }
+// }
