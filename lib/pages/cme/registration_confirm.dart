@@ -1,13 +1,9 @@
-import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:wired_test/pages/home_page.dart';
 import 'package:http/http.dart' as http;
 import 'package:wired_test/utils/functions.dart';
 import 'package:wired_test/utils/side_nav_bar.dart';
 import 'package:wired_test/utils/custom_nav_bar.dart';
-import 'package:wired_test/pages/policy.dart';
-
 import '../../providers/auth_guard.dart';
 import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
