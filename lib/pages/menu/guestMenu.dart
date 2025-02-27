@@ -1,17 +1,9 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:wired_test/pages/policy.dart';
 import '../../providers/auth_guard.dart';
-import '../../providers/auth_provider.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
-import '../../utils/landscape_profile_section.dart';
-import '../../utils/profile_section.dart';
 import '../../utils/side_nav_bar.dart';
 import 'package:http/http.dart' as http;
 import '../cme/cme_tracker.dart';
@@ -39,7 +31,6 @@ class _GuestMenuState extends State<GuestMenu> {
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-    final screenSize = mediaQuery.size;
     final isLandscape = mediaQuery.orientation == Orientation.landscape;
     final scalingFactor = getScalingFactor(context);
 
@@ -63,13 +54,6 @@ class _GuestMenuState extends State<GuestMenu> {
             ),
             Column(
               children: [
-                // Custom AppBar
-                // CustomAppBar(
-                //   onBackPressed: () {
-                //     Navigator.pop(context);
-                //   },
-                //   requireAuth: false,
-                // ),
                 // Expanded layout for the main content
                 Expanded(
                   child: Row(
@@ -232,11 +216,15 @@ class _GuestMenuState extends State<GuestMenu> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildInkWellButton('Privacy Policy', scalingFactor, () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const Policy()),
-                  );
+                _buildInkWellButton('Privacy Policy', scalingFactor, () async {
+                  final Uri url = Uri.parse('https://sites.google.com/view/healthmapprivacypolicy/home');
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Could not launch Privacy Policy')),
+                    );
+                  }
                 }),
                 _buildEmptyButton(scalingFactor),
               ],
@@ -452,11 +440,15 @@ class _GuestMenuState extends State<GuestMenu> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  _buildInkWellButton('Privacy Policy', scalingFactor, () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const Policy()),
-                    );
+                  _buildInkWellButton('Privacy Policy', scalingFactor, () async {
+                    final Uri url = Uri.parse('https://sites.google.com/view/healthmapprivacypolicy/home');
+                    if (await canLaunchUrl(url)) {
+                      await launchUrl(url, mode: LaunchMode.externalApplication);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Could not launch Privacy Policy')),
+                      );
+                    }
                   }),
                   _buildEmptyButton(scalingFactor),
                 ],

@@ -1,11 +1,9 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:wired_test/pages/policy.dart';
 import '../../providers/auth_guard.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/custom_nav_bar.dart';
@@ -332,11 +330,15 @@ class _MenuState extends State<Menu> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildInkWellButton(context, 'Privacy Policy', scalingFactor, () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => Policy()),
-                  );
+                _buildInkWellButton(context, 'Privacy Policy', scalingFactor, () async {
+                  final Uri url = Uri.parse('https://sites.google.com/view/healthmapprivacypolicy/home');
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Could not launch Privacy Policy')),
+                    );
+                  }
                 }),
                 _buildEmptyButton(context, scalingFactor),
               ],
@@ -539,11 +541,15 @@ class _MenuState extends State<Menu> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildInkWellButton(context, 'Privacy Policy', scalingFactor, () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => Policy()),
-                  );
+                _buildInkWellButton(context, 'Privacy Policy', scalingFactor, () async {
+                  final Uri url = Uri.parse('https://sites.google.com/view/healthmapprivacypolicy/home');
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Could not launch Privacy Policy')),
+                    );
+                  }
                 }),
                 _buildEmptyButton(context, scalingFactor),
               ],

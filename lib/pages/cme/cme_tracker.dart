@@ -182,11 +182,9 @@ class _CMETrackerState extends State<CMETracker> {
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-    final screenSize = mediaQuery.size;
     final isLandscape = mediaQuery.orientation == Orientation.landscape;
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final scalingFactor = getScalingFactor(context);
-    final isTabletDevice = isTablet(context);
 
     return Scaffold(
       body: SafeArea(
@@ -232,7 +230,6 @@ class _CMETrackerState extends State<CMETracker> {
                         onTrackerTap: () {},
                         onMenuTap: () async {
                           bool isLoggedIn = await checkIfUserIsLoggedIn();
-                          print("Navigating to menu. Logged in: $isLoggedIn");
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -298,7 +295,6 @@ class _CMETrackerState extends State<CMETracker> {
                       onTrackerTap: () {},
                       onMenuTap: () async {
                         bool isLoggedIn = await checkIfUserIsLoggedIn();
-                        print("Navigating to menu. Logged in: $isLoggedIn");
                         Navigator.push(
                           context,
                           MaterialPageRoute(
