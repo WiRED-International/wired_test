@@ -230,7 +230,6 @@ class _CMETrackerState extends State<CMETracker> {
                         onTrackerTap: () {},
                         onMenuTap: () async {
                           bool isLoggedIn = await checkIfUserIsLoggedIn();
-                          print("Navigating to menu. Logged in: $isLoggedIn");
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -296,7 +295,6 @@ class _CMETrackerState extends State<CMETracker> {
                       onTrackerTap: () {},
                       onMenuTap: () async {
                         bool isLoggedIn = await checkIfUserIsLoggedIn();
-                        print("Navigating to menu. Logged in: $isLoggedIn");
                         Navigator.push(
                           context,
                           MaterialPageRoute(
