@@ -18,7 +18,9 @@ class ProfileSection  extends StatelessWidget {
     final double circleDiameter = scalingFactor * (isTablet(context) ? 70 : 110);
     final double circleDiameterSmall = scalingFactor * (isTablet(context) ? 64 : 100);
 
+    print("🏅 Calling getBadgeImage with creditsEarned: $creditsEarned");
     String badgeImage = getBadgeImage(creditsEarned);
+    String rankText = getRankText(creditsEarned);
 
     return Column(
       children: [
@@ -70,7 +72,14 @@ class ProfileSection  extends StatelessWidget {
                 height: circleDiameterSmall,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.grey,
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0xFF5E5E5E),
+                      Color(0xFFFFFFFF),
+                    ],
+                  ),
                   image: DecorationImage(
                     image: AssetImage(badgeImage),
                     fit: BoxFit.cover,
@@ -107,7 +116,7 @@ class ProfileSection  extends StatelessWidget {
               width: scalingFactor * (isTablet(context) ? 100 : 125),
             ),
             Text(
-              "Joined: ${formatDate(dateJoined)}",
+              rankText,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: scalingFactor * (isTablet(context) ? 12 : 17),

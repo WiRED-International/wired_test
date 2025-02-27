@@ -1,8 +1,10 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:wired_test/pages/policy.dart';
 import '../../providers/auth_guard.dart';
 import '../../providers/auth_provider.dart';
@@ -250,7 +252,7 @@ class _GuestMenuState extends State<GuestMenu> {
                   );
                 },
                 child: Padding(
-                  padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 12 : 12)),
+                  padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 12 : 15)),
                   child: Text(
                     'CME Tracker Registration',
                     style: TextStyle(
@@ -262,7 +264,7 @@ class _GuestMenuState extends State<GuestMenu> {
                 ),
               ),
             ),
-            SizedBox(height: scalingFactor * (isTablet(context) ? 20 : 20)),
+            SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 30)),
             Align(
               alignment: Alignment.centerLeft,
               child: GestureDetector(
@@ -273,9 +275,36 @@ class _GuestMenuState extends State<GuestMenu> {
                   );
                 },
                 child: Padding(
-                  padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 12 : 12)),
+                  padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 12 : 15)),
                   child: Text(
                     'CME Tracker Login',
+                    style: TextStyle(
+                      fontSize: scalingFactor * (isTablet(context) ? 18 : 18),
+                      fontWeight: FontWeight.w400,
+                      color: Color(0xFF0070C0),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 30)),
+            GestureDetector(
+              onTap: () async {
+                final Uri deleteAccountUri = Uri.parse("https://sites.google.com/view/wired-international-healthmap/home");
+
+                if (await canLaunchUrl(deleteAccountUri)) {
+                  await launchUrl(deleteAccountUri, mode: LaunchMode.externalApplication);
+                } else {
+                  print("Could not open the delete account request page");
+                  _showCopyDeleteAccountDialog(context);
+                }
+              },
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 60 : 15)),
+                  child: Text(
+                    'Request Data Deletion',
                     style: TextStyle(
                       fontSize: scalingFactor * (isTablet(context) ? 18 : 18),
                       fontWeight: FontWeight.w400,
@@ -347,10 +376,6 @@ class _GuestMenuState extends State<GuestMenu> {
       ),
     );
   }
-
-
-
-
 
   Widget _buildLandscapeLayout(scalingFactor) {
     final double imageHeight = scalingFactor * (isTablet(context) ? 170 : 140);
@@ -447,7 +472,7 @@ class _GuestMenuState extends State<GuestMenu> {
                     );
                   },
                   child: Padding(
-                    padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 12 : 12)),
+                    padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 60 : 55)),
                     child: Text(
                       'CME Tracker Registration',
                       style: TextStyle(
@@ -470,9 +495,38 @@ class _GuestMenuState extends State<GuestMenu> {
                     );
                   },
                   child: Padding(
-                    padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 12 : 12)),
+                    padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 60 : 55)),
                     child: Text(
                       'CME Tracker Login',
+                      style: TextStyle(
+                        fontSize: scalingFactor * (isTablet(context) ? 18 : 18),
+                        fontWeight: FontWeight.w400,
+                        color: Color(0xFF0070C0),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(
+                height: scalingFactor * (isTablet(context) ? 20 : 20),
+              ),
+              GestureDetector(
+                onTap: () async {
+                  final Uri deleteAccountUri = Uri.parse("https://sites.google.com/view/wired-international-healthmap/home");
+
+                  if (await canLaunchUrl(deleteAccountUri)) {
+                    await launchUrl(deleteAccountUri, mode: LaunchMode.externalApplication);
+                  } else {
+                    print("Could not open the delete account request page");
+                    _showCopyDeleteAccountDialog(context);
+                  }
+                },
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 60 : 55)),
+                    child: Text(
+                      'Request Data Deletion',
                       style: TextStyle(
                         fontSize: scalingFactor * (isTablet(context) ? 18 : 18),
                         fontWeight: FontWeight.w400,
@@ -485,6 +539,32 @@ class _GuestMenuState extends State<GuestMenu> {
             ],
           ),
           SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 30)),
+        ],
+      ),
+    );
+  }
+  void _showCopyDeleteAccountDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Unable to Open Link"),
+        content: SelectableText(
+          "Please manually open this link in your browser:\n\nhttps://docs.google.com/document/d/YOUR_DOCUMENT_ID/view",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: "https://sites.google.com/view/wired-international-healthmap/home"));
+              Navigator.of(context, rootNavigator: true).pop(); // Close dialog
+            },
+            child: Text("Copy Link"),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(context, rootNavigator: true).pop(); // Close dialog
+            },
+            child: Text("Close"),
+          ),
         ],
       ),
     );
