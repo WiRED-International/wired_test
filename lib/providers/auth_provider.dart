@@ -66,6 +66,7 @@ class AuthProvider with ChangeNotifier {
       final payload = utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
       final payloadMap = json.decode(payload) as Map<String, dynamic>;
 
+      print("Decoded JWT Payload: $payloadMap"); // Debugging: Check user ID field
       return payloadMap['id']?.toString();
     } catch (e) {
       print('Error decoding token: $e');

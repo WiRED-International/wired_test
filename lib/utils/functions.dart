@@ -126,22 +126,42 @@ Future<void> deleteStoredScore(String moduleId) async {
   }
 }
 
+// Function to get the rank text based on credits earned
+String getRankText(int creditsEarned) {
+  if (creditsEarned >= 200) {
+    return "Rank: Supreme CHW";
+  } else if (creditsEarned >= 150) {
+    return "Rank: Diamond CHW";
+  } else if (creditsEarned >= 110) {
+    return "Rank: Platinum CHW";
+  } else if (creditsEarned >= 80) {
+    return "Rank: Gold CHW";
+  } else if (creditsEarned >= 60) {
+    return "Rank: Silver CHW";
+  } else if (creditsEarned >= 50) {
+    return "Rank: Bronze CHW";
+  } else {
+    return "Rank: Iron CHW";
+  }
+}
+
+
 // Function to get the badge image based on the number of credits earned
 String getBadgeImage(int creditsEarned) {
   if (creditsEarned >= 200) {
-    return "assets/images/supreme_badge.png";
+    return "assets/images/circular_supreme_badge.webp";
   } else if (creditsEarned >= 150) {
-    return "assets/images/diamond_badge.png";
+    return "assets/images/circular_diamond_badge.webp";
   } else if (creditsEarned >= 110) {
-    return "assets/images/platinum_badge.png";
+    return "assets/images/circular_platinum_badge.webp";
   } else if (creditsEarned >= 80) {
-    return "assets/images/gold_badge.png";
+    return "assets/images/circular_gold_badge.webp";
   } else if (creditsEarned >= 60) {
-    return "assets/images/silver_badge.png";
+    return "assets/images/circular_silver_badge.webp";
   } else if (creditsEarned >= 50) {
-    return "assets/images/circular_bronze_badge.png";
+    return "assets/images/circular_bronze_badge.webp";
   } else {
-    return "assets/images/no_badge.png"; // Default badge or placeholder
+    return "assets/images/circular_iron_badge.webp"; // Default badge or placeholder
   }
 }
 
@@ -164,40 +184,3 @@ int getMaxCredits(int creditsEarned) {
   }
 }
 
-// Function to get the text message for the badge
-String getNextBadgeMessage(int creditsEarned, int creditsRemaining) {
-  if (creditsEarned >= 200) {
-    return "Congratulations! You've reached the highest rank: Supreme! You've earned $creditsEarned credits and your current position is x";
-  } else if (creditsEarned >= 150) {
-    return "Congratulations! You've completed the necessary CME credits for this year. You've earned $creditsEarned credits, and you have $creditsRemaining more credits to go before reaching Supreme rank. Keep going!";
-  } else if (creditsEarned >= 110) {
-    return "Congratulations! You've completed the necessary CME credits for this year. You've earned $creditsEarned credits, and you have $creditsRemaining more credits to go before reaching Diamond rank. You're doing great!";
-  } else if (creditsEarned >= 80) {
-    return "Congratulations! You've completed the necessary CME credits for this year. You've earned $creditsEarned credits, and you have $creditsRemaining more credits to go before reaching Platinum rank. Almost there!";
-  } else if (creditsEarned >= 60) {
-    return "Congratulations! You've completed the necessary CME credits for this year. You've earned $creditsEarned credits, and you have $creditsRemaining more credits to go before reaching Gold rank. Keep up the momentum!";
-  } else if (creditsEarned >= 50) {
-    return "Congratulations! You've completed the necessary CME credits for this year. You've earned $creditsEarned credits, and you have $creditsRemaining more credits to go before reaching Silver rank. Good luck!";
-  } else {
-    return "You have earned $creditsEarned credits this year, and you have $creditsRemaining more credits to go before Dec. 31.";
-    return "Congratulations! You've reached the highest rank: Supreme! You've earned $creditsEarned credits and your current position is x";
-  }
-}
-
-// String getNextBadgeMessage(int creditsEarned, int creditsRemaining) {
-//   if (creditsEarned >= 200) {
-//     return "Supreme";
-//   } else if (creditsEarned >= 150) {
-//     return "Supreme";
-//   } else if (creditsEarned >= 110) {
-//     return "Diamond";
-//   } else if (creditsEarned >= 80) {
-//     return "Platinum";
-//   } else if (creditsEarned >= 60) {
-//     return "Gold";
-//   } else if (creditsEarned >= 50) {
-//     return "Silver";
-//   } else {
-//     return "Bronze";
-//   }
-// }

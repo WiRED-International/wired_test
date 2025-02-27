@@ -4,14 +4,22 @@ import '../../utils/functions.dart';
 class LandscapeProfileSection  extends StatelessWidget {
   final String firstName;
   final String dateJoined;
+  final int creditsEarned;
 
-  LandscapeProfileSection({required this.firstName, required this.dateJoined});
+  LandscapeProfileSection({
+    required this.firstName,
+    required this.dateJoined,
+    required this.creditsEarned,
+  });
 
   @override
   Widget build(BuildContext context) {
     double scalingFactor = getScalingFactor(context);
     final double circleDiameter = scalingFactor * (isTablet(context) ? 70 : 80);
     final double circleDiameterSmall = scalingFactor * (isTablet(context) ? 64 : 73);
+
+    String badgeImage = getBadgeImage(creditsEarned);
+    String rankText = getRankText(creditsEarned);
 
     return Column(
       children: [
@@ -58,23 +66,24 @@ class LandscapeProfileSection  extends StatelessWidget {
               //left: scalingFactor * (isTablet(context) ? 0.05 : 60) - (circleDiameterSmall / 2),
               left: MediaQuery.of(context).size.width * (isTablet(context) ? 0.11 : 0.12) - (circleDiameterSmall / 2),
               // Smaller circle horizontally centered
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: circleDiameterSmall, // Smaller circle
-                    height: circleDiameterSmall,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.grey, // Different color for the second circle
-                    ),
+              child: Container(
+                width: circleDiameterSmall, // Smaller circle
+                height: circleDiameterSmall,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0xFF5E5E5E),
+                      Color(0xFFFFFFFF),
+                    ],
                   ),
-                  Icon(
-                    Icons.person_2_sharp, // Flutter icon
-                    size: scalingFactor * (isTablet(context) ? 57 : 65),
-                    color: Colors.white,
+                  image: DecorationImage(
+                    image: AssetImage(badgeImage),
+                    fit: BoxFit.cover,
                   ),
-                ],
+                ),
               ),
             ),
             // Text at the Bottom Center
@@ -85,7 +94,7 @@ class LandscapeProfileSection  extends StatelessWidget {
               child: SizedBox(
                 width: scalingFactor * (isTablet(context) ? 400 : 400),
                 child: Text(
-                  "Hi, ${firstName ?? 'Guest'}",
+                  "Hi, $firstName",
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: scalingFactor * (isTablet(context) ? 13 : 15),
@@ -106,7 +115,8 @@ class LandscapeProfileSection  extends StatelessWidget {
               width: scalingFactor * (isTablet(context) ? 100 : 113),
             ),
             Text(
-              "Joined: ${formatDate(dateJoined)}",
+              rankText,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: scalingFactor * (isTablet(context) ? 10 : 11),
                 fontWeight: FontWeight.w400,

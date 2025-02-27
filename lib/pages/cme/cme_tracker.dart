@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:wired_test/pages/cme/submit_credits.dart';
 import '../../providers/auth_guard.dart';
 import '../../providers/auth_provider.dart';
+import '../../utils/creditText.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
 import '../../utils/landscape_profile_section.dart';
@@ -16,6 +17,7 @@ import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
 import '../module_library.dart';
 import 'credits_history.dart';
+import 'leaderboard.dart';
 
 
 class CMETracker extends StatefulWidget {
@@ -30,6 +32,7 @@ class User {
   final String? email;
   final String? dateJoined;
   final List<dynamic>? quizScores;
+  final int creditsEarned;
 
 
   User({
@@ -38,15 +41,16 @@ class User {
     required this.email,
     required this.dateJoined,
     required this.quizScores,
-  });
+  }): creditsEarned = _calculateCredits(quizScores ?? []);
 
   factory User.fromJson(Map<String, dynamic> json) {
+    List<dynamic>? quizScores = json['quizScores'] ?? [];
     return User(
       firstName: json['first_name'] ?? 'Unknown',
       lastName: json['last_name'] ?? 'Unknown',
       email: json['email'] ?? 'No email',
       dateJoined: json['createdAt'] ?? 'Unknown Date',
-      quizScores: json['quizScores'] ?? [], // Provide an empty list for quizScores if null
+      quizScores: quizScores, // Provide an empty list for quizScores if null
     );
   }
 
@@ -57,6 +61,27 @@ class User {
     'dateJoined': dateJoined,
     'quizScores': quizScores,
   };
+
+  // Method to calculate creditsEarned
+  static int _calculateCredits(List<dynamic>? quizScores) {
+    final int currentYear = DateTime.now().year;
+
+    if (quizScores == null) return 0;
+
+    return quizScores.where((score) {
+      if (score is Map<String, dynamic> &&
+          score['score'] != null &&
+          score['date_taken'] != null) {
+        final scoreValue = double.tryParse(score['score'].toString()) ?? 0.0;
+        final DateTime? dateTaken = DateTime.tryParse(score['date_taken'].toString());
+
+        return scoreValue >= 80.0 &&
+            dateTaken != null &&
+            dateTaken.year == currentYear;
+      }
+      return false;
+    }).length * 5;
+  }
 }
 
 class _CMETrackerState extends State<CMETracker> {
@@ -177,6 +202,7 @@ class _CMETrackerState extends State<CMETracker> {
             }
 
             final user = snapshot.data!;
+            final int creditsEarned = user.creditsEarned ?? 0;
             return Stack(
               children: [
                 // Background Gradient
@@ -198,7 +224,8 @@ class _CMETrackerState extends State<CMETracker> {
                   children: [
                     // Side Navigation Bar (Fixed Width)
                     SizedBox(
-                      width: screenSize.width * 0.12, // Adjust width as needed
+                      // width: screenSize.width * 0.12, // Adjust width as needed
+                      width: scalingFactor * (isTablet(context) ? 55 : 58),
                       child: CustomSideNavBar(
                         onHomeTap: () => _navigateTo(context, const MyHomePage()),
                         onLibraryTap: () => _navigateTo(context, ModuleLibrary()),
@@ -222,8 +249,9 @@ class _CMETrackerState extends State<CMETracker> {
                           LandscapeProfileSection(
                             firstName: user.firstName ?? 'Guest',
                             dateJoined: user.dateJoined ?? 'Unknown',
+                            creditsEarned: creditsEarned,
                           ),
-                          SizedBox(height: screenSize.height * (isTabletDevice ? 0.05 : .05)),
+                          SizedBox(height: scalingFactor * (isTablet(context) ? 15 : 15)),
                           Expanded(
                             child: Center(
                               child: _buildLandscapeLayout(
@@ -233,6 +261,7 @@ class _CMETrackerState extends State<CMETracker> {
                                 user.firstName,
                                 user.dateJoined,
                                 user.quizScores,
+                                creditsEarned,
                               ),
                             ),
                           ),
@@ -246,9 +275,10 @@ class _CMETrackerState extends State<CMETracker> {
                     ProfileSection(
                       firstName: user.firstName ?? 'Guest',
                       dateJoined: user.dateJoined ?? 'Unknown',
-                      creditsEarned: user.quizScores != null ? user.quizScores!.length * 5 : 0,
+                      creditsEarned: creditsEarned,
                     ),
-                    SizedBox(height: screenSize.height * (isTabletDevice ? 0.05 : .04)),
+                    //SizedBox(height: screenSize.height * (isTabletDevice ? 0.05 : .04)),
+                    SizedBox(height: scalingFactor * (isTablet(context) ? 25 : 40)),
                     Expanded(
                       child: Center(
                         child: _buildPortraitLayout(
@@ -258,6 +288,7 @@ class _CMETrackerState extends State<CMETracker> {
                           user.firstName,
                           user.dateJoined,
                           user.quizScores,
+                          creditsEarned,
                         ),
                       ),
                     ),
@@ -292,32 +323,9 @@ class _CMETrackerState extends State<CMETracker> {
   }
 
   Widget _buildPortraitLayout(BuildContext context, scalingFactor,
-      authProvider, firstName, dateJoined, quizScores) {
+      authProvider, firstName, dateJoined, quizScores, int creditsEarned) {
     // Get the current year
     final int currentYear = DateTime.now().year;
-
-    // Calculate credits earned
-    final int creditsEarned = quizScores != null
-        ? quizScores.where((score) {
-      if (score is Map<String, dynamic> &&
-          score['score'] != null &&
-          score['date_taken'] != null) {
-        // Parse the score and date_taken
-        final scoreValue = double.tryParse(score['score'].toString()) ?? 0.0;
-        final DateTime? dateTaken =
-        DateTime.tryParse(score['date_taken'].toString());
-
-        // Include scores >= 80 and taken in the current year
-        final isValid = scoreValue >= 80.0 &&
-            dateTaken != null &&
-            dateTaken.year == currentYear;
-
-        print('Score: $scoreValue, Date Taken: $dateTaken, Valid: $isValid');
-
-        return isValid;
-      }
-      return false;
-    }).length * 20 : 0;
 
     final int maxCredits = getMaxCredits(creditsEarned);
     final int creditsRemaining = creditsEarned >= maxCredits ? 0 : maxCredits - creditsEarned;
@@ -387,31 +395,26 @@ class _CMETrackerState extends State<CMETracker> {
               value: creditsEarned / maxCredits,
               backgroundColor: Colors.white,
               valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFBD34FD)),
-              minHeight: scalingFactor * (isTablet(context) ? 10 : 10),
+              minHeight: scalingFactor * (isTablet(context) ? 8 : 10),
               borderRadius: BorderRadius.circular(10),
             ),
           ),
           SizedBox(height: scalingFactor * (isTablet(context) ? 25 : 25)),
           Padding(
             padding: EdgeInsets.symmetric(
-              horizontal: scalingFactor * (isTablet(context) ? 40 : 40),
+              horizontal: scalingFactor * (isTablet(context) ? 40 : 20),
             ),
-            child: RichText(
-              textAlign: TextAlign.left,
-              text: TextSpan(
-                style: TextStyle(
-                  fontSize: scalingFactor * (isTablet(context) ? 16 : 20),
-                  fontWeight: FontWeight.w400,
-                  color: Colors.black, // Default color for the text
-                ),
-                children: _buildConditionalText(creditsEarned, creditsRemaining, scalingFactor),
-              ),
+            child: CreditText(
+              creditsEarned: creditsEarned,
+              creditsRemaining: creditsRemaining,
+              scalingFactor: scalingFactor,
+              context: context,
             ),
           ),
-          SizedBox(height: scalingFactor * (isTablet(context) ? 40 : 40)),
+          SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 30)),
 
           // Credits History Button with New Style
-          _buildSearchButton(
+          _buildButton(
             label: "Credits History",
             gradientColors: [
               Color(0xFF6B72FF),
@@ -428,11 +431,11 @@ class _CMETrackerState extends State<CMETracker> {
             },
             scalingFactor: scalingFactor,
           ),
-          SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 40)),
+          SizedBox(height: scalingFactor * (isTablet(context) ? 20 : 25)),
 
           // Submit New Credits Button with New Style
-          _buildSearchButton(
-            label: "Submit New Credits",
+          _buildButton(
+            label: "Submit Credits",
             gradientColors: [
               Color(0xFF6B72FF),
               Color(0xFF325BFF),
@@ -448,55 +451,32 @@ class _CMETrackerState extends State<CMETracker> {
             },
             scalingFactor: scalingFactor,
           ),
+          SizedBox(height: scalingFactor * (isTablet(context) ? 20 : 25)),
+          _buildButton(
+            label: "Leaderboard",
+            gradientColors: [
+              Color(0xFF6B72FF),
+              Color(0xFF325BFF),
+              Color(0xFF6B72FF),
+            ],
+            onTap: () async {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AuthGuard(child: LeaderboardScreen()),
+                ),
+              );
+            },
+            scalingFactor: scalingFactor,
+          ),
           SizedBox(height: scalingFactor * (isTablet(context) ? 70 : 70)),
         ],
       ),
     );
   }
 
-  // Helper method to build text spans for the badge message
-  List<TextSpan> _buildConditionalText(int creditsEarned, int creditsRemaining, double scalingFactor) {
-    String message = getNextBadgeMessage(creditsEarned, creditsRemaining);
 
-    // If both placeholders are present
-    if (message.contains("$creditsEarned") && message.contains("$creditsRemaining")) {
-      return [
-        TextSpan(text: message.split("$creditsEarned")[0]),
-        TextSpan(
-          text: "$creditsEarned credits",
-          style: TextStyle(color: Color(0xFFBD34FD)),
-        ),
-        TextSpan(text: message.split("$creditsEarned")[1].split("$creditsRemaining")[0]),
-        TextSpan(
-          text: "$creditsRemaining credits",
-          style: TextStyle(color: Color(0xFFBD34FD)),
-        ),
-        TextSpan(text: message.split("$creditsRemaining").last),
-      ];
-    }
-
-    // If only creditsEarned placeholder is present
-    if (message.contains("$creditsEarned")) {
-      final parts = message.split("$creditsEarned");
-      return [
-        TextSpan(text: parts[0]),
-        TextSpan(
-          text: "$creditsEarned credits",
-          style: TextStyle(color: Color(0xFFBD34FD)),
-        ),
-        TextSpan(text: parts.length > 1 ? parts[1] : ""),
-      ];
-    }
-
-    // No placeholders present (likely for Supreme rank message)
-    return [
-      TextSpan(text: message),
-    ];
-  }
-
-
-
-  Widget _buildSearchButton({
+  Widget _buildButton({
     required String label,
     required List<Color> gradientColors,
     required VoidCallback onTap,
@@ -506,7 +486,7 @@ class _CMETrackerState extends State<CMETracker> {
       label: '$label Button',
       hint: 'Tap to access $label',
       child: FractionallySizedBox(
-        widthFactor: isTablet(context) ? 0.45 : 0.6,
+        widthFactor: isTablet(context) ? 0.38 : 0.5,
         child: Material(
           color: Colors.transparent,
           borderRadius: BorderRadius.circular(30),
@@ -533,7 +513,7 @@ class _CMETrackerState extends State<CMETracker> {
                 borderRadius: BorderRadius.circular(30),
                 splashColor: Colors.white.withOpacity(0.3),
                 child: Container(
-                  height: scalingFactor * (isTablet(context) ? 35 : 45),
+                  height: scalingFactor * (isTablet(context) ? 32 : 38),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: _buttonColors[label] ?? gradientColors,
@@ -554,7 +534,7 @@ class _CMETrackerState extends State<CMETracker> {
                     child: Text(
                       label,
                       style: TextStyle(
-                        fontSize: scalingFactor * (isTablet(context) ? 17 : 20),
+                        fontSize: scalingFactor * (isTablet(context) ? 14 : 18),
                         fontWeight: FontWeight.w500,
                         color: Colors.white,
                       ),
@@ -570,48 +550,14 @@ class _CMETrackerState extends State<CMETracker> {
   }
 
   Widget _buildLandscapeLayout(BuildContext context, scalingFactor,
-      authProvider, firstName, dateJoined, quizScores) {
+      authProvider, firstName, dateJoined, quizScores, int creditsEarned) {
     final int currentYear = DateTime.now().year;
 
-    // Debug: Print the passed quizScores
-    print('QuizScores: $quizScores');
-
-    // Calculate credits earned
-    final int creditsEarned = quizScores != null
-        ? quizScores.where((score) {
-      if (score is Map<String, dynamic> &&
-          score['score'] != null &&
-          score['date_taken'] != null) {
-        // Parse the score and date_taken
-        final scoreValue = double.tryParse(score['score'].toString()) ?? 0.0;
-        final DateTime? dateTaken =
-        DateTime.tryParse(score['date_taken'].toString());
-
-        // Include scores >= 80 and taken in the current year
-        final isValid = scoreValue >= 80.0 &&
-            dateTaken != null &&
-            dateTaken.year == currentYear;
-
-        // Debug: Log filtering results
-        print(
-            'Score: $scoreValue, Date Taken: $dateTaken, Valid: $isValid');
-
-        return isValid;
-      }
-      return false;
-    }).length * 5 // Each valid score adds 5 credits
-        : 0;
-
-    // Maximum credits
-    const int maxCredits = 50;
-
-    // Calculate remaining credits
-    final int creditsRemaining = maxCredits - creditsEarned;
+    final int maxCredits = getMaxCredits(creditsEarned);
+    final int creditsRemaining = creditsEarned >= maxCredits ? 0 : maxCredits - creditsEarned;
 
     return SingleChildScrollView(
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
           Text(
             "CME Credits Tracker",
@@ -622,17 +568,17 @@ class _CMETrackerState extends State<CMETracker> {
             ),
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: scalingFactor * (isTablet(context) ? 25 : 25)),
+          SizedBox(height: scalingFactor * (isTablet(context) ? 15 : 15)),
           Padding(
             padding: EdgeInsets.symmetric(
-                horizontal: scalingFactor * (isTablet(context) ? 75 : 75)),
+                horizontal: scalingFactor * (isTablet(context) ? 55 : 65)),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   "CREDITS",
                   style: TextStyle(
-                    fontSize: scalingFactor * (isTablet(context) ? 14 : 15),
+                    fontSize: scalingFactor * (isTablet(context) ? 12 : 15),
                     fontWeight: FontWeight.w500,
                     color: Colors.black,
                   ),
@@ -646,7 +592,7 @@ class _CMETrackerState extends State<CMETracker> {
                         text: "$creditsEarned",
                         style: TextStyle(
                           fontSize: scalingFactor *
-                              (isTablet(context) ? 14 : 15),
+                              (isTablet(context) ? 12 : 15),
                           fontWeight: FontWeight.w500,
                           color: Color(0xFFBD34FD), // Purple for earned credits
                         ),
@@ -654,8 +600,7 @@ class _CMETrackerState extends State<CMETracker> {
                       TextSpan(
                         text: "/$maxCredits",
                         style: TextStyle(
-                          fontSize: scalingFactor *
-                              (isTablet(context) ? 14 : 15),
+                          fontSize: scalingFactor * (isTablet(context) ? 12 : 15),
                           fontWeight: FontWeight.w500,
                           color: Colors.black, // Black for max credits
                         ),
@@ -666,7 +611,7 @@ class _CMETrackerState extends State<CMETracker> {
               ],
             ),
           ),
-          //SizedBox(height: scalingFactor * (isTablet(context) ? 0.05 : 5)),
+          SizedBox(height: scalingFactor * (isTablet(context) ? 5 : 5)),
           Padding(
             padding: EdgeInsets.symmetric(
                 horizontal: scalingFactor * (isTablet(context) ? 65 : 70)
@@ -684,35 +629,16 @@ class _CMETrackerState extends State<CMETracker> {
             padding: EdgeInsets.symmetric(
               horizontal: scalingFactor * (isTablet(context) ? 70 : 50),
             ),
-            child: RichText(
-              textAlign: TextAlign.left,
-              text: TextSpan(
-                style: TextStyle(
-                  fontSize: scalingFactor * (isTablet(context) ? 15 : 20),
-                  fontWeight: FontWeight.w400,
-                  color: Colors.black, // Default color for the text
-                ),
-                children: [
-                  TextSpan(text: "You have earned "),
-                  TextSpan(
-                    text: "$creditsEarned credits",
-                    style: TextStyle(
-                        color: Color(0xFFBD34FD)), // Purple for credits earned
-                  ),
-                  TextSpan(text: " this year, and you have "),
-                  TextSpan(
-                    text: "$creditsRemaining more credits",
-                    style: TextStyle(
-                        color: Color(0xFFBD34FD)), // Purple for credits remaining
-                  ),
-                  TextSpan(text: " to go before Dec. 31."),
-                ],
-              ),
+            child: CreditText(
+              creditsEarned: creditsEarned,
+              creditsRemaining: creditsRemaining,
+              scalingFactor: scalingFactor,
+              context: context,
             ),
           ),
 
           SizedBox(height: scalingFactor * (isTablet(context) ? 25 : 25)),
-          _buildSearchButtonLandscape(
+          _buildButtonLandscape(
             label: "Credits History",
             gradientColors: [
               Color(0xFF6B72FF),
@@ -729,11 +655,10 @@ class _CMETrackerState extends State<CMETracker> {
             },
             scalingFactor: scalingFactor,
           ),
-          SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 40)),
-
+          SizedBox(height: scalingFactor * (isTablet(context) ? 25 : 25)),
           // Submit New Credits Button with New Style
-          _buildSearchButtonLandscape(
-            label: "Submit New Credits",
+          _buildButtonLandscape(
+            label: "Submit Credits",
             gradientColors: [
               Color(0xFF6B72FF),
               Color(0xFF325BFF),
@@ -749,13 +674,31 @@ class _CMETrackerState extends State<CMETracker> {
             },
             scalingFactor: scalingFactor,
           ),
+          SizedBox(height: scalingFactor * (isTablet(context) ? 25 : 25)),
+          _buildButtonLandscape(
+            label: "Leaderboard",
+            gradientColors: [
+              Color(0xFF6B72FF),
+              Color(0xFF325BFF),
+              Color(0xFF6B72FF),
+            ],
+            onTap: () async {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AuthGuard(child: LeaderboardScreen()),
+                ),
+              );
+            },
+            scalingFactor: scalingFactor,
+          ),
           SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 10)),
         ],
       ),
     );
   }
 
-  Widget _buildSearchButtonLandscape({
+  Widget _buildButtonLandscape({
     required String label,
     required List<Color> gradientColors,
     required VoidCallback onTap,
@@ -765,7 +708,7 @@ class _CMETrackerState extends State<CMETracker> {
       label: '$label Button',
       hint: 'Tap to access $label',
       child: FractionallySizedBox(
-        widthFactor: isTablet(context) ? 0.35 : 0.5, // Adjust width for landscape
+        widthFactor: isTablet(context) ? 0.3 : 0.4, // Adjust width for landscape
         child: Material(
           color: Colors.transparent,
           borderRadius: BorderRadius.circular(25),

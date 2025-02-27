@@ -4,7 +4,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-
 import '../../providers/auth_guard.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/custom_app_bar.dart';
@@ -18,7 +17,7 @@ import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
 import '../module_library.dart';
 import 'cme_tracker.dart';
-import 'login.dart';
+
 
 
 
@@ -180,6 +179,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                           LandscapeProfileSection(
                             firstName: user.firstName ?? 'Guest',
                             dateJoined: user.dateJoined ?? 'Unknown',
+                            creditsEarned: user.quizScores != null ? user.quizScores!.length * 5 : 0,
                           ),
                           Expanded(
                             child: Center(
