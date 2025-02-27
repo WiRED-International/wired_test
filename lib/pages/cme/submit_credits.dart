@@ -599,7 +599,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                                     MaterialPageRoute(
                                                       builder: (context) => WebViewScreen(
                                                         urlRequest: URLRequest(
-                                                          url: Uri.file(moduleFile.path ?? ''),
+                                                          url: WebUri.uri(Uri.file(moduleFile.path ?? '')),
                                                         ),
                                                       ),
                                                     ),
@@ -1055,7 +1055,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                                     MaterialPageRoute(
                                                       builder: (context) => WebViewScreen(
                                                         urlRequest: URLRequest(
-                                                          url: Uri.file(moduleFile.path ?? ''),
+                                                          url: WebUri.uri(Uri.file(moduleFile.path ?? '')),
                                                         ),
                                                       ),
                                                     ),

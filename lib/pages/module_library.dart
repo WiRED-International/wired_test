@@ -480,7 +480,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                                                           MaterialPageRoute(
                                                             builder: (context) => WebViewScreen(
                                                               urlRequest: URLRequest(
-                                                                url: Uri.file(moduleFile.path),
+                                                                url: WebUri.uri(Uri.file(moduleFile.path)),
                                                               ),
                                                             ),
                                                           ),
@@ -779,7 +779,7 @@ Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
                                                       MaterialPageRoute(
                                                           builder: (context) => WebViewScreen(
                                                             urlRequest: URLRequest(
-                                                              url: Uri.file(moduleFile.path),
+                                                              url: WebUri.uri(Uri.file(moduleFile.path)),
                                                             ),
                                                           )),
                                                     );
