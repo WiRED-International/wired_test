@@ -592,19 +592,30 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                               hint: 'Tap to play the module',
                                               child: GestureDetector(
                                                 onTap: () {
-                                                  saveModuleInfo(moduleFile.moduleId!, moduleFile.moduleName);
-                                                  print( "Saving module id: $moduleFile.moduleId");
+                                                  String moduleId = moduleFile.moduleId ?? "Unknown"; // Ensure moduleId is always a non-null String
+                                                  String modulePath = moduleFile.path ?? "";
+
+                                                  if (modulePath.isEmpty) {
+                                                    print("❌ ERROR: Module path is missing!");
+                                                    return; // Prevent navigation if the path is missing
+                                                  }
+
+                                                  saveModuleInfo(moduleId, moduleFile.moduleName);
+                                                  print("Saving module id: $moduleId");
+
+                                                  saveModuleInfo(moduleId, moduleFile.moduleName);
+
                                                   Navigator.push(
                                                     context,
                                                     MaterialPageRoute(
                                                       builder: (context) => WebViewScreen(
-                                                        urlRequest: URLRequest(
-                                                          url: WebUri.uri(Uri.file(moduleFile.path ?? '')),
-                                                        ),
+                                                        urlRequest: URLRequest(url: WebUri(Uri.file(modulePath).toString())), // ✅ Ensure modulePath is non-null
+                                                        moduleId: moduleId, // ✅ Ensure moduleId is non-null
                                                       ),
                                                     ),
                                                   );
                                                 },
+
                                                 child: FractionallySizedBox(
                                                   widthFactor: isTablet(context) ? 0.45 : 0.65,
                                                   child: Container(
@@ -1048,19 +1059,30 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                               hint: 'Tap to play the module',
                                               child: GestureDetector(
                                                 onTap: () {
-                                                  saveModuleInfo(moduleFile.moduleId!, moduleFile.moduleName);
-                                                  print( "Saving module id: $moduleFile.moduleId");
+                                                  String moduleId = moduleFile.moduleId ?? "Unknown"; // Ensure moduleId is always a non-null String
+                                                  String modulePath = moduleFile.path ?? "";
+
+                                                  if (modulePath.isEmpty) {
+                                                    print("❌ ERROR: Module path is missing!");
+                                                    return; // Prevent navigation if the path is missing
+                                                  }
+
+                                                  saveModuleInfo(moduleId, moduleFile.moduleName);
+                                                  print("Saving module id: $moduleId");
+
+                                                  saveModuleInfo(moduleId, moduleFile.moduleName);
+
                                                   Navigator.push(
                                                     context,
                                                     MaterialPageRoute(
                                                       builder: (context) => WebViewScreen(
-                                                        urlRequest: URLRequest(
-                                                          url: WebUri.uri(Uri.file(moduleFile.path ?? '')),
-                                                        ),
+                                                        urlRequest: URLRequest(url: WebUri(Uri.file(modulePath).toString())), // ✅ Ensure modulePath is non-null
+                                                        moduleId: moduleId, // ✅ Ensure moduleId is non-null
                                                       ),
                                                     ),
                                                   );
                                                 },
+
                                                 child: FractionallySizedBox(
                                                   widthFactor: isTablet(context) ? 0.45 : 0.45,
                                                   child: Container(

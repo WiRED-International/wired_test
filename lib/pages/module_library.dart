@@ -1,9 +1,9 @@
+import '.././utils/webview_screen.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:path_provider/path_provider.dart';
-import '.././utils/webview_screen.dart';
 import '../providers/auth_guard.dart';
 import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
@@ -479,9 +479,8 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                                                           context,
                                                           MaterialPageRoute(
                                                             builder: (context) => WebViewScreen(
-                                                              urlRequest: URLRequest(
-                                                                url: WebUri.uri(Uri.file(moduleFile.path)),
-                                                              ),
+                                                              urlRequest: URLRequest(url: WebUri(Uri.file(moduleFile.path).toString())),
+                                                              moduleId: moduleFile.moduleId, // ✅ Pass module ID
                                                             ),
                                                           ),
                                                         );
@@ -777,11 +776,11 @@ Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
                                                     Navigator.push(
                                                       context,
                                                       MaterialPageRoute(
-                                                          builder: (context) => WebViewScreen(
-                                                            urlRequest: URLRequest(
-                                                              url: WebUri.uri(Uri.file(moduleFile.path)),
-                                                            ),
-                                                          )),
+                                                        builder: (context) => WebViewScreen(
+                                                          urlRequest: URLRequest(url: WebUri(Uri.file(moduleFile.path).toString())),
+                                                          moduleId: moduleFile.moduleId, // ✅ Pass module ID
+                                                        ),
+                                                      ),
                                                     );
                                                   },
                                                   child: FittedBox(
