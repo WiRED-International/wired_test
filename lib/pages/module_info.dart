@@ -17,12 +17,15 @@ import 'download_confirm.dart';
 import 'menu/guestMenu.dart';
 import 'menu/menu.dart';
 import 'module_library.dart';
+import '../services/location_service.dart';
 
 
 class ModuleInfo extends StatefulWidget {
   final String moduleName;
   final String moduleDescription;
   final String? downloadLink;
+
+  LocationService locationService = LocationService();
 
   ModuleInfo({required this.moduleName, required this.moduleDescription, this.downloadLink});
 
@@ -161,6 +164,14 @@ class _ModuleInfoState extends State<ModuleInfo> {
   @override
   void initState() {
     super.initState();
+    getLocation();
+  }
+
+  void getLocation() async {
+    // Implement your location fetching logic here
+    // Example:
+    var location = await widget.locationService.getLocation(context);
+    print('Location: $location');
   }
 
 // Consider using AutoSizeText for the module name instead of RichText
