@@ -17,8 +17,6 @@ import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
 import '../module_library.dart';
 import 'credits_history.dart';
-import 'leaderboard.dart';
-
 
 class CMETracker extends StatefulWidget {
 
@@ -447,24 +445,6 @@ class _CMETrackerState extends State<CMETracker> {
             },
             scalingFactor: scalingFactor,
           ),
-          SizedBox(height: scalingFactor * (isTablet(context) ? 20 : 25)),
-          _buildButton(
-            label: "Leaderboard",
-            gradientColors: [
-              Color(0xFF6B72FF),
-              Color(0xFF325BFF),
-              Color(0xFF6B72FF),
-            ],
-            onTap: () async {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AuthGuard(child: LeaderboardScreen()),
-                ),
-              );
-            },
-            scalingFactor: scalingFactor,
-          ),
           SizedBox(height: scalingFactor * (isTablet(context) ? 70 : 70)),
         ],
       ),
@@ -665,24 +645,6 @@ class _CMETrackerState extends State<CMETracker> {
                 context,
                 MaterialPageRoute(
                   builder: (context) => AuthGuard(child: SubmitCredits()),
-                ),
-              );
-            },
-            scalingFactor: scalingFactor,
-          ),
-          SizedBox(height: scalingFactor * (isTablet(context) ? 25 : 25)),
-          _buildButtonLandscape(
-            label: "Leaderboard",
-            gradientColors: [
-              Color(0xFF6B72FF),
-              Color(0xFF325BFF),
-              Color(0xFF6B72FF),
-            ],
-            onTap: () async {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AuthGuard(child: LeaderboardScreen()),
                 ),
               );
             },
