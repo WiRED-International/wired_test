@@ -21,6 +21,7 @@ import '../services/location_service.dart';
 
 
 class ModuleInfo extends StatefulWidget {
+
   final String moduleName;
   final String moduleDescription;
   final String? downloadLink;
@@ -67,6 +68,7 @@ class _ModuleInfoState extends State<ModuleInfo> {
   final GlobalKey _moduleNameKey = GlobalKey();
   double topPadding = 0;
   bool _isLoading = false;
+  Map<String, double?>? _location;
 
   // Get Permissions
   Future<bool> checkAndRequestStoragePermission() async {
@@ -172,6 +174,10 @@ class _ModuleInfoState extends State<ModuleInfo> {
     // Example:
     var location = await widget.locationService.getLocation(context);
     print('Location: $location');
+    // print the module id
+    setState(() {
+      _location = location;  // Store the location in the state
+    });
   }
 
 // Consider using AutoSizeText for the module name instead of RichText
