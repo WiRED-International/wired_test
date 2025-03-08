@@ -24,6 +24,7 @@ class ModuleByTopic extends StatefulWidget {
 }
 
 class Modules {
+  int? id;
   String? description;
   List<String>? topics;
   String? name;
@@ -31,6 +32,7 @@ class Modules {
   String? downloadLink;
 
   Modules({
+    this.id,
     this.description,
     this.topics,
     this.name,
@@ -39,13 +41,15 @@ class Modules {
   });
 
   Modules.fromJson(Map<String, dynamic> json)
-      : description = json['description'] as String?,
+      : id = json['id'] as int?,
+        description = json['description'] as String?,
         topics = json['topics'] != null ? List<String>.from(json['topics']) : null,
         name = json['name'] as String?,
         topic = json['topic'] as String?,
         downloadLink = json['downloadLink'] as String?;
 
   Map<String, dynamic> toJson() => {
+    'id': id,
     'description': description,
     'topics': topics,
     'name': name,
@@ -287,7 +291,12 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
                               InkWell(
                                 onTap: () async {
                                   if (downloadLink.isNotEmpty) {
-                                    Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleInfo(moduleName: moduleName, moduleDescription: moduleDescription, downloadLink: downloadLink)));
+                                    Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleInfo(
+                                        moduleId: module.id!,
+                                        moduleName: moduleName,
+                                        moduleDescription: moduleDescription,
+                                        downloadLink: downloadLink
+                                    )));
                                   } else {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(content: Text('No download link found for $moduleName')),
@@ -410,7 +419,12 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
                               InkWell(
                                 onTap: () async {
                                   if (downloadLink.isNotEmpty) {
-                                    Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleInfo(moduleName: moduleName, moduleDescription: moduleDescription, downloadLink: downloadLink)));
+                                    Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleInfo(
+                                        moduleId: module.id!,
+                                        moduleName: moduleName,
+                                        moduleDescription: moduleDescription,
+                                        downloadLink: downloadLink
+                                    )));
                                   } else {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(content: Text('No download link found for $moduleName')),

@@ -45,6 +45,7 @@ class ModuleLetter {
 }
 
 class Modules {
+  int? id;
   String? name;
   String? description;
   String? downloadLink;
@@ -52,6 +53,7 @@ class Modules {
   Modules? redirectedModule;
 
   Modules({
+    this.id,
     this.name,
     this.description,
     this.downloadLink,
@@ -60,7 +62,8 @@ class Modules {
   });
 
   Modules.fromJson(Map<String, dynamic> json)
-      : name = json['name'] as String?,
+      : id = json['id'] as int?,
+        name = json['name'] as String?,
         description = json['description'] as String?,
         downloadLink = json['downloadLink'] as String?,
         letters = (json['letters'] as List<dynamic>?)
@@ -71,6 +74,7 @@ class Modules {
             : null;
 
   Map<String, dynamic> toJson() => {
+    'id': id,
     'name': name,
     'description': description,
     'downloadLink': downloadLink,
@@ -260,7 +264,6 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                           },
                           onMenuTap: () async {
                             bool isLoggedIn = await checkIfUserIsLoggedIn();
-                            print("Navigating to menu. Logged in: $isLoggedIn");
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -310,7 +313,6 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                     },
                     onMenuTap: () async {
                       bool isLoggedIn = await checkIfUserIsLoggedIn();
-                      print("Navigating to menu. Logged in: $isLoggedIn");
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -372,7 +374,6 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
           child: Stack(
             children: [
               Container(
-                //height: baseSize * (isTablet(context) ? 60 : 60),
                 width: screenWidth * 1.0,
                 decoration: BoxDecoration(
                   color: Colors.transparent,
@@ -434,6 +435,7 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                                                 context,
                                                 MaterialPageRoute(
                                                   builder: (context) => ModuleInfo(
+                                                    moduleId: module.redirectedModule!.id!,
                                                     moduleName: module.redirectedModule!.name!,
                                                     moduleDescription: module.redirectedModule!.description ?? "No Description available",
                                                     downloadLink: module.redirectedModule!.downloadLink!,
@@ -487,6 +489,7 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                                           context,
                                           MaterialPageRoute(
                                             builder: (context) => ModuleInfo(
+                                              moduleId: module.id!,
                                               moduleName: moduleName,
                                               moduleDescription: moduleDescription,
                                               downloadLink: downloadLink,
@@ -674,6 +677,7 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                                                 context,
                                                 MaterialPageRoute(
                                                   builder: (context) => ModuleInfo(
+                                                    moduleId: module.redirectedModule!.id!,
                                                     moduleName: module.redirectedModule!.name!,
                                                     moduleDescription: module.redirectedModule!.description ?? "No Description available",
                                                     downloadLink: module.redirectedModule!.downloadLink!,
@@ -727,6 +731,7 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
                                           context,
                                           MaterialPageRoute(
                                             builder: (context) => ModuleInfo(
+                                              moduleId: module.id!,
                                               moduleName: moduleName,
                                               moduleDescription: moduleDescription,
                                               downloadLink: downloadLink,
