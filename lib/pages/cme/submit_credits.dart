@@ -381,7 +381,6 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                     },
                     onMenuTap: () async {
                       bool isLoggedIn = await checkIfUserIsLoggedIn();
-                      print("Navigating to menu. Logged in: $isLoggedIn");
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -1064,8 +1063,6 @@ class _SubmitCreditsState extends State<SubmitCredits> {
 
                                                   saveModuleInfo(moduleId, moduleFile.moduleName);
                                                   print("Saving module id: $moduleId");
-
-                                                  saveModuleInfo(moduleId, moduleFile.moduleName);
 
                                                   Navigator.push(
                                                     context,
