@@ -18,9 +18,6 @@ import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
 import '../module_library.dart';
 import 'cme_tracker.dart';
-import 'enter_score.dart';
-
-
 
 class SubmitCredits extends StatefulWidget {
   @override
@@ -384,7 +381,6 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                     },
                     onMenuTap: () async {
                       bool isLoggedIn = await checkIfUserIsLoggedIn();
-                      print("Navigating to menu. Logged in: $isLoggedIn");
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -602,8 +598,6 @@ class _SubmitCreditsState extends State<SubmitCredits> {
 
                                                   saveModuleInfo(moduleId, moduleFile.moduleName);
                                                   print("Saving module id: $moduleId");
-
-                                                  saveModuleInfo(moduleId, moduleFile.moduleName);
 
                                                   Navigator.push(
                                                     context,
@@ -1069,8 +1063,6 @@ class _SubmitCreditsState extends State<SubmitCredits> {
 
                                                   saveModuleInfo(moduleId, moduleFile.moduleName);
                                                   print("Saving module id: $moduleId");
-
-                                                  saveModuleInfo(moduleId, moduleFile.moduleName);
 
                                                   Navigator.push(
                                                     context,

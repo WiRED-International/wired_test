@@ -21,14 +21,14 @@ import '../services/location_service.dart';
 
 
 class ModuleInfo extends StatefulWidget {
-
+  final int moduleId;
   final String moduleName;
   final String moduleDescription;
   final String? downloadLink;
 
   LocationService locationService = LocationService();
 
-  ModuleInfo({required this.moduleName, required this.moduleDescription, this.downloadLink});
+  ModuleInfo({ required this.moduleId, required this.moduleName, required this.moduleDescription, this.downloadLink});
 
   @override
   _ModuleInfoState createState() => _ModuleInfoState();
@@ -174,6 +174,7 @@ class _ModuleInfoState extends State<ModuleInfo> {
     // Example:
     var location = await widget.locationService.getLocation(context);
     print('Location: $location');
+    print("Module Id: ${widget.moduleId}");
     // print the module id
     setState(() {
       _location = location;  // Store the location in the state
@@ -411,19 +412,18 @@ class _ModuleInfoState extends State<ModuleInfo> {
                   });
 
                   String fileName = "$widget.moduleName.zip";
-                  await downloadModule(
-                      widget.downloadLink!, fileName);
+                  await downloadModule(widget.downloadLink!, fileName);
 
-                  setState(() {
-                    _isLoading = false;
-                  });
+                  setState(() {_isLoading = false;});
 
                   Navigator.push(context,
-                      MaterialPageRoute(
-                          builder: (context) =>
-                              DownloadConfirm(
-                                  moduleName: widget
-                                      .moduleName)));
+                    MaterialPageRoute(
+                      builder: (context) => DownloadConfirm(
+                        moduleName: widget.moduleName
+                      )
+                    ),
+                  );
+                  
                 } else {
                   ScaffoldMessenger.of(context)
                       .showSnackBar(
@@ -596,19 +596,19 @@ class _ModuleInfoState extends State<ModuleInfo> {
                   });
 
                   String fileName = "$widget.moduleName.zip";
-                  await downloadModule(
-                      widget.downloadLink!, fileName);
+                  await downloadModule(widget.downloadLink!, fileName);
 
-                  setState(() {
-                    _isLoading = false;
-                  });
+                  setState(() {_isLoading = false;});
 
-                  Navigator.push(context,
-                      MaterialPageRoute(
-                          builder: (context) =>
-                              DownloadConfirm(
-                                  moduleName: widget
-                                      .moduleName)));
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => DownloadConfirm(
+                        moduleName: widget.moduleName
+                      )
+                    )
+                  );
+                  print("Module Id: ${widget.moduleId}");
                 } else {
                   ScaffoldMessenger.of(context)
                       .showSnackBar(
