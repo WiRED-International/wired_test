@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 
 class LocationService {
   Future<Map<String, double?>?> getLocation(BuildContext context) async {
@@ -15,13 +17,11 @@ class LocationService {
     } else if (hasDeniedLocation == true) {     
       return null;
     } else {
-      await _showPermissionDeniedAlert(context);
       PermissionStatus newStatus = await Permission.location.request();
-     
-
       if (newStatus.isGranted) {
         return await _getCurrentLocation();
       } else {
+        await _showPermissionDeniedAlert(context);
         prefs.setBool('hasDeniedLocation', true);
         
         return null;
@@ -36,7 +36,7 @@ class LocationService {
       barrierDismissible: false,  // Prevent dismissing by tapping outside
       builder: (context) {
         return AlertDialog(
-          title: const Text('Location Permission Denied'),
+          title: const Text('Location Permission'),
           content: const Text(
             'Location permission is optional, but if you would like to help Wired track where health modules are being used, please enable location permissions in your settings. Thank you.',
           ),
@@ -70,4 +70,32 @@ class LocationService {
       return {'latitude': null, 'longitude': null};
     }
   }
+
+ Future<void> saveDownload(int moduleId, Map<String, double?>? location) async {
+  try {
+    // If location is null, set it to an object with null values
+    location ??= {'latitude': null, 'longitude': null};
+
+    var requestBody = {
+      'module_id': moduleId,
+      'latitude': location['latitude'],
+      'longitude': location['longitude'],
+    };
+
+    debugPrint('requestBody: $requestBody');
+
+    var response = await http.post(
+      Uri.parse('http://10.0.2.2:3000/api/downloads'),
+      body: jsonEncode(requestBody),
+      headers: {'Content-Type': 'application/json'},
+    );
+
+    debugPrint('Response code: ${response.statusCode}');
+    debugPrint('Response body: ${response.body}');
+
+  } catch (e) {
+    debugPrint('Error occurred in save download: $e');
+  }
+}
+
 }

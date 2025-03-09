@@ -168,30 +168,12 @@ class _ModuleInfoState extends State<ModuleInfo> {
     super.initState();
   }
 
-  void getLocationAndSaveDownload() async {
-    // Implement your location fetching logic here
-    // Example:
+  Future<void> getLocationAndSaveDownload() async {
     var location = await widget.locationService.getLocation(context);
-    print('Location: $location');
-    print("Module Id: ${widget.moduleId}");
-    // print the module id
     setState(() {
-      _location = location;  // Store the location in the state
+      _location = location;  // Store the location in state
     });
-
-    var requestBody = {
-      'module_id': widget.moduleId.toString(),
-      'latitude': location!['latitude'].toString(),
-      'longitude': location['longitude'].toString(),
-    };
-    print('Request body: $requestBody');
-    var response = await http.post(
-      Uri.parse('http://10.0.2.2:3000/api/downloads'),
-      body: requestBody,
-    );
-    print('Response status: ${response.statusCode}');
-    print('Response body: ${response.body}');
-
+    await widget.locationService.saveDownload(widget.moduleId, location);
   }
   
 
@@ -420,7 +402,7 @@ class _ModuleInfoState extends State<ModuleInfo> {
               onTap: _isLoading
                   ? null
                   : () async {
-                    getLocationAndSaveDownload();
+                    await getLocationAndSaveDownload();
                 if (widget.downloadLink != null) {
                   setState(() {
                     _isLoading = true;
