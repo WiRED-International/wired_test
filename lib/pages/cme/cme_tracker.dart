@@ -120,9 +120,9 @@ class _CMETrackerState extends State<CMETracker> {
     setState(() {
       _buttonScales[label] = 0.95; // Slightly shrink the button on press
       _buttonColors[label] = [
-        _buttonColors[label]![0].withOpacity(0.8), // Slightly dim the color
-        _buttonColors[label]![1].withOpacity(0.8),
-        _buttonColors[label]![2].withOpacity(0.8),
+        _buttonColors[label]![0].withValues(alpha: 0.8),
+        _buttonColors[label]![1].withValues(alpha: 0.8),
+        _buttonColors[label]![2].withValues(alpha: 0.8),
       ];
     });
   }
@@ -131,9 +131,9 @@ class _CMETrackerState extends State<CMETracker> {
     setState(() {
       _buttonScales[label] = 1.0; // Restore button size
       _buttonColors[label] = [
-        _buttonColors[label]![0].withOpacity(1.0), // Restore original color
-        _buttonColors[label]![1].withOpacity(1.0),
-        _buttonColors[label]![2].withOpacity(1.0),
+        _buttonColors[label]![0].withValues(alpha: 1.0), // Restore original color
+        _buttonColors[label]![1].withValues(alpha: 1.0),
+        _buttonColors[label]![2].withValues(alpha: 1.0),
       ];
     });
 
@@ -473,9 +473,9 @@ class _CMETrackerState extends State<CMETracker> {
               setState(() {
                 _buttonScales[label] = 1.0;
                 _buttonColors[label] = [
-                  _buttonColors[label]![0].withOpacity(1.0), // Restore original
-                  _buttonColors[label]![1].withOpacity(1.0),
-                  _buttonColors[label]![2].withOpacity(1.0),
+                  _buttonColors[label]![0].withValues(alpha: 1.0), // Restore original
+                  _buttonColors[label]![1].withValues(alpha: 1.0),
+                  _buttonColors[label]![2].withValues(alpha: 1.0),
                 ];
               });
             },
@@ -487,7 +487,7 @@ class _CMETrackerState extends State<CMETracker> {
               child: InkWell(
                 onTap: onTap,
                 borderRadius: BorderRadius.circular(30),
-                splashColor: Colors.white.withOpacity(0.3),
+                splashColor: Colors.white.withValues(alpha: 0.3),
                 child: Container(
                   height: scalingFactor * (isTablet(context) ? 32 : 38),
                   decoration: BoxDecoration(
@@ -499,7 +499,7 @@ class _CMETrackerState extends State<CMETracker> {
                     borderRadius: BorderRadius.circular(30),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.5),
+                        color: Colors.black.withValues(alpha: 0.5),
                         spreadRadius: 1,
                         blurRadius: 5,
                         offset: Offset(1, 3),
@@ -677,9 +677,9 @@ class _CMETrackerState extends State<CMETracker> {
               setState(() {
                 _buttonScales[label] = 1.0;
                 _buttonColors[label] = [
-                  _buttonColors[label]![0].withOpacity(1.0),
-                  _buttonColors[label]![1].withOpacity(1.0),
-                  _buttonColors[label]![2].withOpacity(1.0),
+                  _buttonColors[label]![0].withValues(alpha: 1.0),
+                  _buttonColors[label]![1].withValues(alpha: 1.0),
+                  _buttonColors[label]![2].withValues(alpha: 1.0),
                 ];
               });
             },
@@ -691,7 +691,7 @@ class _CMETrackerState extends State<CMETracker> {
               child: InkWell(
                 onTap: onTap,
                 borderRadius: BorderRadius.circular(25),
-                splashColor: Colors.white.withOpacity(0.3),
+                splashColor: Colors.white.withValues(alpha: 0.3),
                 child: Container(
                   height: scalingFactor * (isTablet(context) ? 30 : 35), // Reduced height for landscape
                   decoration: BoxDecoration(
@@ -703,7 +703,7 @@ class _CMETrackerState extends State<CMETracker> {
                     borderRadius: BorderRadius.circular(25),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.5),
+                        color: Colors.black.withValues(alpha: 0.5),
                         spreadRadius: 1,
                         blurRadius: 5,
                         offset: Offset(1, 3),

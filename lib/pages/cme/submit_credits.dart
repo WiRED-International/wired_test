@@ -1,10 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_guard.dart';
 import '../../providers/auth_provider.dart';
@@ -12,7 +10,6 @@ import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
 import '../../utils/side_nav_bar.dart';
-import '../../utils/webview_screen.dart';
 import '../home_page.dart';
 import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
@@ -20,8 +17,10 @@ import '../module_library.dart';
 import 'cme_tracker.dart';
 
 class SubmitCredits extends StatefulWidget {
+  const SubmitCredits({super.key});
+
   @override
-  _SubmitCreditsState createState() => _SubmitCreditsState();
+  State<SubmitCredits> createState() => _SubmitCreditsState();
 }
 
 class ModuleFile {
@@ -64,30 +63,35 @@ class _SubmitCreditsState extends State<SubmitCredits> {
       String? storedScoresJson = await secureStorage.read(key: "quiz_scores");
 
       if (storedScoresJson != null) {
+        print("🔍 Raw Stored Data: $storedScoresJson");
         Map<String, dynamic> storedScores = jsonDecode(storedScoresJson);
         List<ModuleFile> fetchedModules = [];
 
         // Convert each stored module entry into a ModuleFile object
         storedScores.forEach((moduleId, moduleData) {
           if (moduleData is Map<String, dynamic>) {
-            String moduleName = moduleData['module_name'] ?? 'Unknown Module';
-            String score = moduleData['score'].toString();
-            // String score = (moduleData['score'] is double)
-            //     ? moduleData['score']
-            //     : double.tryParse(moduleData['score'].toString()) ?? 0.0;
+            print("🔍 Module ID: $moduleId, Data: $moduleData");
+
+            String moduleName = moduleData.containsKey('module_name')
+                ? moduleData['module_name']
+                : 'Unknown Module';
+
+            String score = moduleData.containsKey('score')
+                ? moduleData['score'].toString()
+                : '0.0';
 
             fetchedModules.add(ModuleFile(
-              moduleId: moduleId,
-              moduleName: moduleName,
+              moduleId: moduleId.isNotEmpty ? moduleId : 'null',
+              moduleName: moduleName.isNotEmpty ? moduleName : 'Unknown Module',
               score: score,
             ));
+          } else {
+            print("⚠️ Invalid module data format: $moduleData");
           }
         });
 
-        // Sort modules alphabetically by module name
         fetchedModules.sort((a, b) => a.moduleName.compareTo(b.moduleName));
 
-        // Update state to display the modules
         setState(() {
           modules = fetchedModules;
         });
@@ -172,6 +176,13 @@ class _SubmitCreditsState extends State<SubmitCredits> {
     }
   }
 
+  Future<void> _refreshModules() async {
+    final updatedModules = await _fetchModulesFromSecureStorage();
+    setState(() {
+      modules = updatedModules;
+    });
+  }
+
   void _showDeleteConfirmation(String fileName, String moduleId) {
     showDialog(
       context: context,
@@ -179,7 +190,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
         return AlertDialog(
           title: Text("Delete Module"),
           content: Text(
-              "Are you sure you want to delete the module: $fileName?"),
+              "Are you sure you want to remove this saved score for the module: $fileName? If you already submitted this score, it will still be stored in your account."),
           actions: [
             TextButton(
               onPressed: () {
@@ -188,10 +199,13 @@ class _SubmitCreditsState extends State<SubmitCredits> {
               child: Text("Do not delete"),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(context).pop(); // Close the modal
-                deleteStoredScore(moduleId);
-                deleteFileAndAssociatedDirectory(fileName); // Call the delete function after confirmation
+                setState(() {
+                  modules.removeWhere((module) => module.moduleId == moduleId);
+                });
+                await deleteStoredScore(moduleId);
+                _refreshModules();
               },
               child: Text("Yes, delete"),
             ),
@@ -201,64 +215,31 @@ class _SubmitCreditsState extends State<SubmitCredits> {
     );
   }
 
-  Future<void> deleteFileAndAssociatedDirectory(String fileName) async {
+  Future<void> deleteStoredScore(String moduleId) async {
     try {
-      final directory = await getExternalStorageDirectory();
-      if (directory == null) {
-        return;
-      }
-      // Define the path to the file
-      final packagesFilePath = '${directory.path}/packages/$fileName';
-      final modulesFilePath = '${directory.path}/modules/$fileName';
+      final FlutterSecureStorage secureStorage = const FlutterSecureStorage();
 
-      // Determine which directory the file exists in
-      String? filePath;
-      if (File(packagesFilePath).existsSync()) {
-        filePath = packagesFilePath;
-      } else if (File(modulesFilePath).existsSync()) {
-        filePath = modulesFilePath;
-      }
+      // Retrieve stored modules from secure storage
+      String? storedScoresJson = await secureStorage.read(key: "quiz_scores");
 
-      if (filePath == null) {
-        print('File not found in either directory: $fileName');
-        return;
-      }
+      if (storedScoresJson != null) {
+        Map<String, dynamic> storedScores = jsonDecode(storedScoresJson);
 
-      final file = File(filePath);
-      print('Attempting to delete file: $filePath');
-      final fileContent = await file.readAsString();
+        if (storedScores.containsKey(moduleId)) {
+          storedScores.remove(moduleId); // Remove the module entry
 
-      // Use RegEx to find the path to the associated directory
-      final regEx = RegExp(r'files/(\d+(-[a-zA-Z0-9]+)*(-[A-Z]+)?)/');
-      final match = regEx.firstMatch(fileContent);
+          // Save the updated map back to SecureStorage
+          await secureStorage.write(key: "quiz_scores", value: jsonEncode(storedScores));
 
-      if (match != null) {
-        final directoryName = match.group(1);
-        final associatedDirectoryPath = '${directory
-            .path}/files/$directoryName';
-
-        // Delete the file
-        await file.delete();
-        print('Deleted file: $filePath');
-
-        // Delete the associated directory
-        final associatedDirectory = Directory(associatedDirectoryPath);
-        if (associatedDirectory.existsSync()) {
-          await associatedDirectory.delete(recursive: true);
-          print('Deleted directory: $associatedDirectoryPath');
+          print("✅ Module score deleted successfully for ID: $moduleId");
         } else {
-          print('Associated directory not found: $associatedDirectoryPath');
+          print("ℹ️ Module ID $moduleId not found in SecureStorage.");
         }
-
-        // Update state to remove the deleted module
-        setState(() {
-          modules.removeWhere((module) => module.path == filePath);
-        });
       } else {
-        print('No associated directory found in file: $filePath');
+        print("ℹ️ No stored modules found in SecureStorage.");
       }
     } catch (e) {
-      print('Error deleting file or directory: $e');
+      print("❌ Error deleting module score from SecureStorage: $e");
     }
   }
 
@@ -433,7 +414,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                   } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
                     return Center(
                         child: Text(
-                          'You have not downloaded any modules yet. Please download the modules first.',
+                          'You have not saved any score for submission yet. Please download a module, complete the final quiz and save your score for submission.',
                           style: TextStyle(
                             fontSize: scalingFactor * (isTablet(context) ? 24 : 24),
                             fontWeight: FontWeight.w500,
@@ -468,7 +449,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                     ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withOpacity(0.3),
+                                        color: Colors.black.withValues(alpha: 0.3),
                                         blurRadius: 5,
                                         offset: Offset(2, 4),
                                       ),
@@ -582,92 +563,92 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         children: [
                                           // Play Button
-                                          Expanded(
-                                            child: Semantics(
-                                              label: 'Play Button',
-                                              hint: 'Tap to play the module',
-                                              child: GestureDetector(
-                                                onTap: () {
-                                                  String moduleId = moduleFile.moduleId ?? "Unknown"; // Ensure moduleId is always a non-null String
-                                                  String modulePath = moduleFile.path ?? "";
-
-                                                  if (modulePath.isEmpty) {
-                                                    print("❌ ERROR: Module path is missing!");
-                                                    return; // Prevent navigation if the path is missing
-                                                  }
-
-                                                  saveModuleInfo(moduleId, moduleFile.moduleName);
-                                                  print("Saving module id: $moduleId");
-
-                                                  Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder: (context) => WebViewScreen(
-                                                        urlRequest: URLRequest(url: WebUri(Uri.file(modulePath).toString())), // ✅ Ensure modulePath is non-null
-                                                        moduleId: moduleId, // ✅ Ensure moduleId is non-null
-                                                      ),
-                                                    ),
-                                                  );
-                                                },
-
-                                                child: FractionallySizedBox(
-                                                  widthFactor: isTablet(context) ? 0.45 : 0.65,
-                                                  child: Container(
-                                                    height: scalingFactor * (isTablet(context) ? 34 : 54),
-                                                    decoration: BoxDecoration(
-                                                      gradient: const LinearGradient(
-                                                        colors: [
-                                                          Color(0xFF1A4314),
-                                                          Color(0xFF3E8914),
-                                                          Color(0xFF74B72E),
-                                                        ],
-                                                        begin: Alignment.topCenter,
-                                                        end: Alignment.bottomCenter,
-                                                      ),
-                                                      borderRadius: BorderRadius.circular(30),
-                                                      boxShadow: [
-                                                        BoxShadow(
-                                                          color: Colors.black.withOpacity(0.5),
-                                                          spreadRadius: 1,
-                                                          blurRadius: 5,
-                                                          offset: const Offset(1, 3),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    child: LayoutBuilder(
-                                                      builder: (context, constraints) {
-                                                        double buttonWidth = constraints.maxWidth;
-                                                        double fontSize = buttonWidth * 0.2;
-                                                        double padding = buttonWidth * 0.02;
-                                                        return Padding(
-                                                          padding: EdgeInsets.all(padding),
-                                                          child: Row(
-                                                            mainAxisAlignment: MainAxisAlignment.center,
-                                                            children: [
-                                                              Text(
-                                                                "Play",
-                                                                style: TextStyle(
-                                                                  fontSize: fontSize,
-                                                                  fontWeight: FontWeight.w500,
-                                                                  color: Color(0xFFE8E8E8),
-                                                                ),
-                                                              ),
-                                                              SizedBox(width: padding),
-                                                              Icon(
-                                                                Icons.play_arrow,
-                                                                color: Color(0xFFE8E8E8),
-                                                                size: fontSize * 1.4,
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        );
-                                                      },
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
+                                          // Expanded(
+                                          //   child: Semantics(
+                                          //     label: 'Play Button',
+                                          //     hint: 'Tap to play the module',
+                                          //     child: GestureDetector(
+                                          //       onTap: () {
+                                          //         String moduleId = moduleFile.moduleId ?? "Unknown"; // Ensure moduleId is always a non-null String
+                                          //         String modulePath = moduleFile.path ?? "";
+                                          //
+                                          //         if (modulePath.isEmpty) {
+                                          //           print("❌ ERROR: Module path is missing!");
+                                          //           return; // Prevent navigation if the path is missing
+                                          //         }
+                                          //
+                                          //         saveModuleInfo(moduleId, moduleFile.moduleName);
+                                          //         print("Saving module id: $moduleId");
+                                          //
+                                          //         Navigator.push(
+                                          //           context,
+                                          //           MaterialPageRoute(
+                                          //             builder: (context) => WebViewScreen(
+                                          //               urlRequest: URLRequest(url: WebUri(Uri.file(modulePath).toString())), // ✅ Ensure modulePath is non-null
+                                          //               moduleId: moduleId, // ✅ Ensure moduleId is non-null
+                                          //             ),
+                                          //           ),
+                                          //         );
+                                          //       },
+                                          //
+                                          //       child: FractionallySizedBox(
+                                          //         widthFactor: isTablet(context) ? 0.45 : 0.65,
+                                          //         child: Container(
+                                          //           height: scalingFactor * (isTablet(context) ? 34 : 54),
+                                          //           decoration: BoxDecoration(
+                                          //             gradient: const LinearGradient(
+                                          //               colors: [
+                                          //                 Color(0xFF1A4314),
+                                          //                 Color(0xFF3E8914),
+                                          //                 Color(0xFF74B72E),
+                                          //               ],
+                                          //               begin: Alignment.topCenter,
+                                          //               end: Alignment.bottomCenter,
+                                          //             ),
+                                          //             borderRadius: BorderRadius.circular(30),
+                                          //             boxShadow: [
+                                          //               BoxShadow(
+                                          //                 color: Colors.black.withOpacity(0.5),
+                                          //                 spreadRadius: 1,
+                                          //                 blurRadius: 5,
+                                          //                 offset: const Offset(1, 3),
+                                          //               ),
+                                          //             ],
+                                          //           ),
+                                          //           child: LayoutBuilder(
+                                          //             builder: (context, constraints) {
+                                          //               double buttonWidth = constraints.maxWidth;
+                                          //               double fontSize = buttonWidth * 0.2;
+                                          //               double padding = buttonWidth * 0.02;
+                                          //               return Padding(
+                                          //                 padding: EdgeInsets.all(padding),
+                                          //                 child: Row(
+                                          //                   mainAxisAlignment: MainAxisAlignment.center,
+                                          //                   children: [
+                                          //                     Text(
+                                          //                       "Play",
+                                          //                       style: TextStyle(
+                                          //                         fontSize: fontSize,
+                                          //                         fontWeight: FontWeight.w500,
+                                          //                         color: Color(0xFFE8E8E8),
+                                          //                       ),
+                                          //                     ),
+                                          //                     SizedBox(width: padding),
+                                          //                     Icon(
+                                          //                       Icons.play_arrow,
+                                          //                       color: Color(0xFFE8E8E8),
+                                          //                       size: fontSize * 1.4,
+                                          //                     ),
+                                          //                   ],
+                                          //                 ),
+                                          //               );
+                                          //             },
+                                          //           ),
+                                          //         ),
+                                          //       ),
+                                          //     ),
+                                          //   ),
+                                          // ),
 
                                           // Submit Button
                                           Expanded(
@@ -677,22 +658,11 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                               child: GestureDetector(
                                                 onTap: () {
                                                   _handleSubmit(context, moduleFile);
-                                                  // Navigator.push(
-                                                  //   context,
-                                                  //   MaterialPageRoute(
-                                                  //     builder: (context) => AuthGuard(
-                                                  //       child: EnterScore(
-                                                  //         moduleId: moduleFile.moduleId,
-                                                  //         moduleName: moduleFile.moduleName,
-                                                  //       ),
-                                                  //     ),
-                                                  //   ),
-                                                  // );
                                                 },
                                                 child: FractionallySizedBox(
-                                                  widthFactor: isTablet(context) ? 0.45 : 0.65,
+                                                  widthFactor: isTablet(context) ? 0.45 : 0.55,
                                                   child: Container(
-                                                    height: scalingFactor * (isTablet(context) ? 34 : 54),
+                                                    height: scalingFactor * (isTablet(context) ? 34 : 44),
                                                     decoration: BoxDecoration(
                                                       gradient: const LinearGradient(
                                                         colors: [
@@ -716,8 +686,8 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                                     child: LayoutBuilder(
                                                       builder: (context, constraints) {
                                                         double buttonWidth = constraints.maxWidth;
-                                                        double fontSize = buttonWidth * 0.2;
-                                                        double padding = buttonWidth * 0.02;
+                                                        double fontSize = buttonWidth * 0.17;
+                                                        double padding = buttonWidth * 0.04;
                                                         return Padding(
                                                           padding: EdgeInsets.all(padding),
                                                           child: Row(
@@ -755,12 +725,18 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                               hint: 'Tap to delete the module',
                                               child: GestureDetector(
                                                 onTap: () {
-                                                  _showDeleteConfirmation(moduleFile.file!.path.split('/').last, moduleFile.moduleId!);
+                                                  print("🔍 Checking values before deletion:");
+                                                  print("File Path: ${moduleFile.file?.path}");
+                                                  print("Module ID: ${moduleFile.moduleId}");
+                                                  _showDeleteConfirmation(
+                                                      moduleFile.moduleName,
+                                                      moduleFile.moduleId!,
+                                                  );
                                                 },
                                                 child: FractionallySizedBox(
-                                                  widthFactor: isTablet(context) ? 0.45 : 0.65,
+                                                  widthFactor: isTablet(context) ? 0.45 : 0.55,
                                                   child: Container(
-                                                    height: scalingFactor * (isTablet(context) ? 34 : 54),
+                                                    height: scalingFactor * (isTablet(context) ? 34 : 44),
                                                     decoration: BoxDecoration(
                                                       gradient: const LinearGradient(
                                                         colors: [
@@ -784,8 +760,8 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                                     child: LayoutBuilder(
                                                       builder: (context, constraints) {
                                                         double buttonWidth = constraints.maxWidth;
-                                                        double fontSize = buttonWidth * 0.2;
-                                                        double padding = buttonWidth * 0.02;
+                                                        double fontSize = buttonWidth * 0.17;
+                                                        double padding = buttonWidth * 0.04;
                                                         return Padding(
                                                           padding: EdgeInsets.all(padding),
                                                           child: Row(
@@ -898,7 +874,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                   } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
                     return Center(
                         child: Text(
-                          'You have not downloaded any modules yet. Please download the modules first.',
+                          'You have not saved any score for submission yet. Please download a module, complete the final quiz and save your score for submission.',
                           style: TextStyle(
                             fontSize: scalingFactor * (isTablet(context) ? 16 : 20),
                             fontWeight: FontWeight.w500,
@@ -933,7 +909,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                     ),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: Colors.black.withOpacity(0.3),
+                                        color: Colors.black.withValues(alpha: 0.3),
                                         blurRadius: 5,
                                         offset: Offset(2, 4),
                                       ),
@@ -1047,92 +1023,92 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         children: [
                                           // Play Button
-                                          Expanded(
-                                            child: Semantics(
-                                              label: 'Play Button',
-                                              hint: 'Tap to play the module',
-                                              child: GestureDetector(
-                                                onTap: () {
-                                                  String moduleId = moduleFile.moduleId ?? "Unknown"; // Ensure moduleId is always a non-null String
-                                                  String modulePath = moduleFile.path ?? "";
-
-                                                  if (modulePath.isEmpty) {
-                                                    print("❌ ERROR: Module path is missing!");
-                                                    return; // Prevent navigation if the path is missing
-                                                  }
-
-                                                  saveModuleInfo(moduleId, moduleFile.moduleName);
-                                                  print("Saving module id: $moduleId");
-
-                                                  Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder: (context) => WebViewScreen(
-                                                        urlRequest: URLRequest(url: WebUri(Uri.file(modulePath).toString())), // ✅ Ensure modulePath is non-null
-                                                        moduleId: moduleId, // ✅ Ensure moduleId is non-null
-                                                      ),
-                                                    ),
-                                                  );
-                                                },
-
-                                                child: FractionallySizedBox(
-                                                  widthFactor: isTablet(context) ? 0.45 : 0.45,
-                                                  child: Container(
-                                                    height: scalingFactor * (isTablet(context) ? 35 : 44),
-                                                    decoration: BoxDecoration(
-                                                      gradient: const LinearGradient(
-                                                        colors: [
-                                                          Color(0xFF1A4314),
-                                                          Color(0xFF3E8914),
-                                                          Color(0xFF74B72E),
-                                                        ],
-                                                        begin: Alignment.topCenter,
-                                                        end: Alignment.bottomCenter,
-                                                      ),
-                                                      borderRadius: BorderRadius.circular(30),
-                                                      boxShadow: [
-                                                        BoxShadow(
-                                                          color: Colors.black.withOpacity(0.5),
-                                                          spreadRadius: 1,
-                                                          blurRadius: 5,
-                                                          offset: const Offset(1, 3),
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    child: LayoutBuilder(
-                                                      builder: (context, constraints) {
-                                                        double buttonWidth = constraints.maxWidth;
-                                                        double fontSize = buttonWidth * 0.2;
-                                                        double padding = buttonWidth * 0.02;
-                                                        return Padding(
-                                                          padding: EdgeInsets.all(padding),
-                                                          child: Row(
-                                                            mainAxisAlignment: MainAxisAlignment.center,
-                                                            children: [
-                                                              Text(
-                                                                "Play",
-                                                                style: TextStyle(
-                                                                  fontSize: fontSize,
-                                                                  fontWeight: FontWeight.w500,
-                                                                  color: Color(0xFFE8E8E8),
-                                                                ),
-                                                              ),
-                                                              SizedBox(width: padding),
-                                                              Icon(
-                                                                Icons.play_arrow,
-                                                                color: Color(0xFFE8E8E8),
-                                                                size: fontSize * 1.4,
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        );
-                                                      },
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
+                                          // Expanded(
+                                          //   child: Semantics(
+                                          //     label: 'Play Button',
+                                          //     hint: 'Tap to play the module',
+                                          //     child: GestureDetector(
+                                          //       onTap: () {
+                                          //         String moduleId = moduleFile.moduleId ?? "Unknown"; // Ensure moduleId is always a non-null String
+                                          //         String modulePath = moduleFile.path ?? "";
+                                          //
+                                          //         if (modulePath.isEmpty) {
+                                          //           print("❌ ERROR: Module path is missing!");
+                                          //           return; // Prevent navigation if the path is missing
+                                          //         }
+                                          //
+                                          //         saveModuleInfo(moduleId, moduleFile.moduleName);
+                                          //         print("Saving module id: $moduleId");
+                                          //
+                                          //         Navigator.push(
+                                          //           context,
+                                          //           MaterialPageRoute(
+                                          //             builder: (context) => WebViewScreen(
+                                          //               urlRequest: URLRequest(url: WebUri(Uri.file(modulePath).toString())), // ✅ Ensure modulePath is non-null
+                                          //               moduleId: moduleId, // ✅ Ensure moduleId is non-null
+                                          //             ),
+                                          //           ),
+                                          //         );
+                                          //       },
+                                          //
+                                          //       child: FractionallySizedBox(
+                                          //         widthFactor: isTablet(context) ? 0.45 : 0.45,
+                                          //         child: Container(
+                                          //           height: scalingFactor * (isTablet(context) ? 35 : 44),
+                                          //           decoration: BoxDecoration(
+                                          //             gradient: const LinearGradient(
+                                          //               colors: [
+                                          //                 Color(0xFF1A4314),
+                                          //                 Color(0xFF3E8914),
+                                          //                 Color(0xFF74B72E),
+                                          //               ],
+                                          //               begin: Alignment.topCenter,
+                                          //               end: Alignment.bottomCenter,
+                                          //             ),
+                                          //             borderRadius: BorderRadius.circular(30),
+                                          //             boxShadow: [
+                                          //               BoxShadow(
+                                          //                 color: Colors.black.withOpacity(0.5),
+                                          //                 spreadRadius: 1,
+                                          //                 blurRadius: 5,
+                                          //                 offset: const Offset(1, 3),
+                                          //               ),
+                                          //             ],
+                                          //           ),
+                                          //           child: LayoutBuilder(
+                                          //             builder: (context, constraints) {
+                                          //               double buttonWidth = constraints.maxWidth;
+                                          //               double fontSize = buttonWidth * 0.2;
+                                          //               double padding = buttonWidth * 0.02;
+                                          //               return Padding(
+                                          //                 padding: EdgeInsets.all(padding),
+                                          //                 child: Row(
+                                          //                   mainAxisAlignment: MainAxisAlignment.center,
+                                          //                   children: [
+                                          //                     Text(
+                                          //                       "Play",
+                                          //                       style: TextStyle(
+                                          //                         fontSize: fontSize,
+                                          //                         fontWeight: FontWeight.w500,
+                                          //                         color: Color(0xFFE8E8E8),
+                                          //                       ),
+                                          //                     ),
+                                          //                     SizedBox(width: padding),
+                                          //                     Icon(
+                                          //                       Icons.play_arrow,
+                                          //                       color: Color(0xFFE8E8E8),
+                                          //                       size: fontSize * 1.4,
+                                          //                     ),
+                                          //                   ],
+                                          //                 ),
+                                          //               );
+                                          //             },
+                                          //           ),
+                                          //         ),
+                                          //       ),
+                                          //     ),
+                                          //   ),
+                                          // ),
 
                                           // Submit Button
                                           Expanded(
@@ -1142,22 +1118,11 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                               child: GestureDetector(
                                                 onTap: () {
                                                   _handleSubmit(context, moduleFile);
-                                                  // Navigator.push(
-                                                  //   context,
-                                                  //   MaterialPageRoute(
-                                                  //     builder: (context) => AuthGuard(
-                                                  //       child: EnterScore(
-                                                  //         moduleId: moduleFile.moduleId,
-                                                  //         moduleName: moduleFile.moduleName,
-                                                  //       ),
-                                                  //     ),
-                                                  //   ),
-                                                  // );
                                                 },
                                                 child: FractionallySizedBox(
                                                   widthFactor: isTablet(context) ? 0.45 : 0.45,
                                                   child: Container(
-                                                    height: scalingFactor * (isTablet(context) ? 35 : 44),
+                                                    height: scalingFactor * (isTablet(context) ? 35 : 34),
                                                     decoration: BoxDecoration(
                                                       gradient: const LinearGradient(
                                                         colors: [
@@ -1171,7 +1136,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                                       borderRadius: BorderRadius.circular(30),
                                                       boxShadow: [
                                                         BoxShadow(
-                                                          color: Colors.black.withOpacity(0.5),
+                                                          color: Colors.black.withValues(alpha: 0.5),
                                                           spreadRadius: 1,
                                                           blurRadius: 5,
                                                           offset: const Offset(1, 3),
@@ -1181,8 +1146,8 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                                     child: LayoutBuilder(
                                                       builder: (context, constraints) {
                                                         double buttonWidth = constraints.maxWidth;
-                                                        double fontSize = buttonWidth * 0.2;
-                                                        double padding = buttonWidth * 0.02;
+                                                        double fontSize = buttonWidth * 0.16;
+                                                        double padding = buttonWidth * 0.04;
                                                         return Padding(
                                                           padding: EdgeInsets.all(padding),
                                                           child: Row(
@@ -1225,7 +1190,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                                 child: FractionallySizedBox(
                                                   widthFactor: isTablet(context) ? 0.45 : 0.45,
                                                   child: Container(
-                                                    height: scalingFactor * (isTablet(context) ? 35 : 44),
+                                                    height: scalingFactor * (isTablet(context) ? 35 : 34),
                                                     decoration: BoxDecoration(
                                                       gradient: const LinearGradient(
                                                         colors: [
@@ -1239,7 +1204,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                                       borderRadius: BorderRadius.circular(30),
                                                       boxShadow: [
                                                         BoxShadow(
-                                                          color: Colors.black.withOpacity(0.5),
+                                                          color: Colors.black.withValues(alpha: 0.5),
                                                           spreadRadius: 1,
                                                           blurRadius: 5,
                                                           offset: const Offset(1, 3),
@@ -1249,8 +1214,8 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                                     child: LayoutBuilder(
                                                       builder: (context, constraints) {
                                                         double buttonWidth = constraints.maxWidth;
-                                                        double fontSize = buttonWidth * 0.2;
-                                                        double padding = buttonWidth * 0.02;
+                                                        double fontSize = buttonWidth * 0.16;
+                                                        double padding = buttonWidth * 0.04;
                                                         return Padding(
                                                           padding: EdgeInsets.all(padding),
                                                           child: Row(
@@ -1312,7 +1277,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                             // Colors.transparent,
                             // Color(0xFFFFF0DC),
                             //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                            Color(0xFFFECF97).withOpacity(0.0),
+                            Color(0xFFFECF97).withValues(alpha: 0.0),
                             Color(0xFFFECF97),
                           ],
                         ),
