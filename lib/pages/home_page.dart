@@ -10,6 +10,8 @@ import 'menu/menu.dart';
 import 'module_library.dart';
 import 'package:wired_test/utils/side_nav_bar.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, this.title});
@@ -53,10 +55,8 @@ class _MyHomePageState extends State<MyHomePage> {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        // Check what data is being decoded
         debugPrint("Fetched Data: $data");
 
-        // Parse the single Alert object
         return Alert.fromJson(data);
       } else {
         debugPrint("Failed to load alert, status code: ${response.statusCode}");
@@ -129,7 +129,6 @@ class _MyHomePageState extends State<MyHomePage> {
                       },
                       onMenuTap: () async {
                         bool isLoggedIn = await checkIfUserIsLoggedIn();
-                        print("Navigating to menu. Logged in: $isLoggedIn");
                         Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -175,7 +174,6 @@ class _MyHomePageState extends State<MyHomePage> {
                 },
                 onMenuTap: () async {
                   bool isLoggedIn = await checkIfUserIsLoggedIn();
-                  print("Navigating to menu. Logged in: $isLoggedIn");
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -210,14 +208,7 @@ class _MyHomePageState extends State<MyHomePage> {
             color: const Color.fromRGBO(0, 102, 179, 1),
           ),
         ),
-        Text(
-          'News and Updates',
-          style: TextStyle(
-            fontSize: baseSize * (isTablet(context) ? 0.06 : 0.07),
-            fontWeight: FontWeight.w500,
-            color: Color.fromRGBO(84, 130, 53, 1),
-          ),
-        ),
+
         Flexible(
           flex: 3,
           child: Padding(
@@ -241,16 +232,48 @@ class _MyHomePageState extends State<MyHomePage> {
               child: SingleChildScrollView(
                 child: Padding(
                   padding: EdgeInsets.symmetric(
-                    vertical: baseSize * (isTablet(context) ? 0.02 : 0.02),
+                    vertical: baseSize * (isTablet(context) ? 0.02 : 0.01),
                     horizontal: baseSize * (isTablet(context) ? 0.03 : 0.03),
                   ),
-                  child: Text(
-                    alert.isNotEmpty ? alert : 'Welcome to WiRED\'s new mobile HealthMap app. Feel free to browse the modules and find topics that interest you. All of WiRED\'s modules are free, evidence-based, peer-reviewed, and written by licensed healthcare professionals. We hope you find them useful!',
-                    style: TextStyle(
-                      fontSize: baseSize * (isTablet(context) ? 0.035 : 0.04),
-                      fontWeight: FontWeight.w500,
-                      color: isImportant ? Colors.red : Colors.black,
-                    ),
+                  child: Column(
+                    children: [
+                      Text(
+                        'News and Updates',
+                        style: TextStyle(
+                          fontSize: baseSize * (isTablet(context) ? 0.06 : 0.07),
+                          fontWeight: FontWeight.w500,
+                          color: Color.fromRGBO(84, 130, 53, 1),
+                        ),
+                      ),
+                      SizedBox(
+                        height: baseSize * (isTablet(context) ? 0.01 : 0.01),
+                      ),
+                      Container(
+                        padding: EdgeInsets.all(baseSize * 0.02),
+                        child: MarkdownBody(
+                          data: alert.isNotEmpty ? alert : "No alerts available",
+                          onTapLink: (text, url, title) async {
+                            if (url != null) {
+                              final Uri uri = Uri.parse(url);
+                              if (await canLaunchUrl(uri)) {
+                                await launchUrl(uri, mode: LaunchMode.externalApplication);
+                              } else {
+                                debugPrint("Could not launch $url");
+                              }
+                            }
+                          },
+                          styleSheet: MarkdownStyleSheet(
+                            a: TextStyle(
+                              color: Colors.blue,
+                              decoration: TextDecoration.underline,
+                              decorationColor: Colors.blue, // Blue underline
+                              fontWeight: FontWeight.bold,
+                            ),
+                            p: TextStyle(fontSize: baseSize * (isTablet(context) ? 0.035 : 0.04)),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -289,7 +312,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       borderRadius: BorderRadius.circular(30),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.5),
+                          color: Colors.black.withValues(alpha: 0.5),
                           spreadRadius: 1,
                           blurRadius: 5,
                           offset: const Offset(
@@ -436,7 +459,7 @@ class _MyHomePageState extends State<MyHomePage> {
                       borderRadius: BorderRadius.circular(30),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.5),
+                          color: Colors.black.withValues(alpha: 0.5),
                           spreadRadius: 1,
                           blurRadius: 5,
                           offset: const Offset(
@@ -449,7 +472,6 @@ class _MyHomePageState extends State<MyHomePage> {
                           double buttonWidth = constraints.maxWidth;
                           double fontSize = buttonWidth * 0.2;
                           double padding = buttonWidth * 0.02;
-                          double iconSize = buttonWidth * 0.15;
                           return Padding(
                             padding: EdgeInsets.all(padding),
                             child: Row(

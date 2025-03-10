@@ -52,6 +52,7 @@ dependencies:
   url_launcher_ios: ^6.3.2
   archive: ^4.0.4
   url_launcher: ^6.3.0
+  flutter_markdown: ^0.7.6+2
 
 dev_dependencies:
   flutter_test:
