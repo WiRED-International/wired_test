@@ -52,19 +52,24 @@ class _WebViewScreenState extends State<WebViewScreen> {
               print("🔹 ModuleID: $moduleId");
               print("🔹 ModuleName: $moduleName");
 
-              if (moduleId != null && moduleName != null &&
-                  moduleName.isNotEmpty) {
+              if (moduleId != null && moduleName != null && moduleName.isNotEmpty) {
                 // Inject JavaScript into WebView
                 await _webViewController.evaluateJavascript(source: """
-                  window.moduleId = '${widget.moduleId}'; // ✅ Make sure it is window.moduleId
-                  window.moduleName = '${moduleName ?? "Unknown"}';
-                  console.log('🔹 Injected moduleId: ' + window.moduleId);
+                  window.moduleId = "$moduleId"; // ✅ Make sure it is window.moduleId
+                  window.moduleName = "$moduleName";
+                  console.log("✅ Injected moduleId: " + window.moduleId);
+                  console.log("✅ Injected moduleName: " + window.moduleName);
                 """);
-                print(
-                    "✅ JavaScript Injection Complete: Data sent to Storyline.");
               } else {
                 print("❌ ERROR: Module ID or Name missing before injection.");
               }
+
+              // Verify if the injection worked
+              String? checkInjectedModuleId = await _webViewController.evaluateJavascript(source: "window.moduleId;");
+              print("🔍 Post-Injection moduleId Check: $checkInjectedModuleId");
+
+              String? checkInjectedModuleName = await _webViewController.evaluateJavascript(source: "window.moduleName;");
+              print("🔍 Post-Injection moduleName Check: $checkInjectedModuleName");
 
               // ✅ Inject JS to detect clicked links (even if Storyline opens PDFs via JavaScript)
               await _webViewController.evaluateJavascript(source: """
@@ -99,6 +104,16 @@ class _WebViewScreenState extends State<WebViewScreen> {
               try {
                 String cleanMessage = consoleMessage.message.trim();
 
+                // ✅ Detect and print any message containing `module_id`
+                if (cleanMessage.contains("module_id")) {
+                  print("📌 Debug: Storyline Sent Data - $cleanMessage");
+                }
+
+                // ✅ Detect and print any message containing `module_name`
+                if (cleanMessage.contains("module_name")) {
+                  print("📌 Debug: Storyline Sent Data - $cleanMessage");
+                }
+
                 // ✅ Detect PDF Links opened via JavaScript
                 if (cleanMessage.contains(".pdf")) {
                   print("📂 Detected PDF link: $cleanMessage");
@@ -118,17 +133,17 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
                   // ✅ Get correct external storage path
                   Directory? externalDir = await getExternalStorageDirectory();
-                  if (externalDir == null) {
-                    print("❌ ERROR: External storage directory not found.");
-                    return;
-                  }
+                  // if (externalDir == null) {
+                  //   print("❌ ERROR: External storage directory not found.");
+                  //   return;
+                  // }
 
                   // ✅ Construct full file path
-                  String filePath = "${externalDir.path}/files/$moduleId/story_content/external_files/$fileName";
-                  print("📂 Constructed PDF file path: $filePath");
+                  // String filePath = "${externalDir.path}/files/$moduleId/story_content/external_files/$fileName";
+                  // print("📂 Constructed PDF file path: $filePath");
 
                   // ✅ Open PDF with correct path
-                  await _openLocalPdf(filePath, moduleId);
+                  await _openLocalPdf(cleanMessage, moduleId);
                   return;
                 }
 
@@ -144,7 +159,36 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
                   print("📥 Received Data from Storyline:");
                   print("🔹 ModuleID: ${jsonData['module_id']}");
+                  print("🔹 ModuleName: ${jsonData['module_name']}");
                   print("🔹 Quiz Score: ${jsonData['quiz_score']}");
+
+                  // ✅ If module_id is missing, retrieve it from WebView
+                  if (!jsonData.containsKey("module_id") || jsonData["module_id"] == null) {
+                    print("⚠️ Module ID missing in Storyline data! Attempting retrieval...");
+
+                    // Retrieve moduleId from WebView
+                    String? injectedModuleId = await _webViewController.evaluateJavascript(source: "window.moduleId;");
+                    if (injectedModuleId != null && injectedModuleId.isNotEmpty) {
+                      jsonData["module_id"] = injectedModuleId;
+                      print("✅ Injected missing module ID: $injectedModuleId");
+                    } else {
+                      print("❌ Failed to retrieve module ID from WebView!");
+                    }
+                  }
+
+                  // ✅ If module_name is missing, retrieve it from WebView
+                  if (!jsonData.containsKey("module_name") || jsonData["module_name"] == null) {
+                    print("⚠️ Module Name missing in Storyline data! Attempting retrieval...");
+
+                    // Retrieve moduleName from WebView
+                    String? injectedModuleName = await _webViewController.evaluateJavascript(source: "window.moduleName;");
+                    if (injectedModuleName != null && injectedModuleName.isNotEmpty) {
+                      jsonData["module_name"] = injectedModuleName;
+                      print("✅ Injected missing module Name: $injectedModuleName");
+                    } else {
+                      print("❌ Failed to retrieve module Name from WebView!");
+                    }
+                  }
 
                   // ✅ Store the quiz score in Secure Storage
                   await _storeScoreInSecureStorage(jsonData);
@@ -234,6 +278,11 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
   Future<void> _openLocalPdf(String url, String moduleId) async {
     try {
+      if (moduleId == null || moduleId.isEmpty) {
+        print("❌ ERROR: moduleId is null or empty. Cannot open PDF.");
+        return;
+      }
+
       String fileName = url.split("/").last;
       Directory? externalDir = await getExternalStorageDirectory();
       if (externalDir == null) {
