@@ -85,7 +85,7 @@ class LocationService {
     debugPrint('requestBody: $requestBody');
 
     var response = await http.post(
-      Uri.parse('http://10.0.2.2:3000/api/downloads'),
+      Uri.parse('http://widm.wiredhealthresources.net/apiv2/api/downloads'),
       body: jsonEncode(requestBody),
       headers: {'Content-Type': 'application/json'},
     );
