@@ -1,2 +1,0 @@
-C:/Users/redgr/AndroidStudioProjects/wired_test/android/app/.cxx/Debug/5e84c6s6/x86/CMakeFiles/edit_cache.dir
-C:/Users/redgr/AndroidStudioProjects/wired_test/android/app/.cxx/Debug/5e84c6s6/x86/CMakeFiles/rebuild_cache.dir

@@ -48,6 +48,8 @@ notes.md
 /android/app/debug
 /android/app/profile
 /android/app/release
+android/app/.cxx/
+
 
 # For google play store
 /android/key.properties
