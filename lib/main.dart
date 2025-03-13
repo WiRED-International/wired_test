@@ -2,14 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wired_test/pages/home_page.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:wired_test/providers/auth_guard.dart';
 import 'package:wired_test/providers/auth_provider.dart';
 import 'package:wired_test/providers/user_provider.dart';
-// import 'package:flutter/rendering.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-import 'pages/search.dart';
-
-void main() {
+Future<void> main() async {
   // Enable debug paint
   // debugPaintSizeEnabled = true; // Shows the boundaries of your widgets
   // debugPaintBaselinesEnabled = true; // Shows baselines for text
@@ -17,6 +14,7 @@ void main() {
   // debugPaintPointersEnabled = true; // Shows the touch points
   // debugRepaintRainbowEnabled = true; // Shows repaint areas with a rainbow effect
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
   runApp(
     MultiProvider(
       providers: [

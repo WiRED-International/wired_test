@@ -41,7 +41,7 @@ app.*.symbols
 app.*.map.json
 
 # Enviromental variables
-.env
+*.env
 notes.md
 
 # Android Studio will place build artifacts here

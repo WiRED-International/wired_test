@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:wired_test/pages/package_info.dart';
 import '../providers/auth_guard.dart';
@@ -20,12 +21,14 @@ class ByPackages extends StatefulWidget {
 }
 
 class Package {
+  int? id;
   String? name;
   String? description;
   String? downloadLink;
 
 
   Package({
+    this.id,
     this.name,
     this.description,
     this.downloadLink,
@@ -33,12 +36,14 @@ class Package {
   });
 
   Package.fromJson(Map<String, dynamic> json)
-      : name = json['name'] as String?,
+      : id = json['id'] as int?,
+        name = json['name'] as String?,
         description = json['description'] as String?,
         downloadLink = json['downloadLink'] as String;
 
 
   Map<String, dynamic> toJson() => {
+    'id': id,
     'name': name,
     'description': description,
     'downloadLink': downloadLink,
@@ -62,10 +67,12 @@ class _ByPackagesState extends State<ByPackages> {
   late Future<List<Package>> futurePackages;
 
   Future<List<Package>> fetchPackages() async {
-    const remoteServer = 'http://widm.wiredhealthresources.net/apiv2/packages';
-    const localServer = 'http://10.0.2.2:3000/packages';
+    final remoteServer = dotenv.env['REMOTE_SERVER']!;
+    final localServer = dotenv.env['LOCAL_SERVER']!;
+    final apiEndpoint = '/packages';
+
     try {
-      final response = await http.get(Uri.parse(remoteServer));
+      final response = await http.get(Uri.parse('$remoteServer$apiEndpoint'));
 
       debugPrint("Response body: ${response.body}");
 
@@ -290,6 +297,7 @@ class _ByPackagesState extends State<ByPackages> {
                           );
                         }
                         final package = packages[index];
+                        final packageId = package.id ?? 0;
                         final packageName = package.name ?? "Unknown Module";
                         final packageDescription = package.description ?? "Unknown Package";
                         final downloadLink = package.downloadLink ?? "Unknown Package";
@@ -298,14 +306,13 @@ class _ByPackagesState extends State<ByPackages> {
                             InkWell(
                               onTap: () async {
                                 //print("Downloading ${moduleData[index].downloadLink}");
-                                if (packageName.isNotEmpty) {
-                                  // String fileName = "$moduleName.zip";
-                                  // await downloadModule(downloadLink, fileName);
+                                if (packageName.isNotEmpty && package.id != null) {
                                   Navigator.push(context, MaterialPageRoute(
                                       builder: (context) => PackageInfo(
-                                          packageName: packageName,
-                                          packageDescription: packageDescription,
-                                          downloadLink: downloadLink,
+                                        packageId: packageId,
+                                        packageName: packageName,
+                                        packageDescription: packageDescription,
+                                        downloadLink: downloadLink,
                                       )));
                                 } else {
                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -429,6 +436,7 @@ class _ByPackagesState extends State<ByPackages> {
                           );
                         }
                         final package = packages[index];
+                        final packageId = package.id ?? 0;
                         final packageName = package.name ?? "Unknown Module";
                         final packageDescription = package.description ?? "Unknown Package";
                         final downloadLink = package.downloadLink ?? "Unknown Package";
@@ -437,11 +445,10 @@ class _ByPackagesState extends State<ByPackages> {
                             InkWell(
                               onTap: () async {
                                 //print("Downloading ${moduleData[index].downloadLink}");
-                                if (packageName.isNotEmpty) {
-                                  // String fileName = "$moduleName.zip";
-                                  // await downloadModule(downloadLink, fileName);
+                                if (packageName.isNotEmpty && package.id != null) {
                                   Navigator.push(context, MaterialPageRoute(
                                       builder: (context) => PackageInfo(
+                                        packageId: packageId,
                                         packageName: packageName,
                                         packageDescription: packageDescription,
                                         downloadLink: downloadLink,)));

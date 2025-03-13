@@ -4,7 +4,6 @@ import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
 import '../../utils/side_nav_bar.dart';
-import '../cme/cme_info.dart';
 import '../cme/cme_tracker.dart';
 import '../home_page.dart';
 import '../module_library.dart';

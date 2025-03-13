@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -89,10 +90,12 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
 
   // Get the Module Data
   Future<List<Modules>> getModules() async {
-    const remoteServer = 'http://widm.wiredhealthresources.net/apiv2/modules/';
-    const localServer = 'http://10.0.2.2:3000/modules';
+    final remoteServer = dotenv.env['REMOTE_SERVER']!;
+    final localServer = dotenv.env['LOCAL_SERVER']!;
+    final apiEndpoint = '/modules/';
+
     try {
-      final response = await http.get(Uri.parse(remoteServer),
+      final response = await http.get(Uri.parse('$remoteServer$apiEndpoint'),
         headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
       if (response.statusCode == 200) {

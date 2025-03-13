@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:wired_test/pages/cme/register.dart';
@@ -41,8 +42,11 @@ class _LoginState extends State<Login> {
   final _storage = const FlutterSecureStorage();
 
   Future<http.Response?> _submitForm() async {
-    const remoteServer = 'http://widm.wiredhealthresources.net/apiv2/auth/login';
-    const localServer = 'http://10.0.2.2:3000/auth/login';
+    final remoteServer = dotenv.env['REMOTE_SERVER']!;
+    final localServer = dotenv.env['LOCAL_SERVER']!;
+
+    final apiEndpoint = '/auth/login';
+
    print("Submitting form");
 
     if (_formKey.currentState!.validate()) {
@@ -59,7 +63,7 @@ class _LoginState extends State<Login> {
       // Collect form data
       final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
-      final url = Uri.parse(remoteServer);
+      final url = Uri.parse("$remoteServer$apiEndpoint");
 
       try {
         final response = await http.post(
