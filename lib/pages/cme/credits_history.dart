@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
@@ -84,9 +85,13 @@ class _CreditsHistoryState extends State<CreditsHistory> {
     if (token == null) {
       throw Exception('User is not logged in');
     }
-    const remoteServer = 'http://widm.wiredhealthresources.net/apiv2/users/me';
-    const localServer = 'http://10.0.2.2:3000/users/me';
-    final url = Uri.parse(remoteServer);
+    final remoteServer = dotenv.env['REMOTE_SERVER']!;
+    final localServer = dotenv.env['LOCAL_SERVER']!;
+
+    final apiEndpoint = '/users/me';
+
+
+    final url = Uri.parse('$remoteServer$apiEndpoint');
     final response = await http.get(
       url,
       headers: {

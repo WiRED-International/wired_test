@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -78,14 +79,17 @@ class _MenuState extends State<Menu> {
   }
 
   Future<User> fetchUserData() async {
-    final remoteServer = 'http://widm.wiredhealthresources.net/apiv2/users/me';
-    final localServer = 'http://10.0.2.2:3000/users/me';
+    final remoteServer = dotenv.env['REMOTE_SERVER']!;
+    final localServer = dotenv.env['LOCAL_SERVER']!;
+
+    final apiEndpoint = '/users/me';
+
     final token = await getAuthToken();
     if (token == null) {
       throw Exception('User is not logged in');
     }
 
-    final url = Uri.parse(remoteServer); // Replace with your API URL
+    final url = Uri.parse('$remoteServer$apiEndpoint');
     final response = await http.get(
       url,
       headers: {
@@ -113,8 +117,10 @@ class _MenuState extends State<Menu> {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final token = authProvider.authToken;
 
-    final remoteServer = 'http://widm.wiredhealthresources.net/apiv2/auth/delete-account';
-    final localServer = 'http://10.0.2.2:3000/users/delete-account';
+    final remoteServer = dotenv.env['REMOTE_SERVER']!;
+    final localServer = dotenv.env['LOCAL_SERVER']!;
+
+    final apiEndpoint = '/auth/delete-account';
 
     if (token == null) {
       print("Error: No authentication token found.");
@@ -122,7 +128,7 @@ class _MenuState extends State<Menu> {
     }
 
     final response = await http.delete(
-      Uri.parse(remoteServer),
+      Uri.parse('$remoteServer$apiEndpoint'),
       headers: {
         'Authorization': 'Bearer $token', // Only send the token
         'Content-Type': 'application/json',

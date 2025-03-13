@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:wired_test/pages/home_page.dart';
-import 'package:http/http.dart' as http;
 import 'package:wired_test/utils/functions.dart';
 import 'package:wired_test/utils/side_nav_bar.dart';
 import 'package:wired_test/utils/custom_nav_bar.dart';
