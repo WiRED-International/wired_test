@@ -19,11 +19,12 @@ import 'menu/menu.dart';
 import 'module_library.dart';
 
 class PackageInfo extends StatefulWidget {
+  final int packageId;
   final String packageName;
   final String packageDescription;
   final String? downloadLink;
 
-  PackageInfo({required this.packageName, required this.packageDescription, this.downloadLink});
+  PackageInfo({required this.packageId, required this.packageName, required this.packageDescription, this.downloadLink});
 
   @override
   _PackageInfoState createState() => _PackageInfoState();
@@ -397,7 +398,7 @@ class _PackageInfoState extends State<PackageInfo> {
                         setState(() {
                           _isLoading = false;
                         });
-
+                        print("Package Id: ${widget.packageId}");
                         Navigator.push(context,
                             MaterialPageRoute(
                                 builder: (context) =>

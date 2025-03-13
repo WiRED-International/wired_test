@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
@@ -127,10 +128,13 @@ class _EnterScoreState extends State<EnterScore> {
     }
 
     try {
-      const remoteServer = 'http://widm.wiredhealthresources.net/apiv2/quiz-scores';
+      final remoteServer = dotenv.env['REMOTE_SERVER']!;
+      final localServer = dotenv.env['LOCAL_SERVER']!;
+
+      final apiEndpoint = '/quiz-scores';
 
       final response = await http.post(
-        Uri.parse(remoteServer),
+        Uri.parse("$remoteServer$apiEndpoint"),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',

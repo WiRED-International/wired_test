@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import '../providers/auth_guard.dart';
 import '../utils/custom_app_bar.dart';
@@ -63,9 +64,13 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
   late List<Modules> moduleData = [];
 
   Future<List<Modules>> fetchModules() async {
+    final remoteServer = dotenv.env['REMOTE_SERVER']!;
+    final localServer = dotenv.env['LOCAL_SERVER']!;
+
+    final apiEndpoint = '/modules?subcategoryId=${widget.subcategoryId}';
+
     try {
-      final response = await http.get(Uri.parse(
-          'http://widm.wiredhealthresources.net/apiv2/modules?subcategoryId=${widget.subcategoryId}'));
+      final response = await http.get(Uri.parse('$remoteServer$apiEndpoint'));
 
       debugPrint("Response body: ${response.body}");
 

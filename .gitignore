@@ -41,13 +41,15 @@ app.*.symbols
 app.*.map.json
 
 # Enviromental variables
-.env
+*.env
 notes.md
 
 # Android Studio will place build artifacts here
 /android/app/debug
 /android/app/profile
 /android/app/release
+android/app/.cxx/
+
 
 # For google play store
 /android/key.properties

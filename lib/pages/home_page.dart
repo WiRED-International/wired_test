@@ -7,11 +7,13 @@ import '../utils/custom_nav_bar.dart';
 import 'cme/cme_tracker.dart';
 import 'menu/guestMenu.dart';
 import 'menu/menu.dart';
+import 'module_info.dart';
 import 'module_library.dart';
 import 'package:wired_test/utils/side_nav_bar.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, this.title});
@@ -45,10 +47,12 @@ class _MyHomePageState extends State<MyHomePage> {
   String alert = "";
 
   Future<Alert?> getAlert() async {
-    const remoteServer = 'http://widm.wiredhealthresources.net/apiv2/alerts/latest';
-    const localServer = 'http://10.0.2.2:3000/alerts/latest';
+    final remoteServer = dotenv.env['REMOTE_SERVER']!;
+    final localServer = dotenv.env['LOCAL_SERVER']!;
+
+    final apiEndpoint = '/alerts/latest';
     try {
-      final response = await http.get(Uri.parse(remoteServer));
+      final response = await http.get(Uri.parse('$remoteServer$apiEndpoint'));
 
       debugPrint("Response body: ${response.body}");
 
@@ -255,10 +259,34 @@ class _MyHomePageState extends State<MyHomePage> {
                           onTapLink: (text, url, title) async {
                             if (url != null) {
                               final Uri uri = Uri.parse(url);
-                              if (await canLaunchUrl(uri)) {
+                              if (uri.scheme == 'app' && uri.host == 'download') {
+                                final moduleIdString = uri.queryParameters['id'];
+                                final moduleId = int.tryParse(moduleIdString ?? '');
+                                final moduleName = uri.queryParameters['name'];
+                                final downloadLink = uri.queryParameters['link'];
+                                final moduleDescription = uri.queryParameters['description'] ?? 'No Description available';
+
+                                if (moduleName != null && downloadLink != null && moduleId != null) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ModuleInfo(
+                                        moduleId: moduleId,
+                                        moduleName: moduleName,
+                                        downloadLink: downloadLink,
+                                        moduleDescription: moduleDescription,
+                                      ),
+                                    ),
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Invalid module data provided.')),
+                                  );
+                                }
+                              } else if (await canLaunchUrl(uri)) {
                                 await launchUrl(uri, mode: LaunchMode.externalApplication);
                               } else {
-                                debugPrint("Could not launch $url");
+                                debugPrint('Could not launch $url');
                               }
                             }
                           },

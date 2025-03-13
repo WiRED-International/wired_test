@@ -54,6 +54,7 @@ dependencies:
   url_launcher: ^6.3.0
   geolocator: ^13.0.2
   flutter_markdown: ^0.7.6+2
+  flutter_dotenv: ^5.2.1
 
 dev_dependencies:
   flutter_test:
@@ -81,6 +82,7 @@ flutter:
   assets:
     - assets/images/
     - assets/icons/
+    - .env
 
 
   # An image asset can refer to one or more resolution-specific "variants", see

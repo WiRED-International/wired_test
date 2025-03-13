@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:wired_test/pages/module_by_topic.dart';
 import '../providers/auth_guard.dart';
@@ -52,9 +53,11 @@ class _TopicListState extends State<TopicList> {
   List<String> topicNames = [];
 
   Future<List<SubCategory>> fetchSubcategories() async {
+    final remoteServer = dotenv.env['REMOTE_SERVER']!;
+    final localServer = dotenv.env['LOCAL_SERVER']!;
+    final apiEndpoint = '/subCategories';
     try {
-      final response = await http.get(Uri.parse(
-          'http://widm.wiredhealthresources.net/apiv2/subCategories'));
+      final response = await http.get(Uri.parse('$remoteServer$apiEndpoint'));
 
       debugPrint("Response body: ${response.body}");
 

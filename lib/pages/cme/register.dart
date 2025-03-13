@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:wired_test/pages/cme/registration_confirm.dart';
 import '../../providers/auth_guard.dart';
@@ -56,7 +57,11 @@ class _RegisterState extends State<Register> {
   }
 
   Future<void> _fetchCountrySuggestions(String query) async {
-    final url = Uri.parse('http://widm.wiredhealthresources.net/apiv2/countries?query=$query');
+    final remoteServer = dotenv.env['REMOTE_SERVER']!;
+    final localServer = dotenv.env['LOCAL_SERVER']!;
+
+    final apiEndpoint = '/countries?query=$query';
+    final url = Uri.parse('$remoteServer$apiEndpoint');
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {
@@ -163,8 +168,11 @@ class _RegisterState extends State<Register> {
   }
 
   Future<bool> _submitForm() async {
-    const remoteServerUrl = 'http://widm.wiredhealthresources.net/apiv2/auth/register';
-    const localServerUrl = 'http://10.0.2.2:3000/auth/register';
+    final remoteServer = dotenv.env['REMOTE_SERVER']!;
+    final localServer = dotenv.env['LOCAL_SERVER']!;
+
+    final apiEndpoint = '/auth/register';
+
     // Validate the email field first
     if (_emailController.text.isEmpty || _validateEmail(_emailController.text) != null) {
       _showErrorAlert("Please enter a valid email address.");
@@ -195,7 +203,7 @@ class _RegisterState extends State<Register> {
       "password": _passwordController.text.trim(),
     };
 
-    final url = Uri.parse(remoteServerUrl);
+    final url = Uri.parse("$remoteServer$apiEndpoint");
 
     try {
       final response = await http.post(
