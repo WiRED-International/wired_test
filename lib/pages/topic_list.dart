@@ -53,11 +53,10 @@ class _TopicListState extends State<TopicList> {
   List<String> topicNames = [];
 
   Future<List<SubCategory>> fetchSubcategories() async {
-    final remoteServer = dotenv.env['REMOTE_SERVER']!;
-    final localServer = dotenv.env['LOCAL_SERVER']!;
+    final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
     final apiEndpoint = '/subCategories';
     try {
-      final response = await http.get(Uri.parse('$remoteServer$apiEndpoint'));
+      final response = await http.get(Uri.parse('$apiBaseUrl$apiEndpoint'));
 
       debugPrint("Response body: ${response.body}");
 

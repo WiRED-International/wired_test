@@ -90,12 +90,11 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
 
   // Get the Module Data
   Future<List<Modules>> getModules() async {
-    final remoteServer = dotenv.env['REMOTE_SERVER']!;
-    final localServer = dotenv.env['LOCAL_SERVER']!;
+    final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
     final apiEndpoint = '/modules/';
 
     try {
-      final response = await http.get(Uri.parse('$remoteServer$apiEndpoint'),
+      final response = await http.get(Uri.parse('$apiBaseUrl$apiEndpoint'),
         headers: {'Content-Type': 'application/json; charset=utf-8'},
       );
       if (response.statusCode == 200) {

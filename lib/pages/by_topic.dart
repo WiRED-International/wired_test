@@ -43,12 +43,10 @@ class _ByTopicState extends State<ByTopic> {
   late Future<List<Category>> futureCategories;
 
   Future<List<Category>> fetchCategories() async {
-    final remoteServer = dotenv.env['REMOTE_SERVER']!;
-    final localServer = dotenv.env['LOCAL_SERVER']!;
-
+    final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
     final apiEndpoint = '/categories';
     try {
-      final response = await http.get(Uri.parse('$remoteServer$apiEndpoint'));
+      final response = await http.get(Uri.parse('$apiBaseUrl$apiEndpoint'));
 
       debugPrint("Response body: ${response.body}");
 

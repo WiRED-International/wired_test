@@ -17,6 +17,7 @@ import 'download_confirm.dart';
 import 'menu/guestMenu.dart';
 import 'menu/menu.dart';
 import 'module_library.dart';
+import '../services/location_service.dart';
 
 
 class ModuleInfo extends StatefulWidget {
@@ -24,6 +25,8 @@ class ModuleInfo extends StatefulWidget {
   final String moduleName;
   final String moduleDescription;
   final String? downloadLink;
+
+  LocationService locationService = LocationService();
 
   ModuleInfo({ required this.moduleId, required this.moduleName, required this.moduleDescription, this.downloadLink});
 
@@ -65,6 +68,7 @@ class _ModuleInfoState extends State<ModuleInfo> {
   final GlobalKey _moduleNameKey = GlobalKey();
   double topPadding = 0;
   bool _isLoading = false;
+  Map<String, double?>? _location;
 
   // Get Permissions
   Future<bool> checkAndRequestStoragePermission() async {
@@ -163,6 +167,15 @@ class _ModuleInfoState extends State<ModuleInfo> {
   void initState() {
     super.initState();
   }
+
+  Future<void> getLocationAndSaveDownload() async {
+    var location = await widget.locationService.getLocation(context);
+    setState(() {
+      _location = location;  // Store the location in state
+    });
+    await widget.locationService.saveDownload(widget.moduleId, location);
+  }
+  
 
 // Consider using AutoSizeText for the module name instead of RichText
 
@@ -389,6 +402,7 @@ class _ModuleInfoState extends State<ModuleInfo> {
               onTap: _isLoading
                   ? null
                   : () async {
+                    await getLocationAndSaveDownload();
                 if (widget.downloadLink != null) {
                   setState(() {
                     _isLoading = true;
@@ -406,7 +420,7 @@ class _ModuleInfoState extends State<ModuleInfo> {
                       )
                     ),
                   );
-                  print("Module Id: ${widget.moduleId}");
+                  
                 } else {
                   ScaffoldMessenger.of(context)
                       .showSnackBar(
