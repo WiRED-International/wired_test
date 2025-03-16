@@ -57,11 +57,10 @@ class _RegisterState extends State<Register> {
   }
 
   Future<void> _fetchCountrySuggestions(String query) async {
-    final remoteServer = dotenv.env['REMOTE_SERVER']!;
-    final localServer = dotenv.env['LOCAL_SERVER']!;
+    final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
 
     final apiEndpoint = '/countries?query=$query';
-    final url = Uri.parse('$remoteServer$apiEndpoint');
+    final url = Uri.parse('$apiBaseUrl$apiEndpoint');
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {
@@ -168,8 +167,7 @@ class _RegisterState extends State<Register> {
   }
 
   Future<bool> _submitForm() async {
-    final remoteServer = dotenv.env['REMOTE_SERVER']!;
-    final localServer = dotenv.env['LOCAL_SERVER']!;
+    final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
 
     final apiEndpoint = '/auth/register';
 
@@ -203,7 +201,7 @@ class _RegisterState extends State<Register> {
       "password": _passwordController.text.trim(),
     };
 
-    final url = Uri.parse("$remoteServer$apiEndpoint");
+    final url = Uri.parse("$apiBaseUrl$apiEndpoint");
 
     try {
       final response = await http.post(

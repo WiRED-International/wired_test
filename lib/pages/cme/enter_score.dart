@@ -128,13 +128,12 @@ class _EnterScoreState extends State<EnterScore> {
     }
 
     try {
-      final remoteServer = dotenv.env['REMOTE_SERVER']!;
-      final localServer = dotenv.env['LOCAL_SERVER']!;
+      final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
 
       final apiEndpoint = '/quiz-scores';
 
       final response = await http.post(
-        Uri.parse("$remoteServer$apiEndpoint"),
+        Uri.parse("$apiBaseUrl$apiEndpoint"),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $token',

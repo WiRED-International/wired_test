@@ -42,8 +42,7 @@ class _LoginState extends State<Login> {
   final _storage = const FlutterSecureStorage();
 
   Future<http.Response?> _submitForm() async {
-    final remoteServer = dotenv.env['REMOTE_SERVER']!;
-    final localServer = dotenv.env['LOCAL_SERVER']!;
+    final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
 
     final apiEndpoint = '/auth/login';
 
@@ -63,7 +62,7 @@ class _LoginState extends State<Login> {
       // Collect form data
       final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
-      final url = Uri.parse("$remoteServer$apiEndpoint");
+      final url = Uri.parse("$apiBaseUrl$apiEndpoint");
 
       try {
         final response = await http.post(

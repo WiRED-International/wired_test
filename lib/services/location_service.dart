@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class LocationService {
   Future<Map<String, double?>?> getLocation(BuildContext context) async {
@@ -73,6 +74,8 @@ class LocationService {
 
  Future<void> saveDownload(int moduleId, Map<String, double?>? location) async {
   try {
+    final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
+    // final localServer = dotenv.env['LOCAL_SERVER']!;
     // If location is null, set it to an object with null values
     location ??= {'latitude': null, 'longitude': null};
 
@@ -85,7 +88,7 @@ class LocationService {
     debugPrint('requestBody: $requestBody');
 
     var response = await http.post(
-      Uri.parse('http://widm.wiredhealthresources.net/apiv2/api/downloads'),
+      Uri.parse('$apiBaseUrl/api/downloads'),
       body: jsonEncode(requestBody),
       headers: {'Content-Type': 'application/json'},
     );

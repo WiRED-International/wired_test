@@ -67,12 +67,11 @@ class _ByPackagesState extends State<ByPackages> {
   late Future<List<Package>> futurePackages;
 
   Future<List<Package>> fetchPackages() async {
-    final remoteServer = dotenv.env['REMOTE_SERVER']!;
-    final localServer = dotenv.env['LOCAL_SERVER']!;
+    final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
     final apiEndpoint = '/packages';
 
     try {
-      final response = await http.get(Uri.parse('$remoteServer$apiEndpoint'));
+      final response = await http.get(Uri.parse('$apiBaseUrl$apiEndpoint'));
 
       debugPrint("Response body: ${response.body}");
 

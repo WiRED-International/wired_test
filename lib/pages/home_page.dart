@@ -47,12 +47,11 @@ class _MyHomePageState extends State<MyHomePage> {
   String alert = "";
 
   Future<Alert?> getAlert() async {
-    final remoteServer = dotenv.env['REMOTE_SERVER']!;
-    final localServer = dotenv.env['LOCAL_SERVER']!;
+    final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
 
     final apiEndpoint = '/alerts/latest';
     try {
-      final response = await http.get(Uri.parse('$remoteServer$apiEndpoint'));
+      final response = await http.get(Uri.parse('$apiBaseUrl$apiEndpoint'));
 
       debugPrint("Response body: ${response.body}");
 

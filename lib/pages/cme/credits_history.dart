@@ -85,13 +85,12 @@ class _CreditsHistoryState extends State<CreditsHistory> {
     if (token == null) {
       throw Exception('User is not logged in');
     }
-    final remoteServer = dotenv.env['REMOTE_SERVER']!;
-    final localServer = dotenv.env['LOCAL_SERVER']!;
+    final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
 
     final apiEndpoint = '/users/me';
 
 
-    final url = Uri.parse('$remoteServer$apiEndpoint');
+    final url = Uri.parse('$apiBaseUrl$apiEndpoint');
     final response = await http.get(
       url,
       headers: {

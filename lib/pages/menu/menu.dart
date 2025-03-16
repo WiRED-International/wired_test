@@ -79,8 +79,7 @@ class _MenuState extends State<Menu> {
   }
 
   Future<User> fetchUserData() async {
-    final remoteServer = dotenv.env['REMOTE_SERVER']!;
-    final localServer = dotenv.env['LOCAL_SERVER']!;
+    final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
 
     final apiEndpoint = '/users/me';
 
@@ -89,7 +88,7 @@ class _MenuState extends State<Menu> {
       throw Exception('User is not logged in');
     }
 
-    final url = Uri.parse('$remoteServer$apiEndpoint');
+    final url = Uri.parse('$apiBaseUrl$apiEndpoint');
     final response = await http.get(
       url,
       headers: {
@@ -117,8 +116,7 @@ class _MenuState extends State<Menu> {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final token = authProvider.authToken;
 
-    final remoteServer = dotenv.env['REMOTE_SERVER']!;
-    final localServer = dotenv.env['LOCAL_SERVER']!;
+    final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
 
     final apiEndpoint = '/auth/delete-account';
 
@@ -128,7 +126,7 @@ class _MenuState extends State<Menu> {
     }
 
     final response = await http.delete(
-      Uri.parse('$remoteServer$apiEndpoint'),
+      Uri.parse('$apiBaseUrl$apiEndpoint'),
       headers: {
         'Authorization': 'Bearer $token', // Only send the token
         'Content-Type': 'application/json',
