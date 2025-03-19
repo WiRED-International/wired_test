@@ -52,6 +52,12 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
     return match?.group(1); // Return the captured group (module ID)
   }
 
+  String? extractPackageModuleId(String content) {
+    final regex = RegExp(r'content="0; url=files/(\d{4})/([^/]+)/story.html"');
+    final match = regex.firstMatch(content);
+    return match?.group(2); // Return the captured group (module ID)
+  }
+
 
   Future<List<ModuleFile>> _fetchModules() async {
     final directory = await getExternalStorageDirectory();
@@ -70,7 +76,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
           String? moduleId;
           try {
             final content = file.readAsStringSync(); // Read file content
-            moduleId = extractModuleId(content); // Extract module ID
+            moduleId = extractPackageModuleId(content); // Extract module ID
           } catch (e) {
             print("Error reading file: ${file.path}, $e");
           }
