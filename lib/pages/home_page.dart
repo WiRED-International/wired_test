@@ -4,6 +4,7 @@ import 'package:wired_test/providers/auth_guard.dart';
 import 'package:wired_test/utils/functions.dart';
 import '../pages/search.dart';
 import '../utils/custom_nav_bar.dart';
+import '../utils/updateChecker.dart';
 import 'cme/cme_tracker.dart';
 import 'menu/guestMenu.dart';
 import 'menu/menu.dart';
@@ -81,6 +82,9 @@ class _MyHomePageState extends State<MyHomePage> {
           isImportant = alertObj.important ?? false;
         });
       }
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      UpdateChecker.checkForUpdate(context);
     });
   }
 
