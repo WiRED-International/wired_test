@@ -62,13 +62,17 @@ class _CreditTextState extends State<CreditText> with WidgetsBindingObserver {
   }
 
   void _checkForRankUp() {
+    if (!mounted) return; // Ensure widget is still active
+
     String? currentRank = _getCurrentRank(widget.creditsEarned);
     print("Current rank: $currentRank");
 
-    if (currentRank != null && currentRank != lastRankShown) {
+    if (currentRank != null && lastRankShown != currentRank) {
       lastRankShown = currentRank;
       _saveLastShownRank(currentRank); // Persist the new rank immediately
-      _showRankUpAlert(currentRank);
+      //_showRankUpAlert(currentRank);
+    } else {
+      print("ℹ️ Rank unchanged, no alert needed.");
     }
   }
 

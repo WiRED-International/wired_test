@@ -50,9 +50,9 @@ class _SearchState extends State<Search> {
     setState(() {
       _buttonScales[label] = 0.95; // Shrink effect
       _buttonColors[label] = [
-        _buttonColors[label]![0].withOpacity(0.7), // Darker effect
-        _buttonColors[label]![1].withOpacity(0.7),
-        _buttonColors[label]![2].withOpacity(0.7),
+        _buttonColors[label]![0].withValues(alpha: 0.7), // Darker effect
+        _buttonColors[label]![1].withValues(alpha: 0.7),
+        _buttonColors[label]![2].withValues(alpha: 0.7),
       ];
     });
   }
@@ -62,9 +62,9 @@ class _SearchState extends State<Search> {
       setState(() {
         _buttonScales[label] = 1.0; // Restore size
         _buttonColors[label] = [
-          _buttonColors[label]![0].withOpacity(1.0), // Restore original color
-          _buttonColors[label]![1].withOpacity(1.0),
-          _buttonColors[label]![2].withOpacity(1.0),
+          _buttonColors[label]![0].withValues(alpha: 1.0), // Restore original color
+          _buttonColors[label]![1].withValues(alpha: 1.0),
+          _buttonColors[label]![2].withValues(alpha: 1.0),
         ];
       });
       onTap(); // Execute navigation
@@ -133,7 +133,6 @@ class _SearchState extends State<Search> {
                           },
                           onMenuTap: () async {
                             bool isLoggedIn = await checkIfUserIsLoggedIn();
-                            print("Navigating to menu. Logged in: $isLoggedIn");
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -184,7 +183,6 @@ class _SearchState extends State<Search> {
                     },
                     onMenuTap: () async {
                       bool isLoggedIn = await checkIfUserIsLoggedIn();
-                      print("Navigating to menu. Logged in: $isLoggedIn");
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -286,9 +284,9 @@ class _SearchState extends State<Search> {
               setState(() {
                 _buttonScales[label] = 1.0;
                 _buttonColors[label] = [
-                  _buttonColors[label]![0].withOpacity(1.0), // Restore original
-                  _buttonColors[label]![1].withOpacity(1.0),
-                  _buttonColors[label]![2].withOpacity(1.0),
+                  _buttonColors[label]![0].withValues(alpha: 1.0), // Restore original
+                  _buttonColors[label]![1].withValues(alpha: 1.0),
+                  _buttonColors[label]![2].withValues(alpha: 1.0),
                 ];
               });
             },
@@ -301,7 +299,7 @@ class _SearchState extends State<Search> {
               child: InkWell(
                 onTap: onTap,
                 borderRadius: BorderRadius.circular(30),
-                splashColor: Colors.white.withOpacity(0.3),
+                splashColor: Colors.white.withValues(alpha: 0.3),
                 child: Container(
                   height: scalingFactor * (isTablet(context) ? 35 : 45),
                   decoration: BoxDecoration(
@@ -317,7 +315,7 @@ class _SearchState extends State<Search> {
                     borderRadius: BorderRadius.circular(30),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.5),
+                        color: Colors.black.withValues(alpha: 0.5),
                         spreadRadius: 1,
                         blurRadius: 5,
                         offset: Offset(1, 3),
@@ -367,7 +365,7 @@ class _SearchState extends State<Search> {
             Color(0xFF0070C0),
           ],
           onTap: () {
-            print('Alphabet button pressed');
+
             Navigator.push(
                 context, MaterialPageRoute(builder: (context) => ByAlphabet()));
           },
@@ -383,7 +381,6 @@ class _SearchState extends State<Search> {
             Color(0xFF519921),
           ],
           onTap: () {
-            print('Topic button pressed');
             Navigator.push(
                 context, MaterialPageRoute(builder: (context) => ByTopic()));
           },
@@ -399,7 +396,6 @@ class _SearchState extends State<Search> {
             Color(0xFF0070C0),
           ],
           onTap: () {
-            print('Package button pressed');
             Navigator.push(
                 context, MaterialPageRoute(builder: (context) => ByPackages()));
           },
@@ -435,9 +431,9 @@ class _SearchState extends State<Search> {
               setState(() {
                 _buttonScales[label] = 1.0;
                 _buttonColors[label] = [
-                  _buttonColors[label]![0].withOpacity(1.0), // Restore original
-                  _buttonColors[label]![1].withOpacity(1.0),
-                  _buttonColors[label]![2].withOpacity(1.0),
+                  _buttonColors[label]![0].withValues(alpha: 1.0), // Restore original
+                  _buttonColors[label]![1].withValues(alpha: 1.0),
+                  _buttonColors[label]![2].withValues(alpha: 1.0),
                 ];
               });
             },
@@ -452,7 +448,7 @@ class _SearchState extends State<Search> {
               child: InkWell(
                 onTap: onTap,
                 borderRadius: BorderRadius.circular(30),
-                splashColor: Colors.white.withOpacity(0.3),
+                splashColor: Colors.white.withValues(alpha: 0.3),
                 child: Container(
                   width: width,
                   height: scalingFactor * (isTablet(context) ? 30 : 30),
@@ -465,7 +461,7 @@ class _SearchState extends State<Search> {
                     borderRadius: BorderRadius.circular(30),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.5),
+                        color: Colors.black.withValues(alpha: 0.5),
                         spreadRadius: 1,
                         blurRadius: 5,
                         offset: Offset(1, 3),

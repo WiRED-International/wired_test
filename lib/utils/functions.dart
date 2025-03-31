@@ -184,3 +184,22 @@ int getMaxCredits(int creditsEarned) {
   }
 }
 
+int calculateCredits(List<dynamic>? quizScores) {
+  final int currentYear = DateTime.now().year;
+
+  if (quizScores == null) return 0;
+
+  return quizScores.where((score) {
+    if (score is Map<String, dynamic> &&
+        score['score'] != null &&
+        score['date_taken'] != null) {
+      final scoreValue = double.tryParse(score['score'].toString()) ?? 0.0;
+      final DateTime? dateTaken = DateTime.tryParse(score['date_taken'].toString());
+
+      return scoreValue >= 80.0 &&
+          dateTaken != null &&
+          dateTaken.year == currentYear;
+    }
+    return false;
+  }).length * 5;
+}

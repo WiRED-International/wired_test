@@ -5,6 +5,7 @@ import '../pages/cme/login.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class AuthProvider with ChangeNotifier {
+  bool _isLoading = true;
   bool _isLoggedIn = false; // Tracks the authentication status
   String? _authToken;
   DateTime? _tokenExpiry;
@@ -12,28 +13,68 @@ class AuthProvider with ChangeNotifier {
 
   bool get isLoggedIn => _isLoggedIn;
   String? get authToken => _authToken;
+  bool get isLoading => _isLoading;
 
   // Load stored token & expiry on app startup
   Future<void> loadStoredAuthData() async {
-    _authToken = await storage.read(key: 'authToken');
-    final expiryString = await storage.read(key: 'tokenExpiry');
+    print("🔄 Starting loadStoredAuthData...");
+    _isLoading = true;
+    notifyListeners();
 
-    if (_authToken != null && expiryString != null) {
-      _tokenExpiry = DateTime.tryParse(expiryString);
-      _isLoggedIn = _tokenExpiry != null && !isTokenExpired();
+    try {
+      print("📂 Reading authToken from storage...");
+      _authToken = await storage.read(key: 'authToken');
+      print("🔑 Retrieved authToken: $_authToken");
+
+      print("📂 Reading tokenExpiry from storage...");
+      final expiryString = await storage.read(key: 'tokenExpiry');
+      print("🕒 Retrieved expiryString: $expiryString");
+
+      print("Stored Token: $_authToken");
+      print("Stored Expiry String: $expiryString");
+
+      if (_authToken != null && expiryString != null) {
+        _tokenExpiry = DateTime.tryParse(expiryString);
+        print("📅 Parsed expiry date: $_tokenExpiry");
+        _isLoggedIn = _tokenExpiry != null && !isTokenExpired();
+        print("✅ Authenticated status: $_isLoggedIn");
+      } else {
+        print("⚠️ No valid token found. User is NOT logged in.");
+        _isLoggedIn = false;
+      }
+    } catch (e) {
+      print("Error loading stored auth data: $e");
+      _isLoggedIn = false;
+    } finally {
+      print("🏁 Before setting isLoading=false");
+      _isLoading = false;  // ✅ Ensure loading completes even if an error occurs
+      notifyListeners();
+      print("🏁 Finished loading. isLoading: $_isLoading");
     }
 
-    notifyListeners();
+    print("Finished loading auth data. isLoggedIn: $_isLoggedIn, isLoading: $_isLoading");
   }
 
   // Log in the user and store token securely
   Future<void> logIn(String authToken, DateTime expiry) async {
+    print('Logging in user...');
+    print('Received Token: $authToken');
+    print('Received Expiry: $expiry');
+
+    // Convert expiry to UTC before storing
+    expiry = expiry.toUtc();
+
+    print('Converted Expiry to UTC: $expiry');
+
     _authToken = authToken;
     _tokenExpiry = expiry;
     _isLoggedIn = true;
 
     await storage.write(key: 'authToken', value: authToken);
     await storage.write(key: 'tokenExpiry', value: expiry.toIso8601String());
+
+    print('Token stored successfully.');
+    print('Expiry stored successfully.');
 
     notifyListeners();
     print('User logged in. Token: $_authToken, Expiry: $_tokenExpiry');
@@ -75,32 +116,57 @@ class AuthProvider with ChangeNotifier {
 
   // Check if token is expired
   bool isTokenExpired() {
-    if (_tokenExpiry == null) return true;
+    if (_tokenExpiry == null) {
+      print('Token expiry is null, considering it expired.');
+      return true;
+    }
+    final now = DateTime.now().toUtc();
+    final expiryUtc = _tokenExpiry!.toUtc();
 
-    final bufferDuration = Duration(minutes: 2);
-    final expiryWithBuffer = _tokenExpiry!.subtract(bufferDuration);
+    print('Checking token expiry: Now = $now, Expiry = $expiryUtc');
 
-    return DateTime.now().isAfter(expiryWithBuffer);
+    return now.isAfter(expiryUtc);
   }
 
   // Handle authentication status and redirect if needed
   void handleAuthentication(BuildContext context) {
-    if (_authToken == null) {
-      Future.microtask(() {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => CmeInfo()),
-        );
-      });
-    } else if (isTokenExpired()) {
-      print('Token expired. Logging out.');
-      Future.microtask(() {
-        logOut();
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => Login()),
-        );
-      });
-    }
+    // if (_authToken == null) {
+    //   Future.microtask(() {
+    //     Navigator.pushReplacement(
+    //       context,
+    //       MaterialPageRoute(builder: (context) => CmeInfo()),
+    //     );
+    //   });
+    // } else if (isTokenExpired()) {
+    //   print('Token expired. Logging out.');
+    //   Future.microtask(() {
+    //     logOut();
+    //     Navigator.pushReplacement(
+    //       context,
+    //       MaterialPageRoute(builder: (context) => Login()),
+    //     );
+    //   });
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await loadStoredAuthData();
+
+      if (_authToken == null) {
+        print('No token found, redirecting to CmeInfo.');
+        if (context.mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => CmeInfo()),
+          );
+        }
+      } else if (isTokenExpired()) {
+        print('Token expired. Logging out.');
+        await logOut();
+        if (context.mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => Login()),
+          );
+        }
+      }
+    });
   }
 }

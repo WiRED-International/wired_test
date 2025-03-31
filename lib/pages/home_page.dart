@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:wired_test/providers/auth_guard.dart';
 import 'package:wired_test/utils/functions.dart';
 import '../pages/search.dart';
+import '../providers/auth_provider.dart';
 import '../utils/custom_nav_bar.dart';
 import '../utils/updateChecker.dart';
 import 'cme/cme_tracker.dart';
@@ -54,12 +56,8 @@ class _MyHomePageState extends State<MyHomePage> {
     try {
       final response = await http.get(Uri.parse('$apiBaseUrl$apiEndpoint'));
 
-      debugPrint("Response body: ${response.body}");
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-
-        debugPrint("Fetched Data: $data");
 
         return Alert.fromJson(data);
       } else {
@@ -96,7 +94,7 @@ class _MyHomePageState extends State<MyHomePage> {
     bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
     return Scaffold(
-      backgroundColor: Colors.transparent, // ✅ Ensures no default white background
+      backgroundColor: Colors.transparent, // Ensures no default white background
       body: Stack(
         children: [
           Positioned.fill(
@@ -116,7 +114,7 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
           Row(
             children: [
-              // ✅ Side Nav Bar with transparent background
+              // Side Nav Bar with transparent background
               if (isLandscape)
                 SafeArea(
                   child: Container(
@@ -147,7 +145,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   ),
                 ),
 
-              // ✅ Main Content
+              // Main Content
               Expanded(
                 child: SafeArea(
                   child: Center(
@@ -160,7 +158,7 @@ class _MyHomePageState extends State<MyHomePage> {
             ],
           ),
 
-          // ✅ Bottom Nav Bar only in portrait mode
+          // Bottom Nav Bar only in portrait mode
           if (!isLandscape)
             Positioned(
               bottom: 0,
@@ -172,6 +170,12 @@ class _MyHomePageState extends State<MyHomePage> {
                   Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
                 },
                 onTrackerTap: () {
+                  final authProvider = Provider.of<AuthProvider>(context, listen: false);
+
+                  if (authProvider.isLoading) {
+                    debugPrint("AuthProvider is still loading, delaying navigation...");
+                    return;
+                  }
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -395,14 +399,11 @@ class _MyHomePageState extends State<MyHomePage> {
       //crossAxisAlignment: CrossAxisAlignment.center,
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: <Widget>[
-        Padding(
-          padding: EdgeInsets.only(top: screenHeight * 0.02),
-          child: Semantics(
-            label: 'Wired Logo',
-            child: Image.asset(
-              'assets/images/wired-logo-optimized.webp',
-              height: baseSize * (isTablet(context) ? 0.2 : 0.2),
-            ),
+        Semantics(
+          label: 'Wired Logo',
+          child: Image.asset(
+            'assets/images/wired-logo-optimized.webp',
+            height: baseSize * (isTablet(context) ? 0.2 : 0.2),
           ),
         ),
         Text(
@@ -412,17 +413,9 @@ class _MyHomePageState extends State<MyHomePage> {
             fontWeight: FontWeight.w500,
             color: const Color.fromRGBO(0, 102, 179, 1),
           ),
-          textAlign: TextAlign.center,
+          //textAlign: TextAlign.center,
         ),
-        Text(
-          'News and Updates',
-          style: TextStyle(
-            fontSize: baseSize * (isTablet(context) ? 0.05 : 0.05),
-            fontWeight: FontWeight.w500,
-            color: Color.fromRGBO(84, 130, 53, 1),
-          ),
-          textAlign: TextAlign.center,
-        ),
+
         Flexible(
           flex: 3,
           child: Padding(
@@ -433,7 +426,7 @@ class _MyHomePageState extends State<MyHomePage> {
               right: baseSize * (isTablet(context) ? 0.25 : 0.04),
             ),
             child: Container(
-              // height: baseSize * (isTablet(context) ? 0.35 : 0.5),
+              height: baseSize * (isTablet(context) ? 0.35 : 0.5),
               decoration: BoxDecoration(
                 color: Color(0xFFF9EBD9),
                 borderRadius: BorderRadius.circular(7),
@@ -448,18 +441,77 @@ class _MyHomePageState extends State<MyHomePage> {
                     vertical: baseSize * (isTablet(context) ? 0.01 : 0.02),
                     horizontal: baseSize * (isTablet(context) ? 0.02 : 0.03),
                   ),
-                  child: Text(
-                    alert.isNotEmpty ? alert : 'Hello Testers! Welcome to WiRED\'s new mobile HealthMap app. Thank you for choosing to participate in this closed test. This does mean a lot to all of us here at WiRED. We ask that you please do not click on any button or link that says "Leave the test." We need all testers to remain opted in for 14 consecutive days. After the 14 days, you may leave the test if you wish. Once again, thank you so much for your participation in this test.',
-                    style: TextStyle(
-                      fontSize: baseSize * (isTablet(context) ? 0.032 : 0.032),
-                      fontWeight: FontWeight.w500,
-                      color: isImportant ? Colors.red : Colors.black,
-                    ),
+                  child: Column(
+                    children: [
+                      Text(
+                        'News and Updates',
+                        style: TextStyle(
+                          fontSize: baseSize * (isTablet(context) ? 0.06 : 0.07),
+                          fontWeight: FontWeight.w500,
+                          color: Color.fromRGBO(84, 130, 53, 1),
+                        ),
+                      ),
+                      SizedBox(
+                        height: baseSize * (isTablet(context) ? 0.01 : 0.01),
+                      ),
+                      Container(
+                        padding: EdgeInsets.all(baseSize * 0.02),
+                        child: MarkdownBody(
+                          data: alert.isNotEmpty ? alert : "No alerts available",
+                          onTapLink: (text, url, title) async {
+                            if (url != null) {
+                              final Uri uri = Uri.parse(url);
+                              if (uri.scheme == 'app' && uri.host == 'download') {
+                                final moduleIdString = uri.queryParameters['id'];
+                                final moduleId = int.tryParse(moduleIdString ?? '');
+                                final moduleName = uri.queryParameters['name'];
+                                final downloadLink = uri.queryParameters['link'];
+                                final moduleDescription = uri.queryParameters['description'] ?? 'No Description available';
+
+                                if (moduleName != null && downloadLink != null && moduleId != null) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ModuleInfo(
+                                        moduleId: moduleId,
+                                        moduleName: moduleName,
+                                        downloadLink: downloadLink,
+                                        moduleDescription: moduleDescription,
+                                      ),
+                                    ),
+                                  );
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Invalid module data provided.')),
+                                  );
+                                }
+                              } else if (await canLaunchUrl(uri)) {
+                                await launchUrl(uri, mode: LaunchMode.externalApplication);
+                              } else {
+                                debugPrint('Could not launch $url');
+                              }
+                            }
+                          },
+                          styleSheet: MarkdownStyleSheet(
+                            a: TextStyle(
+                              color: Colors.blue,
+                              decoration: TextDecoration.underline,
+                              decorationColor: Colors.blue, // Blue underline
+                              fontWeight: FontWeight.bold,
+                            ),
+                            p: TextStyle(fontSize: baseSize * (isTablet(context) ? 0.035 : 0.04)),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
           ),
+        ),
+        SizedBox(
+          height: baseSize * (isTablet(context) ? 0.02 : 0.015),
         ),
         Flexible(
           flex: 1,
@@ -472,7 +524,7 @@ class _MyHomePageState extends State<MyHomePage> {
                     context, MaterialPageRoute(builder: (context) => Search()));
               },
               child: Hero(
-                tag: 'search',
+                tag: 'modules',
                 child: FractionallySizedBox(
                   widthFactor: isTablet(context) ? 0.2 : 0.2,
                   child: Container(

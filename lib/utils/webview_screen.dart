@@ -37,6 +37,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
               allowContentAccess: true,
               useWideViewPort: true,
               useHybridComposition: true,
+              hardwareAcceleration: true,
             ),
             onWebViewCreated: (controller) {
               _webViewController = controller;

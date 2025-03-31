@@ -15,10 +15,12 @@ Future<void> main() async {
   // debugRepaintRainbowEnabled = true; // Shows repaint areas with a rainbow effect
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
+  final authProvider = AuthProvider();
+  await authProvider.loadStoredAuthData();
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
         ChangeNotifierProvider(create: (_) => UserProvider()), // Add UserProvider
       ],
       child: const MyApp(),

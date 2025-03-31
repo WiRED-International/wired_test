@@ -18,8 +18,6 @@ class CustomBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    var screenWidth = MediaQuery.of(context).size.width;
-    var screenHeight = MediaQuery.of(context).size.height;
     var baseSize = MediaQuery.of(context).size.shortestSide;
 
     return Container(

@@ -34,6 +34,7 @@ class User {
   final String? email;
   final String? dateJoined;
   final List<dynamic>? quizScores;
+  final int creditsEarned;
 
 
   User({
@@ -42,7 +43,7 @@ class User {
     required this.email,
     required this.dateJoined,
     required this.quizScores,
-  });
+  }): creditsEarned = calculateCredits(quizScores ?? []);
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
@@ -138,6 +139,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
             }
 
             final user = snapshot.data!;
+            final int creditsEarned = user.creditsEarned ?? 0;
             return Stack(
               children: [
                 // Background Gradient
@@ -183,7 +185,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                           LandscapeProfileSection(
                             firstName: user.firstName ?? 'Guest',
                             dateJoined: user.dateJoined ?? 'Unknown',
-                            creditsEarned: user.quizScores != null ? user.quizScores!.length * 5 : 0,
+                            creditsEarned: creditsEarned,
                           ),
                           Expanded(
                             child: Center(
@@ -193,6 +195,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                                 user.firstName,
                                 user.dateJoined,
                                 user.quizScores,
+                                creditsEarned,
                               ),
                             ),
                           ),
@@ -206,7 +209,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                     ProfileSection(
                       firstName: user.firstName ?? 'Guest',
                       dateJoined: user.dateJoined ?? 'Unknown',
-                      creditsEarned: user.quizScores != null ? user.quizScores!.length * 5 : 0,
+                      creditsEarned: creditsEarned,
                     ),
                     Expanded(
                       child: Row(
@@ -219,6 +222,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                                 user.firstName,
                                 user.dateJoined,
                                 user.quizScores,
+                                creditsEarned,
                               ),
                             ),
                           ),
@@ -268,7 +272,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
   }
 
   Widget _buildPortraitLayout(BuildContext context, scalingFactor, firstName,
-      dateJoined, quizScores) {
+      dateJoined, quizScores, creditsEarned) {
     // Sort quizScores by date (latest first)
     quizScores?.sort((a, b) => DateTime.parse(b['date_taken']).compareTo(
         DateTime.parse(a['date_taken'])));
@@ -427,7 +431,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
   }
 
   Widget _buildLandscapeLayout(BuildContext context, scalingFactor, firstName,
-      dateJoined, quizScores) {
+      dateJoined, quizScores, creditsEarned) {
 
     // Format the date using intl
     quizScores?.sort((a, b) => DateTime.parse(b['date_taken']).compareTo(
