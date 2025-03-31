@@ -19,7 +19,7 @@ class TopicList extends StatefulWidget {
   final String category;
   final int categoryId;
 
-  const TopicList({Key? key, required this.category, required this.categoryId}) : super(key: key);
+  const TopicList({super.key, required this.category, required this.categoryId});
   @override
   _TopicListState createState() => _TopicListState();
 }
@@ -58,17 +58,11 @@ class _TopicListState extends State<TopicList> {
     try {
       final response = await http.get(Uri.parse('$apiBaseUrl$apiEndpoint'));
 
-      debugPrint("Response body: ${response.body}");
-
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        //final List<dynamic> data = jsonDecode(response.body);
-        // Check what data is being decoded
-        debugPrint("Fetched Data: $data");
 
         // Ensure that the data is a List
         if (data is List) {
-          print("Data is a List");
           List<SubCategory> subCategories = data.map<SubCategory>((e) => SubCategory.fromJson(e)).toList();
 
           List<SubCategory> filteredSubCategories = subCategories
@@ -82,7 +76,6 @@ class _TopicListState extends State<TopicList> {
           List<String> namesToRemove = ['Mouth and Teeth', 'Population Groups', 'Genetics/Birth Defects', 'Injuries and Wounds', 'Substance Abuse Problems', 'Disasters', 'Fitness and Exercise', 'Health System', 'Personal Health Issues', 'Safety Issues', 'Kenya', 'Mandarin'];
           filteredSubCategories.removeWhere((subCategory) => namesToRemove.contains(subCategory.name!));
 
-          debugPrint("Parsed Topics Length: ${subCategories.length}");
           return filteredSubCategories;
         } else {
           debugPrint("Data is not a list");
@@ -166,7 +159,7 @@ class _TopicListState extends State<TopicList> {
                           },
                           onMenuTap: () async {
                             bool isLoggedIn = await checkIfUserIsLoggedIn();
-                            print("Navigating to menu. Logged in: $isLoggedIn");
+
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -216,7 +209,7 @@ class _TopicListState extends State<TopicList> {
                     },
                     onMenuTap: () async {
                       bool isLoggedIn = await checkIfUserIsLoggedIn();
-                      print("Navigating to menu. Logged in: $isLoggedIn");
+
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -275,7 +268,7 @@ class _TopicListState extends State<TopicList> {
                       return const Text('No topics available');
                     } else {
                       final List<SubCategory> subcategories = snapshot.data!;
-                      debugPrint("Number of Topics: ${subcategories.length}");
+
                       return ListView.builder(
                         itemCount: subcategories.length + 1,
                         itemBuilder: (context, index) {
@@ -291,7 +284,6 @@ class _TopicListState extends State<TopicList> {
                             children: [
                               InkWell(
                                 onTap: () async {
-                                  //print("Downloading ${moduleData[index].downloadLink}");
                                   if (subcategoryName.isNotEmpty) {
                                     // String fileName = "$moduleName.zip";
                                     // await downloadModule(downloadLink, fileName);
@@ -345,7 +337,7 @@ class _TopicListState extends State<TopicList> {
                             // Colors.transparent,
                             // Color(0xFFFFF0DC),
                             //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                            Color(0xFFFED09A).withOpacity(0.0),
+                            Color(0xFFFED09A).withValues(alpha: 0.0),
                             Color(0xFFFED09A),
                           ],
                         ),
@@ -403,7 +395,7 @@ class _TopicListState extends State<TopicList> {
                       return const Text('No topics available');
                     } else {
                       final List<SubCategory> subcategories = snapshot.data!;
-                      debugPrint("Number of Topics: ${subcategories.length}");
+
                       return ListView.builder(
                         itemCount: subcategories.length + 1,
                         itemBuilder: (context, index) {
@@ -419,7 +411,7 @@ class _TopicListState extends State<TopicList> {
                             children: [
                               InkWell(
                                 onTap: () async {
-                                  //print("Downloading ${moduleData[index].downloadLink}");
+
                                   if (subcategoryName.isNotEmpty) {
                                     // String fileName = "$moduleName.zip";
                                     // await downloadModule(downloadLink, fileName);
@@ -479,7 +471,7 @@ class _TopicListState extends State<TopicList> {
                             // Colors.transparent,
                             // Color(0xFFFFF0DC),
                             //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                            Color(0xFFFED09A).withOpacity(0.0),
+                            Color(0xFFFED09A).withValues(alpha: 0.0),
                             Color(0xFFFED09A),
                           ],
                         ),

@@ -32,6 +32,7 @@ class User {
   final String? email;
   final String? dateJoined;
   final List<dynamic>? quizScores;
+  final int creditsEarned;
 
 
   User({
@@ -40,7 +41,7 @@ class User {
     required this.email,
     required this.dateJoined,
     required this.quizScores,
-  });
+  }): creditsEarned = calculateCredits(quizScores ?? []);
 
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
@@ -178,6 +179,7 @@ class _MenuState extends State<Menu> {
             }
 
             final user = snapshot.data!;
+            final int creditsEarned = user.creditsEarned ?? 0;
             return Stack(
               children: [
                 // Background Gradient
@@ -227,8 +229,7 @@ class _MenuState extends State<Menu> {
                           LandscapeProfileSection(
                             firstName: user.firstName ?? 'Guest',
                             dateJoined: user.dateJoined ?? 'Unknown',
-                            creditsEarned: user.quizScores != null ? user
-                                .quizScores!.length * 5 : 0,
+                            creditsEarned: creditsEarned,
                           ),
                           SizedBox(height: screenSize.height *
                               (isTabletDevice ? 0.05 : .05)),
@@ -241,6 +242,7 @@ class _MenuState extends State<Menu> {
                                 authProvider,
                                 user.firstName,
                                 user.dateJoined,
+                                creditsEarned,
                               ),
                             ),
                           ),
@@ -254,8 +256,7 @@ class _MenuState extends State<Menu> {
                     ProfileSection(
                       firstName: user.firstName ?? 'Guest',
                       dateJoined: user.dateJoined ?? 'Unknown',
-                      creditsEarned: user.quizScores != null ? user.quizScores!
-                          .length * 5 : 0,
+                      creditsEarned: creditsEarned,
                     ),
                     Expanded(
                       child: Center(
@@ -266,6 +267,7 @@ class _MenuState extends State<Menu> {
                           authProvider,
                           user.firstName,
                           user.dateJoined,
+                          creditsEarned,
                         ),
                       ),
                     ),
@@ -304,7 +306,7 @@ class _MenuState extends State<Menu> {
   }
 
   Widget _buildPortraitLayout(BuildContext context, baseSize, scalingFactor,
-      authProvider, firstName, dateJoined) {
+      authProvider, firstName, dateJoined, creditsEarned) {
     return SingleChildScrollView(
       child: Align(
         alignment: Alignment.topCenter,
@@ -515,7 +517,7 @@ class _MenuState extends State<Menu> {
 
 
   Widget _buildLandscapeLayout(BuildContext context, baseSize, scalingFactor,
-      authProvider, firstName, dateJoined) {
+      authProvider, firstName, dateJoined, creditsEarned) {
     return SingleChildScrollView(
       child: Align(
         alignment: Alignment.topCenter,

@@ -402,7 +402,7 @@ class _ModuleInfoState extends State<ModuleInfo> {
               onTap: _isLoading
                   ? null
                   : () async {
-                    await getLocationAndSaveDownload();
+
                 if (widget.downloadLink != null) {
                   setState(() {
                     _isLoading = true;
@@ -410,7 +410,7 @@ class _ModuleInfoState extends State<ModuleInfo> {
 
                   String fileName = "$widget.moduleName.zip";
                   await downloadModule(widget.downloadLink!, fileName);
-
+                  await getLocationAndSaveDownload();
                   setState(() {_isLoading = false;});
 
                   Navigator.push(context,
@@ -594,7 +594,7 @@ class _ModuleInfoState extends State<ModuleInfo> {
 
                   String fileName = "$widget.moduleName.zip";
                   await downloadModule(widget.downloadLink!, fileName);
-
+                  await getLocationAndSaveDownload();
                   setState(() {_isLoading = false;});
 
                   Navigator.push(
