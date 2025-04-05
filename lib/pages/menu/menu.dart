@@ -22,6 +22,10 @@ import 'meet_team.dart';
 
 
 class Menu extends StatefulWidget {
+  final void Function(Locale)? onLocaleChange;
+
+  const Menu({Key? key, this.onLocaleChange}) : super(key: key);
+
   @override
   _MenuState createState() => _MenuState();
 }
@@ -317,18 +321,25 @@ class _MenuState extends State<Menu> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildInkWellButton(context, 'Meet The Team', scalingFactor, () {
-                  print("Meet The Team Tapped");
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => MeetTeam()),
-                  );
+                _buildInkWellButton(context, 'Meet The Team', scalingFactor, () async {
+                  final Uri url = Uri.parse('https://sites.google.com/view/wired-international-team/home');
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Could not launch Meet The Team')),
+                    );
+                  }
                 }),
-                _buildInkWellButton(context, 'About WiRED', scalingFactor, () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => AboutWired()),
-                  );
+                _buildInkWellButton(context, 'About WiRED', scalingFactor, () async {
+                  final Uri url = Uri.parse('https://sites.google.com/view/healthmap-about/home');
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Could not launch About WiRED')),
+                    );
+                  }
                 }),
               ],
             ),
@@ -528,18 +539,25 @@ class _MenuState extends State<Menu> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                _buildInkWellButton(context, 'Meet The Team', scalingFactor, () {
-                  print("Meet The Team Tapped");
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => MeetTeam()),
-                  );
+                _buildInkWellButton(context, 'Meet The Team', scalingFactor, () async {
+                  final Uri url = Uri.parse('https://sites.google.com/view/wired-international-team/home');
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Could not launch Meet The Team')),
+                    );
+                  }
                 }),
-                _buildInkWellButton(context, 'About WiRED', scalingFactor, () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => AboutWired()),
-                  );
+                _buildInkWellButton(context, 'About WiRED', scalingFactor, () async {
+                  final Uri url = Uri.parse('https://sites.google.com/view/healthmap-about/home');
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url, mode: LaunchMode.externalApplication);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Could not launch About WiRED')),
+                    );
+                  }
                 }),
               ],
             ),

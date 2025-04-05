@@ -19,8 +19,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, this.title});
+  const MyHomePage({super.key, this.title, this.onLocaleChange});
   final String? title;
+  final void Function(Locale)? onLocaleChange;
 
   @override
   State<MyHomePage> createState() => _MyHomePageState();
@@ -188,7 +189,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                      builder: (context) => isLoggedIn ? Menu(onLocaleChange: widget.onLocaleChange) : GuestMenu(onLocaleChange: widget.onLocaleChange),
                     ),
                   );
                 },
