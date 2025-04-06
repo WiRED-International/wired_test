@@ -203,3 +203,20 @@ int calculateCredits(List<dynamic>? quizScores) {
     return false;
   }).length * 5;
 }
+// Get storage path based on platform
+Future<Directory> getStoragePath() async {
+  Directory directory;
+
+  if (Platform.isAndroid) {
+    directory = await getExternalStorageDirectory() ?? await getApplicationDocumentsDirectory();  
+  } else if (Platform.isIOS || Platform.isMacOS) {
+    directory = await getApplicationSupportDirectory();
+  } else if (Platform.isWindows || Platform.isLinux) {
+    directory = await getApplicationDocumentsDirectory();
+  } else {
+    throw Exception("Unsupported platform");
+  }
+
+  print("DEBUG: Returning Directory -> ${directory.path}");
+  return directory;
+}
