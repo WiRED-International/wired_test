@@ -1,10 +1,18 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class UpdateChecker {
+  static const String androidPackageName = "com.wiredInternational.wired_app";
   static const String playStoreUrl = "https://play.google.com/store/apps/details?id=com.wiredInternational.wired_app";
+
+  static const String iosAppId = "YOUR_IOS_APP_ID"; // Replace with actual ID
+  static const String appStoreUrl =
+      "https://apps.apple.com/app/id$iosAppId";
 
   /// Get the installed version of the app
   static Future<String?> getInstalledVersion() async {
@@ -12,15 +20,15 @@ class UpdateChecker {
     return packageInfo.version;
   }
 
-  /// Fetch the latest version from the Play Store
-  static Future<String?> getLatestVersion() async {
+  /// Fetch the latest version from the Play Store (Android)
+  static Future<String?> _getLatestVersionFromPlayStore() async {
     try {
       final response = await http.get(Uri.parse(playStoreUrl));
       if (response.statusCode == 200) {
         final regex = RegExp(r'\[\[\["([0-9]+(?:\.[0-9]+)*)"\]\]');
         final match = regex.firstMatch(response.body);
         if (match != null) {
-          return match.group(1); // Extract version number
+          return match.group(1);
         }
       }
     } catch (e) {
@@ -29,10 +37,33 @@ class UpdateChecker {
     return null;
   }
 
-  /// Compare versions and show alert if needed
+  /// Fetch the latest version from the App Store (iOS)
+  static Future<String?> _getLatestVersionFromAppStore() async {
+    try {
+      final response = await http.get(Uri.parse(
+          "https://itunes.apple.com/lookup?id=$iosAppId"));
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        if (json["resultCount"] > 0) {
+          return json["results"][0]["version"];
+        }
+      }
+    } catch (e) {
+      print("Error fetching App Store version: $e");
+    }
+    return null;
+  }
+
+  /// Public method to check for update
   static Future<void> checkForUpdate(BuildContext context) async {
-    String? installedVersion = await getInstalledVersion();
-    String? latestVersion = await getLatestVersion();
+    final String? installedVersion = await getInstalledVersion();
+    String? latestVersion;
+
+    if (Platform.isAndroid) {
+      latestVersion = await _getLatestVersionFromPlayStore();
+    } else if (Platform.isIOS) {
+      latestVersion = await _getLatestVersionFromAppStore();
+    }
 
     if (installedVersion != null &&
         latestVersion != null &&
@@ -58,7 +89,7 @@ class UpdateChecker {
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                _openPlayStore();
+                _openStore();
               },
               child: Text("Update Now"),
             ),
@@ -68,13 +99,14 @@ class UpdateChecker {
     );
   }
 
-  /// Function to open Google Play Store
-  static Future<void> _openPlayStore() async {
-    final Uri url = Uri.parse(playStoreUrl);
+  /// Open respective store
+  static Future<void> _openStore() async {
+    final Uri url = Uri.parse(
+        Platform.isAndroid ? playStoreUrl : appStoreUrl);
     if (await canLaunchUrl(url)) {
       await launchUrl(url, mode: LaunchMode.externalApplication);
     } else {
-      print("Could not launch $playStoreUrl");
+      print("Could not launch store URL");
     }
   }
 }
