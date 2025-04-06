@@ -42,6 +42,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
   @override
   void initState() {
     super.initState();
+    testStoragePath();
     futureModules = _fetchModules();
     futureResources = _fetchResources(); // Fetch the resources
   }
@@ -58,18 +59,51 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
     return match?.group(2); // Return the captured group (module ID)
   }
 
+Future<void> testStoragePath() async {
+  final directory = await getStoragePath();
+  print("DEBUG: getStoragePath() returned -> $directory");
+  if (directory == null) {
+    print("ERROR: getStoragePath() returned NULL!");
+  } else {
+    print("DEBUG: directory.path -> ${directory.path}");
+  }
+}
+
+Future<Directory> getStoragePath() async {
+  Directory directory;
+
+  if (Platform.isAndroid) {
+    directory = await getExternalStorageDirectory() ?? await getApplicationDocumentsDirectory();  
+  } else if (Platform.isIOS || Platform.isMacOS) {
+    directory = await getApplicationSupportDirectory();
+  } else if (Platform.isWindows || Platform.isLinux) {
+    directory = await getApplicationDocumentsDirectory();
+  } else {
+    throw Exception("Unsupported platform");
+  }
+
+  print("DEBUG: getStoragePath() returning -> ${directory.path}");
+  return directory;
+}
 
   Future<List<ModuleFile>> _fetchModules() async {
-    final directory = await getExternalStorageDirectory();
-    if (directory != null) {
+    final directory = await getStoragePath();
+    if (directory == null) {
+    print("ERROR: getStoragePath() returned NULL in _fetchModules()");
+    return [];
+    }
+
       final packagesDirectory = Directory('${directory.path}/packages');
       final modulesDirectory = Directory('${directory.path}/modules');
+
+      print("DEBUG: Checking directories -> Packages: ${packagesDirectory.path}, Modules: ${modulesDirectory.path}");
 
       List<ModuleFile> fetchedModules = [];
 
       // Process files in packages directory
       if (packagesDirectory.existsSync()) {
         final packageFiles = packagesDirectory.listSync().whereType<File>().toList();
+        print("DEBUG: Found ${packageFiles.length} package files.");
         fetchedModules.addAll(packageFiles.map((file) {
           String fileName = file.path.split('/').last.replaceAll('.htm', '');
 
@@ -93,6 +127,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
       // Process files in modules directory
       if (modulesDirectory.existsSync()) {
         final moduleFiles = modulesDirectory.listSync().whereType<File>().toList();
+        print("DEBUG: Found ${moduleFiles.length} module files.");
         fetchedModules.addAll(moduleFiles.map((file) {
           String fileName = file.path.split('/').last.replaceAll('.htm', '');
 
@@ -120,17 +155,15 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
       });
 
       return fetchedModules;
-    } else {
-      return [];
-    }
   }
 
   Future<List<FileSystemEntity>> _fetchResources() async {
-    final directory = await getExternalStorageDirectory();
+    final directory = await getStoragePath();
     if (directory != null) {
+      final dir = Directory(directory.path);
+
       setState(() {
-        resources = directory
-            .listSync()
+        resources = dir.listSync()
             .whereType<File>()
             .where((file) => file.path.endsWith('.pdf')) // Only PDF files
             .toList();
@@ -170,7 +203,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
 
   Future<void> deleteFileAndAssociatedDirectory(String fileName) async {
     try {
-      final directory = await getExternalStorageDirectory();
+      final directory = await getStoragePath();
       if (directory == null) {
         return;
       }
@@ -201,7 +234,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
 
       if (match != null) {
         final directoryName = match.group(1);
-        final associatedDirectoryPath = '${directory.path}/files/$directoryName';
+        final associatedDirectoryPath = '$directory/files/$directoryName';
 
         // Delete the file
         await file.delete();

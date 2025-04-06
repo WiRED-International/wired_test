@@ -79,22 +79,32 @@ class _ModuleInfoState extends State<ModuleInfo> {
     return status.isGranted;
   }
 
+  Future<String> getStoragePath() async {
+
+    Directory? directory;
+
+    if (Platform.isAndroid) {
+      directory = await getExternalStorageDirectory(); // Android external storage
+    } else if (Platform.isIOS || Platform.isMacOS) {
+      directory = await getApplicationSupportDirectory(); // iOS/macOS safe location
+    } else if (Platform.isWindows || Platform.isLinux) {
+      directory = await getApplicationDocumentsDirectory(); // Windows/Linux
+    }
+
+    return directory?.path ?? "/default/path"; // Fallback path
+  }
+
   // Download the Module
   Future<void> downloadModule(String url, String fileName) async {
     bool hasPermission = await checkAndRequestStoragePermission();
     print("Has Permission: $hasPermission");
+
     if (true) {
-      final directory = await getExternalStorageDirectory(); // Get the External Storage Directory (Android)
-      if (directory == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Unable to access storage directory')),
-        );
-        return;
-      }
+      final storagePath = await getStoragePath();
+      final modulesDirectoryPath = '$storagePath/modules';
+      final modulesDirectory = Directory(modulesDirectoryPath);
 
       // Check if the individuals modules directory exists
-      final modulesDirectoryPath = '${directory.path}/modules';
-      final modulesDirectory = Directory(modulesDirectoryPath);
       if (!modulesDirectory.existsSync()) {
         modulesDirectory.createSync(recursive: true);
         print('Directory created: $modulesDirectoryPath');
@@ -106,10 +116,11 @@ class _ModuleInfoState extends State<ModuleInfo> {
       try {
         final response = await http.get(Uri.parse(url));
         await file.writeAsBytes(response.bodyBytes);
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Downloaded $fileName')),
         );
-        print('Directory: ${directory.path}');
+        print('Directory: $storagePath');
         print('File Path: $modulesFilePath');
 
         // Unzip the downloaded file
@@ -118,24 +129,24 @@ class _ModuleInfoState extends State<ModuleInfo> {
 
         for (var file in archive) {
           final filename = file.name;
-          final modulesFilePath = '${directory.path}/modules/$filename';
-          print('Processing file: $filename at path: $modulesFilePath');
+          final extractedFilePath = '$modulesDirectoryPath/$filename';
+          print('Processing file: $filename at path: $extractedFilePath');
 
           if (file.isFile) {
             final data = file.content as List<int>;
-            File(modulesFilePath)
+            File(extractedFilePath)
               ..createSync(recursive: true)
               ..writeAsBytesSync(data);
           } else {
-            Directory(modulesFilePath).createSync(recursive: true);
-            print('Directory created: $modulesFilePath');
+            Directory(extractedFilePath).createSync(recursive: true);
+            print('Directory created: $extractedFilePath');
           }
         }
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Unzipped $fileName')),
         );
-        print('Unzipped to: ${directory.path}');
+        print('Unzipped to: $storagePath');
 
         // Delete the zip file
         try {
