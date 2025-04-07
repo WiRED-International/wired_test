@@ -10,7 +10,7 @@ class UpdateChecker {
   static const String androidPackageName = "com.wiredInternational.wired_app";
   static const String playStoreUrl = "https://play.google.com/store/apps/details?id=com.wiredInternational.wired_app";
 
-  static const String iosAppId = "YOUR_IOS_APP_ID"; // Replace with actual ID
+  static const String iosAppId = "6744303795"; // Replace with actual ID
   static const String appStoreUrl =
       "https://apps.apple.com/app/id$iosAppId";
 
