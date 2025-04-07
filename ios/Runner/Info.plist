@@ -35,8 +35,6 @@
 	<string>Your location is needed for...</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>This app requests your location to provide local health content and services.</string>
-	<key>NSUserTrackingUsageDescription</key>
-	<string>This app downloads and saves health education modules for offline access.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
