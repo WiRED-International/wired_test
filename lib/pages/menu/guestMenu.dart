@@ -151,172 +151,174 @@ class _GuestMenuState extends State<GuestMenu> {
     // Calculate extra space for the overlapping buttons.
     final double overlapOffset = scalingFactor * (isTablet(context) ? 35 : 35);
 
-    return Column(
-      children: <Widget>[
-        Container(
-          // Increase the container height to include the overlapping area.
-          height: imageHeight + overlapOffset,
-          child: Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.topCenter,
-            children: <Widget>[
-              // Image with fade effect
-              ShaderMask(
-                shaderCallback: (Rect bounds) {
-                  return LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [
-                      Color(0xFFFCEDDA).withOpacity(0.0),
-                      Color(0xFFFCEDDA).withOpacity(1.0),
+    return SingleChildScrollView(
+      child: Column(
+        children: <Widget>[
+          Container(
+            // Increase the container height to include the overlapping area.
+            height: imageHeight + overlapOffset,
+            child: Stack(
+              clipBehavior: Clip.none,
+              alignment: Alignment.topCenter,
+              children: <Widget>[
+                // Image with fade effect
+                ShaderMask(
+                  shaderCallback: (Rect bounds) {
+                    return LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        Color(0xFFFCEDDA).withOpacity(0.0),
+                        Color(0xFFFCEDDA).withOpacity(1.0),
+                      ],
+                      stops: [0.0, 0.2],
+                    ).createShader(bounds);
+                  },
+                  blendMode: BlendMode.dstIn,
+                  child: Container(
+                    width: double.infinity,
+                    height: imageHeight,
+                    decoration: BoxDecoration(
+                      image: DecorationImage(
+                        image: AssetImage('assets/images/menu-pic-optimized.webp'),
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                  ),
+                ),
+                // Top two buttons overlapping the image
+                Positioned(
+                  bottom: -overlapOffset,
+                  left: 0,
+                  right: 0,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildInkWellButton('Meet The Team', scalingFactor, () async {
+                        final Uri url = Uri.parse('https://sites.google.com/view/wired-international-team/home');
+                        if (await canLaunchUrl(url)) {
+                          await launchUrl(url, mode: LaunchMode.externalApplication);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Could not launch Meet The Team')),
+                          );
+                        }
+                      }),
+                      _buildInkWellButton('About WiRED', scalingFactor, () async {
+                        final Uri url = Uri.parse('https://sites.google.com/view/healthmap-about/home');
+                        if (await canLaunchUrl(url)) {
+                          await launchUrl(url, mode: LaunchMode.externalApplication);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Could not launch About WiRED')),
+                          );
+                        }
+                      }),
                     ],
-                    stops: [0.0, 0.2],
-                  ).createShader(bounds);
-                },
-                blendMode: BlendMode.dstIn,
-                child: Container(
-                  width: double.infinity,
-                  height: imageHeight,
-                  decoration: BoxDecoration(
-                    image: DecorationImage(
-                      image: AssetImage('assets/images/menu-pic-optimized.webp'),
-                      fit: BoxFit.cover,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Spacer and the bottom section remain unchanged...
+          SizedBox(height: scalingFactor * (isTablet(context) ? 45 : 45)),
+          // Bottom section: Privacy Policy, Registration, and Login buttons.
+          Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildInkWellButton('Privacy Policy', scalingFactor, () async {
+                    final Uri url = Uri.parse('https://sites.google.com/view/healthmapprivacypolicy/home');
+                    if (await canLaunchUrl(url)) {
+                      await launchUrl(url, mode: LaunchMode.externalApplication);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Could not launch Privacy Policy')),
+                      );
+                    }
+                  }),
+                  _buildEmptyButton(scalingFactor),
+                ],
+              ),
+              SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 30)),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => Register()),
+                    );
+                  },
+                  child: Padding(
+                    padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 12 : 15)),
+                    child: Text(
+                      'CME Tracker Registration',
+                      style: TextStyle(
+                        fontSize: scalingFactor * (isTablet(context) ? 18 : 18),
+                        fontWeight: FontWeight.w400,
+                        color: Color(0xFF0070C0),
+                      ),
                     ),
                   ),
                 ),
               ),
-              // Top two buttons overlapping the image
-              Positioned(
-                bottom: -overlapOffset,
-                left: 0,
-                right: 0,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _buildInkWellButton('Meet The Team', scalingFactor, () async {
-                      final Uri url = Uri.parse('https://sites.google.com/view/wired-international-team/home');
-                      if (await canLaunchUrl(url)) {
-                        await launchUrl(url, mode: LaunchMode.externalApplication);
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Could not launch Meet The Team')),
-                        );
-                      }
-                    }),
-                    _buildInkWellButton('About WiRED', scalingFactor, () async {
-                      final Uri url = Uri.parse('https://sites.google.com/view/healthmap-about/home');
-                      if (await canLaunchUrl(url)) {
-                        await launchUrl(url, mode: LaunchMode.externalApplication);
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Could not launch About WiRED')),
-                        );
-                      }
-                    }),
-                  ],
+              SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 30)),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => Login()),
+                    );
+                  },
+                  child: Padding(
+                    padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 12 : 15)),
+                    child: Text(
+                      'CME Tracker Login',
+                      style: TextStyle(
+                        fontSize: scalingFactor * (isTablet(context) ? 18 : 18),
+                        fontWeight: FontWeight.w400,
+                        color: Color(0xFF0070C0),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 30)),
+              GestureDetector(
+                onTap: () async {
+                  final Uri deleteAccountUri = Uri.parse("https://sites.google.com/view/wired-international-healthmap/home");
+
+                  if (await canLaunchUrl(deleteAccountUri)) {
+                    await launchUrl(deleteAccountUri, mode: LaunchMode.externalApplication);
+                  } else {
+                    print("Could not open the delete account request page");
+                    _showCopyDeleteAccountDialog(context);
+                  }
+                },
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Padding(
+                    padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 12 : 15)),
+                    child: Text(
+                      'Request Data Deletion',
+                      style: TextStyle(
+                        fontSize: scalingFactor * (isTablet(context) ? 18 : 18),
+                        fontWeight: FontWeight.w400,
+                        color: Color(0xFF0070C0),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
-        ),
-        // Spacer and the bottom section remain unchanged...
-        SizedBox(height: scalingFactor * (isTablet(context) ? 45 : 45)),
-        // Bottom section: Privacy Policy, Registration, and Login buttons.
-        Column(
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildInkWellButton('Privacy Policy', scalingFactor, () async {
-                  final Uri url = Uri.parse('https://sites.google.com/view/healthmapprivacypolicy/home');
-                  if (await canLaunchUrl(url)) {
-                    await launchUrl(url, mode: LaunchMode.externalApplication);
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Could not launch Privacy Policy')),
-                    );
-                  }
-                }),
-                _buildEmptyButton(scalingFactor),
-              ],
-            ),
-            SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 30)),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => Register()),
-                  );
-                },
-                child: Padding(
-                  padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 12 : 15)),
-                  child: Text(
-                    'CME Tracker Registration',
-                    style: TextStyle(
-                      fontSize: scalingFactor * (isTablet(context) ? 18 : 18),
-                      fontWeight: FontWeight.w400,
-                      color: Color(0xFF0070C0),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 30)),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => Login()),
-                  );
-                },
-                child: Padding(
-                  padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 12 : 15)),
-                  child: Text(
-                    'CME Tracker Login',
-                    style: TextStyle(
-                      fontSize: scalingFactor * (isTablet(context) ? 18 : 18),
-                      fontWeight: FontWeight.w400,
-                      color: Color(0xFF0070C0),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 30)),
-            GestureDetector(
-              onTap: () async {
-                final Uri deleteAccountUri = Uri.parse("https://sites.google.com/view/wired-international-healthmap/home");
-
-                if (await canLaunchUrl(deleteAccountUri)) {
-                  await launchUrl(deleteAccountUri, mode: LaunchMode.externalApplication);
-                } else {
-                  print("Could not open the delete account request page");
-                  _showCopyDeleteAccountDialog(context);
-                }
-              },
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 60 : 15)),
-                  child: Text(
-                    'Request Data Deletion',
-                    style: TextStyle(
-                      fontSize: scalingFactor * (isTablet(context) ? 18 : 18),
-                      fontWeight: FontWeight.w400,
-                      color: Color(0xFF0070C0),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-        SizedBox(height: scalingFactor * (isTablet(context) ? 0.07 : 0)),
-      ],
+          SizedBox(height: scalingFactor * (isTablet(context) ? 20 : 0)),
+        ],
+      ),
     );
   }
 
