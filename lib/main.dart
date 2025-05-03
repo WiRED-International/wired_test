@@ -6,6 +6,8 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:wired_test/providers/auth_provider.dart';
 import 'package:wired_test/providers/user_provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+
 
 Future<void> main() async {
   // Enable debug paint
@@ -74,6 +76,7 @@ class _MyAppState extends State<MyApp> {
         Locale('es'),
       ],
       localizationsDelegates: const [
+        AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,

@@ -1,0 +1,11 @@
+{
+  "@@locale": "es",
+  "appTitle": "WiRED Internacional",
+  "homeTitle": "Biblioteca de Módulos CME",
+  "newsAndUpdates": "Noticias y Actualizaciones",
+  "noAlerts": "No hay alertas disponibles",
+  "invalidModuleData": "Datos de módulo inválidos.",
+  "noDescription": "No hay descripción disponible",
+  "searchModules": "Módulos",
+  "searchHint": "Toque para buscar módulos"
+}

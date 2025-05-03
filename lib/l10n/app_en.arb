@@ -1,0 +1,11 @@
+{
+  "@@locale": "en",
+  "appTitle": "WiRED International",
+  "homeTitle": "CME Module Library",
+  "newsAndUpdates": "News and Updates",
+  "noAlerts": "No alerts available",
+  "invalidModuleData": "Invalid module data provided.",
+  "noDescription": "No Description available",
+  "searchModules": "Modules",
+  "searchHint": "Tap to search for modules"
+}

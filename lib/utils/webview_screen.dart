@@ -72,17 +72,22 @@ class _WebViewScreenState extends State<WebViewScreen> {
               String? checkInjectedModuleName = await _webViewController.evaluateJavascript(source: "window.moduleName;");
               print("🔍 Post-Injection moduleName Check: $checkInjectedModuleName");
 
-              // ✅ Inject JS to detect clicked links (even if Storyline opens PDFs via JavaScript)
+              // Inject JS to detect clicked links (even if Storyline opens PDFs via JavaScript)
               await _webViewController.evaluateJavascript(source: """
               document.addEventListener('click', function(event) {
                 let target = event.target.closest('a');
                 if (target) {
-                  console.log('🔗 Link clicked:', target.href);
+                  const href = target.getAttribute('href');
+                  console.log('🔗 Link clicked:', href);
+            
+                  if (href && href.endsWith('.pdf')) {
+                    window.location.href = href;
+                  }
                 }
               });
             """);
 
-              // ✅ Inject JS to detect PDFs opened in iframes
+              // Inject JS to detect PDFs opened in iframes
               await _webViewController.evaluateJavascript(source: """
               setTimeout(() => {
                 let iframes = document.getElementsByTagName('iframe');
@@ -92,10 +97,11 @@ class _WebViewScreenState extends State<WebViewScreen> {
               }, 3000);
             """);
 
-              // ✅ Override window.open to capture JavaScript-triggered PDFs
+              // Override window.open to capture JavaScript-triggered PDFs
               await _webViewController.evaluateJavascript(source: """
               window.open = function(url) {
                 console.log('📂 JavaScript opened:', url);
+                window.location.href = url;
               };
             """);
             },
@@ -105,21 +111,21 @@ class _WebViewScreenState extends State<WebViewScreen> {
               try {
                 String cleanMessage = consoleMessage.message.trim();
 
-                // ✅ Detect and print any message containing `module_id`
+                // Detect and print any message containing `module_id`
                 if (cleanMessage.contains("module_id")) {
                   print("📌 Debug: Storyline Sent Data - $cleanMessage");
                 }
 
-                // ✅ Detect and print any message containing `module_name`
+                // Detect and print any message containing `module_name`
                 if (cleanMessage.contains("module_name")) {
                   print("📌 Debug: Storyline Sent Data - $cleanMessage");
                 }
 
-                // ✅ Detect PDF Links opened via JavaScript
+                // Detect PDF Links opened via JavaScript
                 if (cleanMessage.contains(".pdf")) {
                   print("📂 Detected PDF link: $cleanMessage");
 
-                  // ✅ Retrieve `moduleId` from WebView
+                  // Retrieve `moduleId` from WebView
                   String? moduleId = await _webViewController.evaluateJavascript(source: "window.moduleId");
                   if (moduleId == null || moduleId.isEmpty) {
                     print("❌ ERROR: Module ID not found in WebView!");
@@ -128,33 +134,33 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
                   print("🔹 Retrieved moduleId from WebView: $moduleId");
 
-                  // ✅ Extract actual file name
+                  // Extract actual file name
                   String fileName = cleanMessage.split("/").last;
                   print("📂 Extracted PDF file name: $fileName");
 
-                  // ✅ Get correct external storage path
+                  // Get correct external storage path
                   Directory? externalDir = await getExternalStorageDirectory();
                   // if (externalDir == null) {
                   //   print("❌ ERROR: External storage directory not found.");
                   //   return;
                   // }
 
-                  // ✅ Construct full file path
+                  // Construct full file path
                   // String filePath = "${externalDir.path}/files/$moduleId/story_content/external_files/$fileName";
                   // print("📂 Constructed PDF file path: $filePath");
 
-                  // ✅ Open PDF with correct path
+                  // Open PDF with correct path
                   await _openLocalPdf(cleanMessage, moduleId);
                   return;
                 }
 
-                // ✅ Extract and clean JSON message
+                // Extract and clean JSON message
                 final int jsonStartIndex = cleanMessage.indexOf("{");
                 if (jsonStartIndex != -1) {
                   cleanMessage = cleanMessage.substring(jsonStartIndex);
                 }
 
-                // ✅ Validate and parse JSON
+                // Validate and parse JSON
                 if (cleanMessage.startsWith("{") && cleanMessage.endsWith("}")) {
                   final Map<String, dynamic> jsonData = json.decode(cleanMessage);
 
@@ -163,7 +169,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
                   print("🔹 ModuleName: ${jsonData['module_name']}");
                   print("🔹 Quiz Score: ${jsonData['quiz_score']}");
 
-                  // ✅ If module_id is missing, retrieve it from WebView
+                  // If module_id is missing, retrieve it from WebView
                   if (!jsonData.containsKey("module_id") || jsonData["module_id"] == null) {
                     print("⚠️ Module ID missing in Storyline data! Attempting retrieval...");
 
@@ -177,7 +183,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
                     }
                   }
 
-                  // ✅ If module_name is missing, retrieve it from WebView
+                  // If module_name is missing, retrieve it from WebView
                   if (!jsonData.containsKey("module_name") || jsonData["module_name"] == null) {
                     print("⚠️ Module Name missing in Storyline data! Attempting retrieval...");
 
@@ -191,7 +197,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
                     }
                   }
 
-                  // ✅ Store the quiz score in Secure Storage
+                  // Store the quiz score in Secure Storage
                   await _storeScoreInSecureStorage(jsonData);
                 } else {
                   print("⚠️ Warning: Message does not appear to be valid JSON.");
@@ -201,12 +207,12 @@ class _WebViewScreenState extends State<WebViewScreen> {
               }
             },
 
-// ✅ Handle downloads properly
+// Handle downloads properly
             onDownloadStartRequest: (controller, downloadStartRequest) async {
               print("📥 Download Request Triggered: ${downloadStartRequest.url} - MIME Type: ${downloadStartRequest.mimeType}");
 
               if (downloadStartRequest.mimeType == "application/pdf") {
-                // ✅ Retrieve `moduleId` from WebView
+                // Retrieve `moduleId` from WebView
                 String? moduleId = await _webViewController.evaluateJavascript(source: "window.moduleId");
                 if (moduleId == null || moduleId.isEmpty) {
                   print("❌ ERROR: Module ID not found in WebView!");
@@ -219,7 +225,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
               }
             },
 
-// ✅ Override URL loading behavior
+// Override URL loading behavior
             shouldOverrideUrlLoading: (controller, navigationAction) async {
               final uri = navigationAction.request.url;
               if (uri != null) {
@@ -228,7 +234,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
                 if (uri.toString().endsWith(".pdf")) {
                   print("📂 PDF detected! Forcing download.");
 
-                  // ✅ Retrieve `moduleId` from WebView
+                  // Retrieve `moduleId` from WebView
                   String? moduleId = await _webViewController.evaluateJavascript(source: "window.moduleId");
                   if (moduleId == null || moduleId.isEmpty) {
                     print("❌ ERROR: Module ID not found in WebView!");
@@ -242,7 +248,32 @@ class _WebViewScreenState extends State<WebViewScreen> {
                 return NavigationActionPolicy.ALLOW;
               }
               return NavigationActionPolicy.CANCEL;
-            }
+            },
+
+            shouldInterceptRequest: (controller, request) async {
+              final uri = request.url;
+              final path = uri.toString();
+
+              if (path.endsWith(".mp3") && path.startsWith("file://")) {
+                try {
+                  final file = File(uri.toFilePath());
+                  final bytes = await file.readAsBytes();
+                  return WebResourceResponse(
+                    data: bytes,
+                    statusCode: 200,
+                    reasonPhrase: "OK",
+                    headers: {
+                      'Content-Type': 'audio/mpeg',
+                      'Access-Control-Allow-Origin': '*',
+                    },
+                  );
+                } catch (e) {
+                  print("❌ Error serving MP3: $e");
+                  return null;
+                }
+              }
+              return null;
+            },
         ),
       ),
     );
@@ -291,7 +322,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
         return;
       }
 
-      // ✅ Determine the correct directory based on moduleId length
+      // Determine the correct directory based on moduleId length
       String basePath;
       if (moduleId.length == 4) {
         basePath = "${externalDir.path}/modules/files"; // Individual module
@@ -304,11 +335,11 @@ class _WebViewScreenState extends State<WebViewScreen> {
         return;
       }
 
-      // ✅ Construct the final PDF file path
+      // Construct the final PDF file path
       String filePath = "$basePath/$moduleId/story_content/external_files/$fileName";
       print("📂 Constructed PDF file path: $filePath");
 
-      // ✅ Check if the file exists and open it
+      // Check if the file exists and open it
       File file = File(filePath);
       if (await file.exists()) {
         print("📂 File found! Opening PDF...");
