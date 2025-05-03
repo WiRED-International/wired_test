@@ -17,6 +17,8 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, this.title, this.onLocaleChange});
@@ -213,7 +215,7 @@ class _MyHomePageState extends State<MyHomePage> {
           ),
         ),
         Text(
-          'CME Module Library',
+          AppLocalizations.of(context)!.homeTitle,
           style: TextStyle(
             fontSize: baseSize * (isTablet(context) ? 0.07 : 0.08),
             fontWeight: FontWeight.w500,
