@@ -56,6 +56,9 @@ dependencies:
   flutter_markdown: ^0.7.6+2
   flutter_dotenv: ^5.2.1
   package_info_plus: ^8.3.0
+  pdf: ^3.11.3
+  printing: ^5.14.2
+  syncfusion_flutter_pdfviewer: ^29.2.5
 
 dev_dependencies:
   flutter_test:

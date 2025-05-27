@@ -1,18 +1,19 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
 import 'package:path_provider/path_provider.dart';
 import 'package:archive/archive_io.dart';
 import 'package:url_launcher/url_launcher.dart';
-
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 
 Future<void> unzipFile(String zipFilePath) async {
   // Get the application documents directory
   final appDocDir = await getApplicationDocumentsDirectory();
-  print('appDocDir1: ${appDocDir.path}');
+  debugPrint('appDocDir1: ${appDocDir.path}');
   final outputDir = Directory('${appDocDir.path}/unzipped_module');
 
   // Ensure the output directory exists
@@ -41,8 +42,12 @@ Future<void> unzipFile(String zipFilePath) async {
 
 Future<void> openHtmlFile(String htmlFilePath) async {
   final uri = Uri.file(htmlFilePath);
-  if (await canLaunch(uri.toString())) {
-    await launch(uri.toString(), forceSafariVC: false, forceWebView: false);
+
+  if (await canLaunchUrl(uri)) {
+    await launchUrl(
+      uri,
+      mode: LaunchMode.externalApplication, // or LaunchMode.platformDefault
+    );
   } else {
     throw 'Could not launch $htmlFilePath';
   }
@@ -65,7 +70,7 @@ TextStyle responsiveTextStyle(BuildContext context, double baseSize) {
 String formatDate(String timestamp) {
   try {
     final DateTime date = DateTime.parse(timestamp); // Parse the timestamp
-    return DateFormat('MMMM yyyy').format(date); // Format to "Month Year"
+    return DateFormat('MMM dd, yyyy').format(date); // Format to "Month Year"
   } catch (e) {
     return 'Invalid date'; // Handle invalid timestamps
   }
@@ -93,10 +98,10 @@ double getScalingFactor(BuildContext context) {
 Future<bool> checkIfUserIsLoggedIn() async {
   final _storage = const FlutterSecureStorage();
   final token = await _storage.read(key: 'authToken');
-  print("🔑 Retrieved Token: $token"); // Debugging output
+  debugPrint("Retrieved Token: $token"); // Debugging output
 
   bool isLoggedIn = token != null && token.isNotEmpty;
-  print("✅ User is logged in: $isLoggedIn"); // Debugging output
+  debugPrint("User is logged in: $isLoggedIn"); // Debugging output
 
   return isLoggedIn;
 }
@@ -114,15 +119,15 @@ Future<void> deleteStoredScore(String moduleId) async {
       if (storedScores.containsKey(moduleId)) {
         storedScores.remove(moduleId); // Remove the specific module ID
         await secureStorage.write(key: "quiz_scores", value: jsonEncode(storedScores));
-        print("✅ Successfully deleted score for Module ID: $moduleId");
+        debugPrint("Successfully deleted score for Module ID: $moduleId");
       } else {
-        print("⚠️ No score found for Module ID: $moduleId");
+        debugPrint("No score found for Module ID: $moduleId");
       }
     } else {
-      print("ℹ️ No stored scores found.");
+      debugPrint("No stored scores found.");
     }
   } catch (e) {
-    print("❌ Error deleting score: $e");
+    debugPrint("Error deleting score: $e");
   }
 }
 
@@ -217,6 +222,104 @@ Future<Directory> getStoragePath() async {
     throw Exception("Unsupported platform");
   }
 
-  print("DEBUG: Returning Directory -> ${directory.path}");
+  debugPrint("DEBUG: Returning Directory -> ${directory.path}");
   return directory;
+}
+
+// Generate PDF from CME data
+Future<Uint8List> generateCMEPdf({
+  required String firstName,
+  required String lastName,
+  required String email,
+  required String role,
+  required String country,
+  required String organization,
+  required List<dynamic> quizScores,
+  required Set<int> selectedIndices,
+}) async {
+  final pdf = pw.Document();
+
+  final logoData = await rootBundle.load('assets/images/watermark.png');
+  final logoImage = pw.MemoryImage(logoData.buffer.asUint8List());
+
+  final pageTheme = pw.PageTheme(
+    margin: const pw.EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+    buildBackground: (context) => pw.Container(
+      alignment: pw.Alignment.topCenter,
+      margin: const pw.EdgeInsets.only(top: 10),
+      child: pw.Opacity(
+        opacity: 0.5,
+        child: pw.Image(
+          logoImage,
+          width: 300,
+          fit: pw.BoxFit.contain,
+        ),
+      ),
+    ),
+  );
+
+  pdf.addPage(
+    pw.MultiPage(
+      pageTheme: pageTheme,
+      footer: (context) => pw.Container(
+        alignment: pw.Alignment.centerRight,
+        margin: const pw.EdgeInsets.only(top: 10),
+        child: pw.Text(
+          'Page ${context.pageNumber} of ${context.pagesCount}',
+          style: pw.TextStyle(fontSize: 10, color: PdfColors.grey),
+        ),
+      ),
+      build: (context) => [
+        pw.Text(
+          'Submitted CME History',
+          style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold),
+        ),
+        pw.SizedBox(height: 16),
+        pw.Text('Name: $firstName $lastName'),
+        pw.Text('Email: $email'),
+        pw.Text('Role: $role'),
+        pw.Text('Country: $country'),
+        pw.Text('Organization: $organization'),
+        pw.SizedBox(height: 24),
+
+        // CME Table
+        pw.TableHelper.fromTextArray(
+          border: pw.TableBorder.all(),
+          headerStyle: pw.TextStyle(
+            fontWeight: pw.FontWeight.bold,
+            color: PdfColors.blue800,
+          ),
+          headerDecoration: pw.BoxDecoration(
+            color: PdfColors.white,
+          ),
+          cellAlignment: pw.Alignment.centerLeft,
+          headerAlignment: pw.Alignment.center,
+          columnWidths: {
+            0: pw.FlexColumnWidth(2),
+            1: pw.FlexColumnWidth(1),
+            2: pw.FlexColumnWidth(1),
+            3: pw.FlexColumnWidth(2),
+          },
+          cellStyle: const pw.TextStyle(fontSize: 10),
+          data: <List<String>>[
+            ['Module Name', 'Module ID #', 'Score %', 'Date Submitted'],
+            ...selectedIndices.map((index) {
+              final quiz = quizScores[index];
+              final module = quiz['module'];
+              final formattedDate = formatDate(quiz['date_taken']);
+
+              return [
+                module?['name'] ?? 'Unknown',
+                module?['module_id']?.toString() ?? 'N/A',
+                '${double.parse(quiz['score']).toStringAsFixed(2)}%',
+                formattedDate,
+              ];
+            }),
+          ],
+        ),
+      ],
+    ),
+  );
+
+  return pdf.save();
 }

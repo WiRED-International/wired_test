@@ -12,6 +12,7 @@ import '../cme/register.dart';
 import '../home_page.dart';
 import '../module_library.dart';
 import 'about_wired.dart';
+import 'language.dart';
 import 'meet_team.dart';
 
 
@@ -238,7 +239,18 @@ class _GuestMenuState extends State<GuestMenu> {
                       );
                     }
                   }),
-                  _buildEmptyButton(scalingFactor),
+                  _buildInkWellButton('Language', scalingFactor, () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => Language(
+                        currentLocale: Localizations.localeOf(context),
+                        onLocaleChange: (Locale newLocale) {
+                          // Handle the locale change (e.g., by calling a provider or setState on parent)
+                          print('Locale changed to: $newLocale');
+                        },
+                      )),
+                    );
+                  }),
                 ],
               ),
               SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 30)),
