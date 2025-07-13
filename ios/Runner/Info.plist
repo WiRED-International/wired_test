@@ -32,9 +32,11 @@
 		<true/>
 	</dict>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>Your location is needed for...</string>
+	<string>HealthMAP uses your location to support accurate regional tracking of downloaded health content. Data is used only for internal analysis and not shared.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app requests your location to provide local health content and services.</string>
+	<string>This app uses your location to provide regionally relevant health education and services.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>HealthMAP uses your location to improve access to localized health content and track download activity for internal research purposes. Your data is never shared with third parties.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

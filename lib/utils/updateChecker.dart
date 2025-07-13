@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:pub_semver/pub_semver.dart';
 
 class UpdateChecker {
   static const String androidPackageName = "com.wiredInternational.wired_app";
@@ -46,6 +46,8 @@ class UpdateChecker {
         final json = jsonDecode(response.body);
         if (json["resultCount"] > 0) {
           return json["results"][0]["version"];
+        } else {
+          print("No results found in App Store response.");
         }
       }
     } catch (e) {
@@ -65,10 +67,15 @@ class UpdateChecker {
       latestVersion = await _getLatestVersionFromAppStore();
     }
 
-    if (installedVersion != null &&
-        latestVersion != null &&
-        installedVersion != latestVersion) {
-      showUpdateDialog(context);
+    if (installedVersion != null && latestVersion != null) {
+      final Version installed = Version.parse(installedVersion);
+      final Version latest = Version.parse(latestVersion);
+      print("Installed version: $installedVersion");
+      print("Latest version from App Store: $latestVersion");
+
+      if (installed < latest) {
+        showUpdateDialog(context);
+      }
     }
   }
 
