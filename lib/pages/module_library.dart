@@ -226,21 +226,34 @@ Future<Directory> getStoragePath() async {
 
       final file = File(filePath);
       print('Attempting to delete file: $filePath');
-      final fileContent = await file.readAsString();
 
-      // Use RegEx to find the path to the associated directory
-      final regEx = RegExp(r'files/(\d+(-[a-zA-Z0-9]+)*(-[A-Z]+)?)/');
-      final match = regEx.firstMatch(fileContent);
+      String? associatedDirectoryPath;
 
-      if (match != null) {
-        final directoryName = match.group(1);
-        final associatedDirectoryPath = '$directory/files/$directoryName';
+      // Only do RegEx logic if the file is not an .mp4
+      if (!fileName.toLowerCase().endsWith('.mp4')) {
+        final fileContent = await file.readAsString();
+        // Use RegEx to find the path to the associated directory
+        final regEx = RegExp(r'files/(\d+(-[a-zA-Z0-9]+)*(-[A-Z]+)?)/');
+        final match = regEx.firstMatch(fileContent);
 
-        // Delete the file
-        await file.delete();
-        print('Deleted file: $filePath');
+        if (match != null) {
+          final directoryName = match.group(1);
+          associatedDirectoryPath = '${directory.path}/files/$directoryName';
+        } else {
+          print('No associated directory found in file: $filePath');
+        }
+      } else {
+        // 🔁 Fallback for .mp4 files – infer folder name from filename (optional logic)
+        final baseName = fileName.split('.').first;
+        associatedDirectoryPath = '${directory.path}/files/$baseName';
+      }
 
-        // Delete the associated directory
+      // Delete the file
+      await file.delete();
+      print('Deleted file: $filePath');
+
+      // Delete the associated directory
+      if (associatedDirectoryPath != null) {
         final associatedDirectory = Directory(associatedDirectoryPath);
         if (associatedDirectory.existsSync()) {
           await associatedDirectory.delete(recursive: true);
@@ -248,14 +261,12 @@ Future<Directory> getStoragePath() async {
         } else {
           print('Associated directory not found: $associatedDirectoryPath');
         }
-
-        // Update state to remove the deleted module
-        setState(() {
-          modules.removeWhere((module) => module.path == filePath);
-        });
-      } else {
-        print('No associated directory found in file: $filePath');
       }
+
+      // Update state to remove the deleted module
+      setState(() {
+        modules.removeWhere((module) => module.path == filePath);
+      });
     } catch (e) {
       print('Error deleting file or directory: $e');
     }
