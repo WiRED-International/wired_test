@@ -62,6 +62,7 @@ class User {
   };
 
   // Method to calculate creditsEarned
+  static const int creditsPerQuiz = 5;
   static int _calculateCredits(List<dynamic>? quizScores) {
     final int currentYear = DateTime.now().year;
 
@@ -71,7 +72,11 @@ class User {
       if (score is Map<String, dynamic> &&
           score['score'] != null &&
           score['date_taken'] != null) {
-        final scoreValue = double.tryParse(score['score'].toString()) ?? 0.0;
+
+        final raw = score['score'];
+        final double scoreValue = raw is num
+            ? raw.toDouble()
+            : double.tryParse(raw.toString()) ?? 0.0;
         final DateTime? dateTaken = DateTime.tryParse(score['date_taken'].toString());
 
         return scoreValue >= 80.0 &&
@@ -79,7 +84,7 @@ class User {
             dateTaken.year == currentYear;
       }
       return false;
-    }).length * 5;
+    }).length * creditsPerQuiz;
   }
 }
 
