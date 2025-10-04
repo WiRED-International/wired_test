@@ -29,7 +29,7 @@ class ModuleFile {
   final String? path;
   final String moduleName;
   final String? moduleId;
-  final String? score;
+  final double? score;
 
 
   ModuleFile({
@@ -64,7 +64,6 @@ class _SubmitCreditsState extends State<SubmitCredits> {
       String? storedScoresJson = await secureStorage.read(key: "quiz_scores");
 
       if (storedScoresJson != null) {
-        print("🔍 Raw Stored Data: $storedScoresJson");
         Map<String, dynamic> storedScores = jsonDecode(storedScoresJson);
         List<ModuleFile> fetchedModules = [];
 
@@ -77,14 +76,16 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                 ? moduleData['module_name']
                 : 'Unknown Module';
 
-            String score = moduleData.containsKey('score')
+            String rawScore = moduleData.containsKey('score')
                 ? moduleData['score'].toString()
                 : '0.0';
+
+            double parsedScore = double.tryParse(rawScore) ?? 0.0;
 
             fetchedModules.add(ModuleFile(
               moduleId: moduleId.isNotEmpty ? moduleId : 'null',
               moduleName: moduleName.isNotEmpty ? moduleName : 'Unknown Module',
-              score: score,
+              score: parsedScore,
             ));
           } else {
             print("⚠️ Invalid module data format: $moduleData");
@@ -109,7 +110,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
   }
 
   Future<void> _handleSubmit(BuildContext context, ModuleFile moduleFile) async {
-    if (moduleFile.score == null || moduleFile.score!.isEmpty) {
+    if (moduleFile.score == null || moduleFile.score == 0.0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No score available to submit.')),
       );
@@ -140,7 +141,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
         body: json.encode({
           'module_id': moduleFile.moduleId!.substring(moduleFile.moduleId!.length - 4),
           'user_id': userId,
-          'score': double.tryParse(moduleFile.score!) ?? 0.0,
+          'score': moduleFile.score ?? 0.0,
           'date_taken': DateTime.now().toIso8601String(),
         }),
       );
@@ -550,7 +551,9 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                             SizedBox(width: scalingFactor * (isTablet(context) ? 5 : 5)),
                                             Expanded(
                                               child: Text(
-                                                moduleFile.score ?? 'No Score',
+                                                moduleFile.score != null
+                                                    ? moduleFile.score!.toStringAsFixed(2)
+                                                    : 'No Score',
                                                 style: TextStyle(
                                                   fontSize: scalingFactor * (isTablet(context) ? 14 : 18),
                                                   fontWeight: FontWeight.w500,
@@ -566,94 +569,6 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                       Row(
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         children: [
-                                          // Play Button
-                                          // Expanded(
-                                          //   child: Semantics(
-                                          //     label: 'Play Button',
-                                          //     hint: 'Tap to play the module',
-                                          //     child: GestureDetector(
-                                          //       onTap: () {
-                                          //         String moduleId = moduleFile.moduleId ?? "Unknown"; // Ensure moduleId is always a non-null String
-                                          //         String modulePath = moduleFile.path ?? "";
-                                          //
-                                          //         if (modulePath.isEmpty) {
-                                          //           print("❌ ERROR: Module path is missing!");
-                                          //           return; // Prevent navigation if the path is missing
-                                          //         }
-                                          //
-                                          //         saveModuleInfo(moduleId, moduleFile.moduleName);
-                                          //         print("Saving module id: $moduleId");
-                                          //
-                                          //         Navigator.push(
-                                          //           context,
-                                          //           MaterialPageRoute(
-                                          //             builder: (context) => WebViewScreen(
-                                          //               urlRequest: URLRequest(url: WebUri(Uri.file(modulePath).toString())), // ✅ Ensure modulePath is non-null
-                                          //               moduleId: moduleId, // ✅ Ensure moduleId is non-null
-                                          //             ),
-                                          //           ),
-                                          //         );
-                                          //       },
-                                          //
-                                          //       child: FractionallySizedBox(
-                                          //         widthFactor: isTablet(context) ? 0.45 : 0.65,
-                                          //         child: Container(
-                                          //           height: scalingFactor * (isTablet(context) ? 34 : 54),
-                                          //           decoration: BoxDecoration(
-                                          //             gradient: const LinearGradient(
-                                          //               colors: [
-                                          //                 Color(0xFF1A4314),
-                                          //                 Color(0xFF3E8914),
-                                          //                 Color(0xFF74B72E),
-                                          //               ],
-                                          //               begin: Alignment.topCenter,
-                                          //               end: Alignment.bottomCenter,
-                                          //             ),
-                                          //             borderRadius: BorderRadius.circular(30),
-                                          //             boxShadow: [
-                                          //               BoxShadow(
-                                          //                 color: Colors.black.withOpacity(0.5),
-                                          //                 spreadRadius: 1,
-                                          //                 blurRadius: 5,
-                                          //                 offset: const Offset(1, 3),
-                                          //               ),
-                                          //             ],
-                                          //           ),
-                                          //           child: LayoutBuilder(
-                                          //             builder: (context, constraints) {
-                                          //               double buttonWidth = constraints.maxWidth;
-                                          //               double fontSize = buttonWidth * 0.2;
-                                          //               double padding = buttonWidth * 0.02;
-                                          //               return Padding(
-                                          //                 padding: EdgeInsets.all(padding),
-                                          //                 child: Row(
-                                          //                   mainAxisAlignment: MainAxisAlignment.center,
-                                          //                   children: [
-                                          //                     Text(
-                                          //                       "Play",
-                                          //                       style: TextStyle(
-                                          //                         fontSize: fontSize,
-                                          //                         fontWeight: FontWeight.w500,
-                                          //                         color: Color(0xFFE8E8E8),
-                                          //                       ),
-                                          //                     ),
-                                          //                     SizedBox(width: padding),
-                                          //                     Icon(
-                                          //                       Icons.play_arrow,
-                                          //                       color: Color(0xFFE8E8E8),
-                                          //                       size: fontSize * 1.4,
-                                          //                     ),
-                                          //                   ],
-                                          //                 ),
-                                          //               );
-                                          //             },
-                                          //           ),
-                                          //         ),
-                                          //       ),
-                                          //     ),
-                                          //   ),
-                                          // ),
-
                                           // Submit Button
                                           Expanded(
                                             child: Semantics(
@@ -1010,7 +925,9 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                             SizedBox(width: scalingFactor * (isTablet(context) ? 5 : 5)),
                                             Expanded(
                                               child: Text(
-                                                moduleFile.score ?? 'No Score',
+                                                moduleFile.score != null
+                                                    ? moduleFile.score!.toStringAsFixed(2)  // ✅ Format here
+                                                    : 'No Score',
                                                 style: TextStyle(
                                                   fontSize: scalingFactor * (isTablet(context) ? 14 : 14),
                                                   fontWeight: FontWeight.w500,

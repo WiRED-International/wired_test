@@ -307,11 +307,15 @@ Future<Uint8List> generateCMEPdf({
               final quiz = quizScores[index];
               final module = quiz['module'];
               final formattedDate = formatDate(quiz['date_taken']);
+              final scoreValue = quiz['score'];
+              final double score = (scoreValue is num)
+                  ? scoreValue.toDouble()
+                  : double.tryParse(scoreValue.toString()) ?? 0.0;
 
               return [
                 module?['name'] ?? 'Unknown',
                 module?['module_id']?.toString() ?? 'N/A',
-                '${double.parse(quiz['score']).toStringAsFixed(2)}%',
+                '${score.toStringAsFixed(2)}%\n',
                 formattedDate,
               ];
             }),

@@ -23,10 +23,6 @@ import '../module_library.dart';
 import 'cme_tracker.dart';
 import 'package:printing/printing.dart';
 
-
-
-
-
 class CreditsHistory extends StatefulWidget {
 
   @override
@@ -474,6 +470,11 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                           final dateTaken = quiz['date_taken'];
                           final formattedDate = dateFormatter.format(DateTime.parse(dateTaken));
 
+                          final scoreValue = quiz['score'];
+                          final double score = (scoreValue is num)
+                              ? scoreValue.toDouble()
+                              : double.tryParse(scoreValue.toString()) ?? 0.0;
+
                           return Card(
                             margin: EdgeInsets.symmetric(
                                 vertical: scalingFactor * (isTablet(context) ? 8 : 8),
@@ -518,7 +519,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                                                   style: TextStyle(fontWeight: FontWeight.w500),
                                                 ),
                                                 TextSpan(
-                                                  text: '${double.parse(quiz['score']).toStringAsFixed(2)}%\n',
+                                                  text: '${score.toStringAsFixed(2)}%\n',
                                                 ),
                                                 const TextSpan(
                                                   text: 'Module ID: ',
@@ -787,6 +788,11 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                         final formattedDate = dateFormatter.format(
                             DateTime.parse(quiz['date_taken']));
 
+                        final scoreValue = quiz['score'];
+                        final double score = (scoreValue is num)
+                            ? scoreValue.toDouble()
+                            : double.tryParse(scoreValue.toString()) ?? 0.0;
+
                         return Card(
                           margin: EdgeInsets.symmetric(
                             vertical: scalingFactor * (isTablet(context) ? 8 : 8),
@@ -833,8 +839,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                                                     fontWeight: FontWeight.w500),
                                               ),
                                               TextSpan(
-                                                text:
-                                                '${double.parse(quiz['score']).toStringAsFixed(2)}%\n',
+                                                text: '${score.toStringAsFixed(2)}%\n',
                                               ),
                                               const TextSpan(
                                                 text: 'Module ID: ',
