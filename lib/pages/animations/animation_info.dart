@@ -1,47 +1,59 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'package:archive/archive.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_svg/svg.dart';
+import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:archive/archive_io.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter_svg/flutter_svg.dart';
-import '../providers/auth_guard.dart';
-import '../utils/custom_app_bar.dart';
-import '../utils/custom_nav_bar.dart';
-import '../utils/functions.dart';
-import '../utils/side_nav_bar.dart';
-import 'cme/cme_tracker.dart';
-import 'download_confirm.dart';
-import 'home_page.dart';
-import 'menu/guestMenu.dart';
-import 'menu/menu.dart';
-import 'module_library.dart';
+import 'package:wired_test/pages/animations/animation_info.dart';
+import '../../providers/auth_guard.dart';
+import '../../services/location_service.dart';
+import '../../utils/custom_app_bar.dart';
+import '../../utils/custom_nav_bar.dart';
+import '../../utils/functions.dart';
+import '../../utils/side_nav_bar.dart';
+import '../cme/cme_tracker.dart';
+import '../download_confirm.dart';
+import '../home_page.dart';
+import '../menu/guestMenu.dart';
+import '../menu/menu.dart';
+import '../module_library.dart';
 
-class PackageInfo extends StatefulWidget {
-  final int packageId;
-  final String packageName;
-  final String packageDescription;
-  final String? downloadLink;
+class AnimationInfo extends StatefulWidget {
+  final int animationId;
+  final String animationName;
+  final String animationDescription;
+  final String downloadLink;
 
-  PackageInfo({required this.packageId, required this.packageName, required this.packageDescription, this.downloadLink});
+  LocationService locationService = LocationService();
+
+  AnimationInfo({
+    Key? key,
+    required this.animationId,
+    required this.animationName,
+    required this.animationDescription,
+    required this.downloadLink,
+  }) : super(key: key);
 
   @override
-  _PackageInfoState createState() => _PackageInfoState();
+  State<AnimationInfo> createState() => _AnimationInfoState();
 }
 
-class Packages {
+class Animations {
   String? name;
   String? description;
   String? downloadLink;
 
-  Packages({
+  Animations({
     this.name,
     this.description,
     this.downloadLink,
   });
 
-  Packages.fromJson(Map<String, dynamic> json)
+  Animations.fromJson(Map<String, dynamic> json)
       : name = json['name'] as String,
         description = json['description'] as String,
         downloadLink = json['downloadLink'] as String;
@@ -54,12 +66,11 @@ class Packages {
   };
 }
 
-class _PackageInfoState extends State<PackageInfo> {
-  late Future<Packages> futurePackage;
-  late List<Packages> packageData = [];
-  final GlobalKey _packageNameKey = GlobalKey();
+class _AnimationInfoState extends State<AnimationInfo> {
+  late Future<List<Animation>> futureAnimations;
   double topPadding = 0;
   bool _isLoading = false;
+  Map<String, double?>? _location;
 
   // Get Permissions
   Future<bool> checkAndRequestStoragePermission() async {
@@ -70,38 +81,47 @@ class _PackageInfoState extends State<PackageInfo> {
     return status.isGranted;
   }
 
-  // Download the Package
-  Future<void> downloadPackage(String url, String fileName) async {
+  Future<String> getStoragePath() async {
+
+    Directory? directory;
+
+    if (Platform.isAndroid) {
+      directory = await getExternalStorageDirectory(); // Android external storage
+    } else if (Platform.isIOS || Platform.isMacOS) {
+      directory = await getApplicationSupportDirectory(); // iOS/macOS safe location
+    } else if (Platform.isWindows || Platform.isLinux) {
+      directory = await getApplicationDocumentsDirectory(); // Windows/Linux
+    }
+
+    return directory?.path ?? "/default/path"; // Fallback path
+  }
+  // Download the Animation
+  Future<void> downloadAnimation(String url, String fileName) async {
     bool hasPermission = await checkAndRequestStoragePermission();
     print("Has Permission: $hasPermission");
     if (true) {
-      final directory = await getExternalStorageDirectory(); // Get the External Storage Directory (Android)
-      if (directory == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Unable to access storage directory')),
-        );
-        return;
+      final storagePath = await getStoragePath();
+      final modulesDirectoryPath = '$storagePath/modules';
+      final modulesDirectory = Directory(modulesDirectoryPath);
+
+      // Check if the individuals modules directory exists
+      if (!modulesDirectory.existsSync()) {
+        modulesDirectory.createSync(recursive: true);
+        print('Directory created: $modulesDirectoryPath');
       }
 
-      // Check if the packages directory exists
-      final packagesDirectoryPath = '${directory.path}/packages';
-      final packagesDirectory = Directory(packagesDirectoryPath);
-      if (!packagesDirectory.existsSync()) {
-        packagesDirectory.createSync(recursive: true);
-        print('Created directory: $packagesDirectoryPath');
-      }
-
-      final packagesFilePath = '$packagesDirectoryPath/$fileName';
-      final file = File(packagesFilePath);
+      final modulesFilePath = '$modulesDirectoryPath/$fileName';
+      final file = File(modulesFilePath);
 
       try {
         final response = await http.get(Uri.parse(url));
         await file.writeAsBytes(response.bodyBytes);
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Downloaded $fileName')),
         );
-        print('Directory: ${directory.path}');
-        print('File Path: $packagesFilePath');
+        print('Directory: $storagePath');
+        print('File Path: $modulesFilePath');
 
         // Unzip the downloaded file
         final bytes = file.readAsBytesSync();
@@ -109,29 +129,29 @@ class _PackageInfoState extends State<PackageInfo> {
 
         for (var file in archive) {
           final filename = file.name;
-          final packagesFilePath = '${directory.path}/packages/$filename';
-          print('Processing file: $filename at path: $packagesFilePath');
+          final extractedFilePath = '$modulesDirectoryPath/$filename';
+          print('Processing file: $filename at path: $extractedFilePath');
 
           if (file.isFile) {
             final data = file.content as List<int>;
-            File(packagesFilePath)
+            File(extractedFilePath)
               ..createSync(recursive: true)
               ..writeAsBytesSync(data);
           } else {
-            Directory(packagesFilePath).createSync(recursive: true);
-            print('Directory created: $packagesFilePath');
+            Directory(extractedFilePath).createSync(recursive: true);
+            print('Directory created: $extractedFilePath');
           }
         }
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Unzipped $fileName')),
         );
-        print('Unzipped to: ${directory.path}');
+        print('Unzipped to: $storagePath');
 
         // Delete the zip file
         try {
           await file.delete();
-          print('Zip file deleted: $packagesFilePath');
+          print('Zip file deleted: $modulesFilePath');
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Unzipped and deleted $fileName')),
           );
@@ -153,13 +173,18 @@ class _PackageInfoState extends State<PackageInfo> {
       );
     }
   }
-
   @override
   void initState() {
     super.initState();
   }
 
-// Consider using AutoSizeText for the package name instead of RichText
+  Future<void> getLocationAndSaveDownload() async {
+    var location = await widget.locationService.getLocation(context);
+    setState(() {
+      _location = location;  // Store the location in state
+    });
+    await widget.locationService.saveDownload(widget.animationId, location);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -297,10 +322,9 @@ class _PackageInfoState extends State<PackageInfo> {
     return Column(
       children: [
         SizedBox(
-          height: baseSize * (isTablet(context) ? 0.03 : 0.03),
+            height: baseSize * (isTablet(context) ? 0.03 : 0.03),
         ),
-
-        // Package Description Container
+        // Animation Description Container
         Flexible(
           flex: 6,
           child: Stack(
@@ -310,44 +334,44 @@ class _PackageInfoState extends State<PackageInfo> {
                 decoration: BoxDecoration(
                   color: Colors.transparent,
                 ),
-                  child: SingleChildScrollView(
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        bottom: 50,
-                        left: 10,
-                        right: 10,
-                      ),
-                      child: RichText(
-                        textAlign: TextAlign.center,
-                        text: TextSpan(
-                          children: [
-                            TextSpan(
-                              text: '${widget.packageName}\n',
-                              style: TextStyle(
-                                fontSize: baseSize * (isTablet(context) ? 0.06 : 0.065),
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF0070C0),
-                              ),
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      bottom: 50,
+                      left: 10,
+                      right: 10,
+                    ),
+                    child: RichText(
+                      textAlign: TextAlign.center,
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: '${widget.animationName}\n',
+                            style: TextStyle(
+                              fontSize: baseSize * (isTablet(context) ? 0.06 : 0.065),
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF0070C0),
                             ),
-                            WidgetSpan(
-                              child: SizedBox(
-                                height: baseSize * (isTablet(context) ? 0.08 : 0.08),
-                              ),
+                          ),
+                          WidgetSpan(
+                            child: SizedBox(
+                              height: baseSize * (isTablet(context) ? 0.08 : 0.08),
                             ),
-                            TextSpan(
-                              text: '${widget.packageDescription}\n',
-                              style: TextStyle(
-                                fontSize: baseSize * (isTablet(context) ? 0.04 : 0.045),
-                                fontWeight: FontWeight.w500,
-                                color: Colors.black,
-                              ),
+                          ),
+                          TextSpan(
+                            text: '${widget.animationDescription}\n',
+                            style: TextStyle(
+                              fontSize: baseSize * (isTablet(context) ? 0.04 : 0.045),
+                              fontWeight: FontWeight.w500,
+                              color: Colors.black,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ),
+              ),
               // Container for gradient text fade
               Positioned(
                 bottom: 0,
@@ -376,105 +400,104 @@ class _PackageInfoState extends State<PackageInfo> {
             ],
           ),
         ),
+        // Download Button
+        Flexible(
+          flex: 1,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: GestureDetector(
+              onTap: _isLoading
+                  ? null
+                  : () async {
 
-              // Download Button
-              Flexible(
-                flex: 1,
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: GestureDetector(
-                    onTap: _isLoading
-                        ? null
-                        : () async {
-                      if (widget.downloadLink != null) {
-                        setState(() {
-                          _isLoading = true;
-                        });
+                if (widget.downloadLink != null) {
+                  setState(() {
+                    _isLoading = true;
+                  });
 
-                        String fileName = "$widget.packageName.zip";
-                        await downloadPackage(
-                            widget.downloadLink!, fileName);
+                  String fileName = "$widget.animationName.zip";
+                  await downloadAnimation(widget.downloadLink!, fileName);
+                  await getLocationAndSaveDownload();
+                  setState(() {_isLoading = false;});
 
-                        setState(() {
-                          _isLoading = false;
-                        });
-                        print("Package Id: ${widget.packageId}");
-                        Navigator.push(context,
-                            MaterialPageRoute(
-                                builder: (context) =>
-                                    DownloadConfirm(
-                                        packageName: widget
-                                            .packageName)));
-                      } else {
-                        ScaffoldMessenger.of(context)
-                            .showSnackBar(
-                          SnackBar(content: Text(
-                              'No download link found for ${widget
-                                  .packageName}')),
-                        );
-                      }
-                    },
-                    child: Container(
-                      width: baseSize * (isTablet(context) ? 0.5 : 0.55),
-                      height: baseSize * (isTablet(context) ? 0.10 : 0.12),
-                      decoration: BoxDecoration(
-                        gradient: const LinearGradient(
-                          colors: [
-                            Color(0xFF0070C0),
-                            Color(0xFF00C1FF),
-                            Color(0xFF0070C0),
-                          ], // Your gradient colors
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        ),
-                        borderRadius: BorderRadius.circular(30),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(
-                                0.5),
-                            spreadRadius: 1,
-                            blurRadius: 5,
-                            offset: const Offset(1,
-                                3), // changes position of shadow
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            _isLoading
-                                ? CircularProgressIndicator(
-                              color: Colors.white,
-                              strokeWidth: 3,
-                            )
-                                : Text(
-                              "Download",
-                              style: TextStyle(
-                                fontSize: baseSize * (isTablet(context) ? 0.071 : 0.071),
-                                fontWeight: FontWeight.w500,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(width: 7,),
-                            SvgPicture.asset(
-                              'assets/icons/download_icon.svg',
-                              // height: 42,
-                              // width: 42,
-                              height: baseSize * (isTablet(context) ? 0.0675 : 0.0675),
-                              width: baseSize * (isTablet(context) ? 0.0675 : 0.0675),
-                            ),
-                          ],
-                        ),
-                      ),
+                  Navigator.push(context,
+                    MaterialPageRoute(
+                      builder: (context) => DownloadConfirm(
+                        animationName: widget.animationName
+                      )
                     ),
+                  );
+
+                } else {
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(
+                    SnackBar(content: Text(
+                        'No download link found for ${widget
+                            .animationName}')),
+                  );
+                }
+              },
+              child: Container(
+                width: baseSize * (isTablet(context) ? 0.5 : 0.55),
+                height: baseSize * (isTablet(context) ? 0.10 : 0.12),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [
+                      Color(0xFF0070C0),
+                      Color(0xFF00C1FF),
+                      Color(0xFF0070C0),
+                    ], // Your gradient colors
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                  borderRadius: BorderRadius.circular(35),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(
+                          0.5),
+                      spreadRadius: 1,
+                      blurRadius: 5,
+                      offset: const Offset(1,
+                          3), // changes position of shadow
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      _isLoading
+                          ? CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 3,
+                      )
+                          : Text(
+                        "Download",
+                        style: TextStyle(
+                          fontSize: baseSize * (isTablet(context) ? 0.071 : 0.071),
+                          fontWeight: FontWeight.w500,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 7,),
+                      SvgPicture.asset(
+                        'assets/icons/download_icon.svg',
+                        // height: 42,
+                        // width: 42,
+                        height: baseSize * (isTablet(context) ? 0.0675 : 0.0675),
+                        width: baseSize * (isTablet(context) ? 0.0675 : 0.0675),
+                      ),
+                    ],
                   ),
                 ),
-              )
-            ],
-          );
-        }
+              ),
+            ),
+          ),
+        )
+      ],
+    );
+  }
 
   Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
     return Column(
@@ -483,56 +506,56 @@ class _PackageInfoState extends State<PackageInfo> {
           height: baseSize * (isTablet(context) ? 0.05 : 0.03),
         ),
 
-        // Package Description Container
+        // Animation Description Container
         Flexible(
           flex: 6,
           child: Stack(
             children: [
-                Container(
-                  height: baseSize * (isTablet(context) ? 0.65 : 0.65),
-                  //width: 400,
-                  decoration: BoxDecoration(
-                    color: Colors.transparent,
-                  ),
-                  child: SingleChildScrollView(
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        bottom: 50,
-                        left: 20,
-                        right: 20,
-                      ),
-                      child: RichText(
-                        textAlign: TextAlign.center,
-                        text: TextSpan(
-                          children: [
-                            TextSpan(
-                              text: '${widget.packageName}\n',
-                              style: TextStyle(
-                                //fontSize: 32.0,
-                                fontSize: baseSize * (isTablet(context) ? 0.06 : 0.065),
-                                fontWeight: FontWeight.w500,
-                                color: Color(0xFF0070C0),
-                              ),
+              Container(
+                height: baseSize * (isTablet(context) ? 0.65 : 0.65),
+                //width: 400,
+                decoration: BoxDecoration(
+                  color: Colors.transparent,
+                ),
+                child: SingleChildScrollView(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      bottom: 50,
+                      left: 20,
+                      right: 20,
+                    ),
+                    child: RichText(
+                      textAlign: TextAlign.center,
+                      text: TextSpan(
+                        children: [
+                          TextSpan(
+                            text: '${widget.animationName}\n',
+                            style: TextStyle(
+                              //fontSize: 32.0,
+                              fontSize: baseSize * (isTablet(context) ? 0.06 : 0.065),
+                              fontWeight: FontWeight.w500,
+                              color: Color(0xFF0070C0),
                             ),
-                            WidgetSpan(
-                              child: SizedBox(
-                                height: baseSize * (isTablet(context) ? 0.08 : 0.08),
-                              ),
+                          ),
+                          WidgetSpan(
+                            child: SizedBox(
+                              height: baseSize * (isTablet(context) ? 0.08 : 0.08),
                             ),
-                            TextSpan(
-                              text: '${widget.packageDescription}\n',
-                              style: TextStyle(
-                                fontSize: screenHeight * (isTablet(context) ? 0.04 : 0.045),
-                                fontWeight: FontWeight.w500,
-                                color: Colors.black,
-                              ),
+                          ),
+                          TextSpan(
+                            text: '${widget.animationDescription}\n',
+                            style: TextStyle(
+                              fontSize: screenHeight * (isTablet(context) ? 0.04 : 0.045),
+                              fontWeight: FontWeight.w500,
+                              color: Colors.black,
                             ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ),
+              ),
 
               // Container for gradient text fade
               Positioned(
@@ -562,8 +585,7 @@ class _PackageInfoState extends State<PackageInfo> {
             ],
           ),
         ),
-
-              // Download Button
+        // Download Button
         Flexible(
           flex: 1,
           child: Padding(
@@ -577,26 +599,26 @@ class _PackageInfoState extends State<PackageInfo> {
                     _isLoading = true;
                   });
 
-                  String fileName = "$widget.packageName.zip";
-                  await downloadPackage(
-                      widget.downloadLink!, fileName);
+                  String fileName = "$widget.animationName.zip";
+                  await downloadAnimation(widget.downloadLink!, fileName);
+                  await getLocationAndSaveDownload();
+                  setState(() {_isLoading = false;});
 
-                  setState(() {
-                    _isLoading = false;
-                  });
-
-                  Navigator.push(context,
-                      MaterialPageRoute(
-                          builder: (context) =>
-                              DownloadConfirm(
-                                  packageName: widget
-                                      .packageName)));
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => DownloadConfirm(
+                        animationName: widget.animationName
+                      )
+                    )
+                  );
+                  print("Animation Id: ${widget.animationId}");
                 } else {
                   ScaffoldMessenger.of(context)
                       .showSnackBar(
                     SnackBar(content: Text(
                         'No download link found for ${widget
-                            .packageName}')),
+                            .animationName}')),
                   );
                 }
               },

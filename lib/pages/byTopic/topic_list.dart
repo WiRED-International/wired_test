@@ -3,100 +3,88 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-import '../providers/auth_guard.dart';
-import '../utils/custom_app_bar.dart';
-import '../utils/custom_nav_bar.dart';
-import '../utils/functions.dart';
-import '../utils/side_nav_bar.dart';
-import 'cme/cme_tracker.dart';
-import 'home_page.dart';
-import 'menu/guestMenu.dart';
-import 'menu/menu.dart';
-import 'module_info.dart';
-import 'module_library.dart';
+import 'package:wired_test/pages/byTopic/module_by_topic.dart';
+import '../../providers/auth_guard.dart';
+import '../../utils/custom_app_bar.dart';
+import '../../utils/custom_nav_bar.dart';
+import '../../utils/functions.dart';
+import '../../utils/side_nav_bar.dart';
+import '../cme/cme_tracker.dart';
+import '../home_page.dart';
+import '../menu/guestMenu.dart';
+import '../menu/menu.dart';
+import '../module_library.dart';
 
-class ModuleByTopic extends StatefulWidget {
-  final String subcategoryName;
-  final int subcategoryId;
+class TopicList extends StatefulWidget {
+  final String category;
+  final int categoryId;
 
-  const ModuleByTopic({Key? key, required this.subcategoryName, required this.subcategoryId}) : super(key: key);
+  const TopicList({super.key, required this.category, required this.categoryId});
   @override
-  _ModuleByTopicState createState() => _ModuleByTopicState();
+  _TopicListState createState() => _TopicListState();
 }
 
-class Modules {
-  int? id;
-  String? description;
-  List<String>? topics;
+class SubCategory {
   String? name;
-  String? topic;
-  String? downloadLink;
+  int? categoryId;
+  int? subcategoryId;
 
-  Modules({
-    this.id,
-    this.description,
-    this.topics,
+  SubCategory({
     this.name,
-    this.topic,
-    this.downloadLink
+    this.categoryId,
+    this.subcategoryId,
   });
 
-  Modules.fromJson(Map<String, dynamic> json)
-      : id = json['id'] as int?,
-        description = json['description'] as String?,
-        topics = json['topics'] != null ? List<String>.from(json['topics']) : null,
-        name = json['name'] as String?,
-        topic = json['topic'] as String?,
-        downloadLink = json['downloadLink'] as String?;
+  SubCategory.fromJson(Map<String, dynamic> json) {
+    name = json['name'] as String?;
+    categoryId = json['category_id'] as int?; // Convert category_id to string if it's an int
+    subcategoryId = json['id'] as int; // Convert id to string if necessary
+  }
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'description': description,
-    'topics': topics,
     'name': name,
-    'topic': topic,
-    'downloadLink': downloadLink,
+    'categoryId': categoryId,
+    'subcategoryId': subcategoryId,
   };
 }
 
-class _ModuleByTopicState extends State<ModuleByTopic> {
-  late Future<List<Modules>> futureModules;
-  late List<Modules> moduleData = [];
+class _TopicListState extends State<TopicList> {
+  late Future<List<SubCategory>> futureSubcategories;
+  List<String> topicNames = [];
 
-  Future<List<Modules>> fetchModules() async {
+  Future<List<SubCategory>> fetchSubcategories() async {
     final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
-
-    final apiEndpoint = '/modules?subcategoryId=${widget.subcategoryId}';
-
+    final apiEndpoint = '/subCategories';
     try {
       final response = await http.get(Uri.parse('$apiBaseUrl$apiEndpoint'));
-
-      debugPrint("Response body: ${response.body}");
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
 
-        // Check what data is being decoded
-        debugPrint("Fetched Data: $data");
-
         // Ensure that the data is a List
         if (data is List) {
-          List<Modules> allModules = data.map<Modules>((e) => Modules.fromJson(e)).toList();
+          List<SubCategory> subCategories = data.map<SubCategory>((e) => SubCategory.fromJson(e)).toList();
 
-          // Sort modules by name
-          allModules.sort((a, b) => a.name!.compareTo(b.name!));
+          List<SubCategory> filteredSubCategories = subCategories
+              .where((subCategory) => subCategory.categoryId == widget.categoryId)
+              .toList();
 
-          setState(() {
-            moduleData = allModules;  // Update the moduleData list here
-          });
+          // Sort the topics by name
+          filteredSubCategories.sort((a, b) => a.name!.compareTo(b.name!));
 
-          return allModules;
+          // This is a temporary fix for the issue where some subcategories are empty. Remove each subcategory name from the list if there is a module associated with it.
+          List<String> namesToRemove = ['Mouth and Teeth', 'Population Groups', 'Genetics/Birth Defects', 'Injuries and Wounds', 'Substance Abuse Problems', 'Disasters', 'Fitness and Exercise', 'Health System', 'Personal Health Issues', 'Safety Issues', 'Kenya', 'Mandarin'];
+          filteredSubCategories.removeWhere((subCategory) => namesToRemove.contains(subCategory.name!));
+
+          return filteredSubCategories;
+        } else {
+          debugPrint("Data is not a list");
         }
       } else {
-        debugPrint("Failed to load modules, status code: ${response.statusCode}");
+        debugPrint("Failed to load topics, status code: ${response.statusCode}");
       }
     } catch (e) {
-      debugPrint("Error fetching modules: $e");
+      debugPrint("Error fetching topics: $e");
     }
     return [];
   }
@@ -104,14 +92,13 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
   @override
   void initState() {
     super.initState();
-    futureModules = fetchModules();
+    futureSubcategories = fetchSubcategories();
   }
 
   @override
   Widget build(BuildContext context) {
     var screenWidth = MediaQuery.of(context).size.width;
     var screenHeight = MediaQuery.of(context).size.height;
-    var baseSize = MediaQuery.of(context).size.shortestSide;
     bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
     return Scaffold(
@@ -172,7 +159,7 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
                           },
                           onMenuTap: () async {
                             bool isLoggedIn = await checkIfUserIsLoggedIn();
-                            print("Navigating to menu. Logged in: $isLoggedIn");
+
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -186,8 +173,8 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
                       Expanded(
                         child: Center(
                           child: isLandscape
-                              ? _buildLandscapeLayout(screenWidth, screenHeight, baseSize)
-                              : _buildPortraitLayout(screenWidth, screenHeight, baseSize),
+                              ? _buildLandscapeLayout(screenWidth, screenHeight)
+                              : _buildPortraitLayout(screenWidth, screenHeight),
                         ),
                       ),
                     ],
@@ -222,7 +209,7 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
                     },
                     onMenuTap: () async {
                       bool isLoggedIn = await checkIfUserIsLoggedIn();
-                      print("Navigating to menu. Logged in: $isLoggedIn");
+
                       Navigator.push(
                         context,
                         MaterialPageRoute(
@@ -239,14 +226,15 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
     );
   }
 
-  Widget _buildPortraitLayout(screenWidth, screenHeight, baseSize) {
+  Widget _buildPortraitLayout(screenWidth, screenHeight) {
+    var baseSize = MediaQuery.of(context).size.shortestSide;
     return Column(
       children: [
         Container(
           child: Column(
             children: [
               Text(
-                widget.subcategoryName,
+                widget.category,
                 style: TextStyle(
                   fontSize: baseSize * (isTablet(context) ? 0.08 : 0.08),
                   fontWeight: FontWeight.w500,
@@ -259,58 +247,57 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
         ),
         const SizedBox(height: 10),
         Flexible(
+          //flex: 3,
           child: Stack(
             children: [
               Container(
-                // height: screenHeight * 0.61,
-                width: screenWidth * 1.0,
+                //height: screenHeight * 0.61,
+                //height: baseSize * (isTablet(context) ? 0.08 : 1.5),
+                width: double.infinity,
                 decoration: BoxDecoration(
                   color: Colors.transparent,
                 ),
-                child: FutureBuilder<List<Modules>>(
-                  future: futureModules,
+                child: FutureBuilder<List<SubCategory>>(
+                  future: futureSubcategories,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const CircularProgressIndicator();
                     } else if (snapshot.hasError) {
                       return Text('Error: ${snapshot.error}');
-                    } else if (moduleData.isEmpty) {  // Check if moduleData is empty
-                      return const Text('No Modules Found');
+                    } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return const Text('No topics available');
                     } else {
+                      final List<SubCategory> subcategories = snapshot.data!;
+
                       return ListView.builder(
-                        itemCount: moduleData.length + 1, // Increase the item count by 1 to account for the SizedBox as the last item
+                        itemCount: subcategories.length + 1,
                         itemBuilder: (context, index) {
-                          if (index == moduleData.length) {
-                            // This is the last item (the SizedBox or Container)
+                          if (index == subcategories.length) {
                             return const SizedBox(
                               height: 160,
                             );
                           }
-                          final module = moduleData[index];
-                          final moduleName = module.name ?? "Unknown Module";
-                          final downloadLink = module.downloadLink ?? "No Link available";
-                          final moduleDescription = module.description ?? "No Description available";
+                          final subCategory = subcategories[index];
+                          final subcategoryName = subCategory.name ?? "Unknown SubCategory";
+                          final subcategoryId = subCategory.subcategoryId ?? 0;
                           return Column(
                             children: [
                               InkWell(
                                 onTap: () async {
-                                  if (downloadLink.isNotEmpty) {
-                                    Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleInfo(
-                                        moduleId: module.id!,
-                                        moduleName: moduleName,
-                                        moduleDescription: moduleDescription,
-                                        downloadLink: downloadLink
-                                    )));
+                                  if (subcategoryName.isNotEmpty) {
+                                    // String fileName = "$moduleName.zip";
+                                    // await downloadModule(downloadLink, fileName);
+                                    Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleByTopic(subcategoryName: subcategoryName, subcategoryId: subcategoryId)));
                                   } else {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('No download link found for $moduleName')),
+                                      SnackBar(content: Text('No category found for ${subCategory.categoryId}')),
                                     );
                                   }
                                 },
                                 child: Center(
                                   child: ListTile(
                                     title: Text(
-                                      moduleName,
+                                      subcategoryName,
                                       style: TextStyle(
                                         fontSize: baseSize * (isTablet(context) ? 0.054 : 0.054),
                                         fontWeight: FontWeight.w500,
@@ -321,9 +308,10 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
                                   ),
                                 ),
                               ),
-                              const Divider(
+                              Container(
                                 color: Colors.grey,
                                 height: 1,
+                                width: baseSize * (isTablet(context) ? 0.75 : 0.85),
                               ),
                             ],
                           );
@@ -332,7 +320,6 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
                     }
                   },
                 ),
-
               ),
               Positioned(
                 bottom: 0,
@@ -350,8 +337,8 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
                             // Colors.transparent,
                             // Color(0xFFFFF0DC),
                             //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                            Color(0xFFFED09A).withOpacity(0.0),
-                            Color(0xFFFDD09A),
+                            Color(0xFFFED09A).withValues(alpha: 0.0),
+                            Color(0xFFFED09A),
                           ],
                         ),
                       )
@@ -361,20 +348,22 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
             ],
           ),
         ),
+        //SizedBox(height: baseSize * (isTablet(context) ? .17 : 0.05)),
       ],
     );
   }
 
-  Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
+  Widget _buildLandscapeLayout(screenWidth, screenHeight) {
+    var baseSize = MediaQuery.of(context).size.shortestSide;
     return Column(
       children: [
         Container(
           child: Column(
             children: [
               Text(
-                widget.subcategoryName,
+                widget.category,
                 style: TextStyle(
-                  fontSize: baseSize * (isTablet(context) ? 0.08 : 0.08),
+                  fontSize: baseSize * (isTablet(context) ? 0.07 : 0.07),
                   fontWeight: FontWeight.w500,
                   color: Color(0xFF548235),
                 ),
@@ -390,57 +379,55 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
           child: Stack(
             children: [
               Container(
-                // height: baseSize * (isTablet(context) ? 0.68 : 0.68),
-                width: baseSize * (isTablet(context) ? 1.25 : 1.0),
+                //height: baseSize * (isTablet(context) ? 0.68 : 0.68),
+                //width: baseSize * (isTablet(context) ? 1.25 : 1.0),
                 decoration: BoxDecoration(
                   color: Colors.transparent,
                 ),
-                child: FutureBuilder<List<Modules>>(
-                  future: futureModules,
+                child: FutureBuilder<List<SubCategory>>(
+                  future: futureSubcategories,
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const CircularProgressIndicator();
                     } else if (snapshot.hasError) {
                       return Text('Error: ${snapshot.error}');
-                    } else if (moduleData.isEmpty) {  // Check if moduleData is empty
-                      return const Text('No Modules Found');
+                    } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return const Text('No topics available');
                     } else {
+                      final List<SubCategory> subcategories = snapshot.data!;
+
                       return ListView.builder(
-                        itemCount: moduleData.length + 1, // Increase the item count by 1 to account for the SizedBox as the last item
+                        itemCount: subcategories.length + 1,
                         itemBuilder: (context, index) {
-                          if (index == moduleData.length) {
-                            // This is the last item (the SizedBox or Container)
+                          if (index == subcategories.length) {
                             return const SizedBox(
                               height: 160,
                             );
                           }
-                          final module = moduleData[index];
-                          final moduleName = module.name ?? "Unknown Module";
-                          final downloadLink = module.downloadLink ?? "No Link available";
-                          final moduleDescription = module.description ?? "No Description available";
+                          final subCategory = subcategories[index];
+                          final subcategoryName = subCategory.name ?? "Unknown SubCategory";
+                          final subcategoryId = subCategory.subcategoryId ?? 0;
                           return Column(
                             children: [
                               InkWell(
                                 onTap: () async {
-                                  if (downloadLink.isNotEmpty) {
-                                    Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleInfo(
-                                        moduleId: module.id!,
-                                        moduleName: moduleName,
-                                        moduleDescription: moduleDescription,
-                                        downloadLink: downloadLink
-                                    )));
+
+                                  if (subcategoryName.isNotEmpty) {
+                                    // String fileName = "$moduleName.zip";
+                                    // await downloadModule(downloadLink, fileName);
+                                    Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleByTopic(subcategoryName: subcategoryName, subcategoryId: subcategoryId)));
                                   } else {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('No download link found for $moduleName')),
+                                      SnackBar(content: Text('No category found for ${subCategory.categoryId}')),
                                     );
                                   }
                                 },
                                 child: Center(
                                   child: ListTile(
                                     title: Text(
-                                      moduleName,
+                                      subcategoryName,
                                       style: TextStyle(
-                                        fontSize: baseSize * (isTablet(context) ? 0.054 : 0.054),
+                                        fontSize: baseSize * (isTablet(context) ? 0.05 : 0.05),
                                         fontFamilyFallback: [
                                           'NotoSans',
                                           'NotoSerif',
@@ -457,7 +444,7 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
                               ),
                               Container(
                                 height: 1,
-                                width: 800,
+                                width: 500,
                                 color: Colors.grey,
                               ),
                             ],
@@ -467,7 +454,6 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
                     }
                   },
                 ),
-
               ),
               Positioned(
                 bottom: 0,
@@ -485,7 +471,7 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
                             // Colors.transparent,
                             // Color(0xFFFFF0DC),
                             //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                            Color(0xFFFED09A).withOpacity(0.0),
+                            Color(0xFFFED09A).withValues(alpha: 0.0),
                             Color(0xFFFED09A),
                           ],
                         ),

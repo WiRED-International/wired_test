@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-import 'package:wired_test/pages/module_by_topic.dart';
+import 'package:wired_test/pages/byTopic/module_by_topic.dart';
 import '../../providers/auth_guard.dart';
 import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';

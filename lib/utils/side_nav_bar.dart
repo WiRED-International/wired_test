@@ -24,7 +24,7 @@ class CustomSideNavBar extends StatelessWidget {
     var baseSize = MediaQuery.of(context).size.shortestSide;
 
     return Container(
-      width: screenWidth * 0.1, // Adjust the width of the side nav
+      width: screenWidth * 0.08, // Adjust the width of the side nav
       decoration: const BoxDecoration(
         color: Colors.transparent,
         // gradient: LinearGradient(
@@ -54,14 +54,14 @@ class CustomSideNavBar extends StatelessWidget {
                     children: [
                       Icon(
                         Icons.home,
-                        size: baseSize * (isTablet(context) ? .07 : 0.09),
+                        size: baseSize * (isTablet(context) ? .07 : 0.08),
                         color: Colors.black,
                       ),
                       Text(
                         "Home",
                         style: TextStyle(
                           color: Colors.black,
-                          fontSize: baseSize * (isTablet(context) ? .028 : 0.04),
+                          fontSize: baseSize * (isTablet(context) ? .028 : 0.03),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -83,14 +83,14 @@ class CustomSideNavBar extends StatelessWidget {
                     children: [
                       Icon(
                         Icons.library_books,
-                        size: baseSize * (isTablet(context) ? .07 : 0.09),
+                        size: baseSize * (isTablet(context) ? .07 : 0.08),
                         color: Colors.black,
                       ),
                       Text(
                         "Library",
                         style: TextStyle(
                           color: Colors.black,
-                          fontSize: baseSize * (isTablet(context) ? .028 : 0.04),
+                          fontSize: baseSize * (isTablet(context) ? .028 : 0.03),
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -114,14 +114,14 @@ class CustomSideNavBar extends StatelessWidget {
                       SvgPicture.asset(
                         'assets/icons/cme1.svg',
                         //width: baseSize * (isTablet(context) ? .07 : 0.1),
-                        height: baseSize * (isTablet(context) ? .07 : 0.09),
+                        height: baseSize * (isTablet(context) ? .07 : 0.08),
                         color: Colors.black,
                       ),
                       Text(
                           "Tracker",
                           style: TextStyle(
                             color: Colors.black,
-                            fontSize: baseSize * (isTablet(context) ? .028 : 0.04),
+                            fontSize: baseSize * (isTablet(context) ? .028 : 0.03),
                             fontWeight: FontWeight.w500,
                           )
                       ),
@@ -142,14 +142,14 @@ class CustomSideNavBar extends StatelessWidget {
                     SvgPicture.asset(
                       'assets/icons/hamburger.svg',
                       //width: baseSize * (isTablet(context) ? .07 : 0.1),
-                      height: baseSize * (isTablet(context) ? .07 : 0.09),
+                      height: baseSize * (isTablet(context) ? .07 : 0.08),
                       color: Colors.black,
                     ),
                     Text(
                         "Menu",
                         style: TextStyle(
                           color: Colors.black,
-                          fontSize: baseSize * (isTablet(context) ? .028 : 0.04),
+                          fontSize: baseSize * (isTablet(context) ? .028 : 0.03),
                           fontWeight: FontWeight.w500,
                         )
                     ),

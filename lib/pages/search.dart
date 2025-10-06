@@ -5,13 +5,14 @@ import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
 import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
-import 'by_alphabet.dart';
-import 'by_packages.dart';
-import 'by_topic.dart';
+import 'byAlphabet/by_alphabet.dart';
+import 'byPackage/by_packages.dart';
+import 'byTopic/by_topic.dart';
 import 'cme/cme_tracker.dart';
 import 'menu/guestMenu.dart';
 import 'menu/menu.dart';
 import 'module_library.dart';
+import 'animations/animation_list.dart';
 
 
 class Search extends StatefulWidget {
@@ -26,6 +27,7 @@ class _SearchState extends State<Search> {
     'By Alphabet': 1.0,
     'By Topic': 1.0,
     'By Package': 1.0,
+    'Animations': 1.0,
   };
 
   final Map<String, List<Color>> _buttonColors = {
@@ -35,14 +37,22 @@ class _SearchState extends State<Search> {
       Color(0xFF0070C0),
     ],
     'By Topic': [
-      Color(0xFF519921), // Normal
-      Color(0xFF93D221),
-      Color(0xFF519921),
+      // Color(0xFF519921), // Normal
+      // Color(0xFF93D221),
+      // Color(0xFF519921),
+      Color(0xFF0070C0),
+      Color(0xFF00C1FF),
+      Color(0xFF0070C0),
     ],
     'By Package': [
       Color(0xFF0070C0), // Normal
       Color(0xFF00C1FF),
       Color(0xFF0070C0),
+    ],
+    'Animations': [
+      Color(0xFF519921),
+      Color(0xFF93D221),
+      Color(0xFF519921),
     ],
   };
 
@@ -233,9 +243,12 @@ class _SearchState extends State<Search> {
         _buildSearchButton(
           label: 'By Topic',
           gradientColors: [
-            Color(0xFF519921),
-            Color(0xFF93D221),
-            Color(0xFF519921),
+            // Color(0xFF519921),
+            // Color(0xFF93D221),
+            // Color(0xFF519921),
+            // Color(0xFF0070C0),
+            // Color(0xFF00C1FF),
+            // Color(0xFF0070C0),
           ],
           onTap: () {
             Navigator.push(
@@ -253,6 +266,19 @@ class _SearchState extends State<Search> {
           onTap: () {
             Navigator.push(
                 context, MaterialPageRoute(builder: (context) => ByPackages()));
+          },
+          scalingFactor: scalingFactor,
+        ),
+        _buildSearchButton(
+          label: 'Animations',
+          gradientColors: [
+            Color(0xFF519921),
+            Color(0xFF93D221),
+            Color(0xFF519921),
+          ],
+          onTap: () {
+            Navigator.push(
+                context, MaterialPageRoute(builder: (context) => AnimationList()));
           },
           scalingFactor: scalingFactor,
         ),
@@ -398,6 +424,20 @@ class _SearchState extends State<Search> {
           onTap: () {
             Navigator.push(
                 context, MaterialPageRoute(builder: (context) => ByPackages()));
+          },
+          width: scalingFactor * (isTablet(context) ? 40 : 40),
+          scalingFactor: scalingFactor,
+        ),
+        _buildSearchButtonLandscape(
+          label: 'Animations',
+          gradientColors: [
+            Color(0xFF519921),
+            Color(0xFF93D221),
+            Color(0xFF519921),
+          ],
+          onTap: () {
+            Navigator.push(
+                context, MaterialPageRoute(builder: (context) => AnimationList()));
           },
           width: scalingFactor * (isTablet(context) ? 40 : 40),
           scalingFactor: scalingFactor,
