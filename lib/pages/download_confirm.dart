@@ -15,11 +15,13 @@ class DownloadConfirm extends StatefulWidget {
   const DownloadConfirm({
     super.key,
     this.moduleName,
-    this.packageName
+    this.packageName,
+    this.animationName,
   });
 
   final String? moduleName;
   final String? packageName;
+  final String? animationName;
 
   @override
   State<DownloadConfirm> createState() => _DownloadConfirmState();
