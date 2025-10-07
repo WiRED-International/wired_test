@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wired_test/providers/auth_guard.dart';
 import 'package:wired_test/utils/functions.dart';
+import '../l10n/app_localizations.dart';
 import '../pages/search.dart';
 import '../providers/auth_provider.dart';
 import '../utils/custom_nav_bar.dart';
@@ -17,7 +18,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+// import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 
 class MyHomePage extends StatefulWidget {
