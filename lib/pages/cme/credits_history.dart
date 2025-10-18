@@ -7,74 +7,23 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_guard.dart';
 import '../../providers/auth_provider.dart';
-import '../../utils/button.dart';
 import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
-import '../../utils/landscape_profile_section.dart';
 import '../../utils/pdf_preview_screen.dart';
 import '../../utils/pdf_utils.dart';
-import '../../utils/profile_section.dart';
 import '../../utils/side_nav_bar.dart';
 import '../home_page.dart';
 import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
 import '../module_library.dart';
 import 'cme_tracker.dart';
-import 'package:printing/printing.dart';
+import '../../models/user.dart';
 
 class CreditsHistory extends StatefulWidget {
 
   @override
   _CreditsHistoryState createState() => _CreditsHistoryState();
-}
-
-class User {
-  final String? firstName;
-  final String? lastName;
-  final String? email;
-  final String? role;
-  final String? country;
-  final String? organization;
-  final String? dateJoined;
-  final List<dynamic>? quizScores;
-  final int creditsEarned;
-
-
-  User({
-    required this.firstName,
-    required this.lastName,
-    required this.email,
-    required this.role,
-    required this.country,
-    required this.organization,
-    required this.dateJoined,
-    required this.quizScores,
-  }): creditsEarned = calculateCredits(quizScores ?? []);
-
-  factory User.fromJson(Map<String, dynamic> json) {
-    return User(
-      firstName: json['first_name'] ?? 'Unknown',
-      lastName: json['last_name'] ?? 'Unknown',
-      email: json['email'] ?? 'No email',
-      role: json['role']?['name'] ?? 'Unknown Role',
-      country: json['country']?['name'] ?? 'Unknown',
-      organization: json['organization']?['name'] ?? 'Unknown',
-      dateJoined: json['createdAt'] ?? 'Unknown Date',
-      quizScores: json['quizScores'] ?? [], // Provide an empty list for quizScores if null
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-    'firstName': firstName,
-    'lastName': lastName,
-    'email': email,
-    'role': role,
-    "country": country,
-    "organization": organization,
-    'dateJoined': dateJoined,
-    'quizScores': quizScores,
-  };
 }
 
 class _CreditsHistoryState extends State<CreditsHistory> {

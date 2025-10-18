@@ -99,21 +99,10 @@ class _AnimationListState extends State<AnimationList> {
 
   @override
   Widget build(BuildContext context) {
-    var screenWidth = MediaQuery
-        .of(context)
-        .size
-        .width;
-    var screenHeight = MediaQuery
-        .of(context)
-        .size
-        .height;
-    var baseSize = MediaQuery
-        .of(context)
-        .size
-        .shortestSide;
-    bool isLandscape = MediaQuery
-        .of(context)
-        .orientation == Orientation.landscape;
+    var screenWidth = MediaQuery.of(context).size.width;
+    var screenHeight = MediaQuery.of(context).size.height;
+    var baseSize = MediaQuery.of(context).size.shortestSide;
+    bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
     return Scaffold(
       body: SafeArea(

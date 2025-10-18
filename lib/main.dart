@@ -6,8 +6,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:wired_test/providers/auth_provider.dart';
 import 'package:wired_test/providers/user_provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 // import 'package:flutter_gen/gen_l10n/app_localizations.dart';
-
+import 'services/exam_sync_service.dart';
+import 'services/retry_queue_service.dart';
+import 'state/exam_controller.dart';
+import 'models/exam_models.dart';
 import 'l10n/app_localizations.dart';
 
 
@@ -20,6 +24,31 @@ Future<void> main() async {
   // debugRepaintRainbowEnabled = true; // Shows repaint areas with a rainbow effect
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
+
+  // Initialize Hive and open exam boxes
+  await Hive.initFlutter();
+
+  // 🧹 DEV ONLY: Clear Hive boxes to avoid schema mismatch after model changes
+  // ----------------------------------------------------------
+  const bool clearBoxesForDev = false; // ✅ set to false for production
+  if (clearBoxesForDev) {
+    await Hive.deleteBoxFromDisk('exam_attempts');
+    await Hive.deleteBoxFromDisk('examBox');
+    await Hive.deleteBoxFromDisk('retry_queue');
+    debugPrint('🧹 Cleared Hive boxes for development');
+  }
+  // ----------------------------------------------------------
+
+  // Register Hive adapters
+  Hive.registerAdapter(ExamAttemptAdapter());
+  Hive.registerAdapter(AnswerRecordAdapter());
+  Hive.registerAdapter(PendingSubmissionAdapter());
+
+  final attemptsBox = await Hive.openBox<ExamAttempt>('exam_attempts');
+  final retryBox = await Hive.openBox<PendingSubmission>('retry_queue');
+  final examBox = await Hive.openBox('examBox');
+
+  // Initialize AuthProvider before runApp
   final authProvider = AuthProvider();
   await authProvider.loadStoredAuthData();
   runApp(
@@ -27,6 +56,21 @@ Future<void> main() async {
       providers: [
         ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
         ChangeNotifierProvider(create: (_) => UserProvider()), // Add UserProvider
+
+        // 🔹 Exam system providers
+        Provider(create: (_) => RetryQueueService(retryBox)),
+        Provider(create: (_) => ExamSyncService(attemptsBox, retryBox)),
+
+        // 🔹 Controller depends on ExamSyncService
+        ChangeNotifierProxyProvider<ExamSyncService, ExamController>(
+          create: (context) {
+            final syncService = context.read<ExamSyncService>();
+            return ExamController(attemptsBox, syncService, examBox);
+          },
+          update: (context, syncService, controller) {
+            return controller ?? ExamController(attemptsBox, syncService, examBox);
+          },
+        ),
       ],
       child: const MyApp(),
     ),
