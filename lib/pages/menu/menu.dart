@@ -15,10 +15,10 @@ import '../../utils/side_nav_bar.dart';
 import 'package:http/http.dart' as http;
 import '../cme/cme_tracker.dart';
 import '../cme/login.dart';
+import '../exam/exam_start.dart';
 import '../home_page.dart';
 import '../module_library.dart';
-import 'about_wired.dart';
-import 'meet_team.dart';
+import '../../models/user.dart';
 
 
 class Menu extends StatefulWidget {
@@ -28,42 +28,6 @@ class Menu extends StatefulWidget {
 
   @override
   _MenuState createState() => _MenuState();
-}
-
-class User {
-  final String? firstName;
-  final String? lastName;
-  final String? email;
-  final String? dateJoined;
-  final List<dynamic>? quizScores;
-  final int creditsEarned;
-
-
-  User({
-    required this.firstName,
-    required this.lastName,
-    required this.email,
-    required this.dateJoined,
-    required this.quizScores,
-  }): creditsEarned = calculateCredits(quizScores ?? []);
-
-  factory User.fromJson(Map<String, dynamic> json) {
-    return User(
-      firstName: json['first_name'] ?? 'Unknown',
-      lastName: json['last_name'] ?? 'Unknown',
-      email: json['email'] ?? 'No email',
-      dateJoined: json['createdAt'] ?? 'Unknown Date',
-      quizScores: json['quizScores'] ?? [], // Provide an empty list for quizScores if null
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-    'firstName': firstName,
-    'lastName': lastName,
-    'email': email,
-    'dateJoined': dateJoined,
-    'quizScores': quizScores,
-  };
 }
 
 class _MenuState extends State<Menu> {
@@ -269,8 +233,7 @@ class _MenuState extends State<Menu> {
                           baseSize,
                           scalingFactor,
                           authProvider,
-                          user.firstName,
-                          user.dateJoined,
+                          user,
                           creditsEarned,
                         ),
                       ),
@@ -310,7 +273,7 @@ class _MenuState extends State<Menu> {
   }
 
   Widget _buildPortraitLayout(BuildContext context, baseSize, scalingFactor,
-      authProvider, firstName, dateJoined, creditsEarned) {
+      authProvider, User user, creditsEarned) {
     return SingleChildScrollView(
       child: Align(
         alignment: Alignment.topCenter,
@@ -357,7 +320,14 @@ class _MenuState extends State<Menu> {
                     );
                   }
                 }),
-                _buildEmptyButton(context, scalingFactor),
+                _buildInkWellButton(context, 'Exams', scalingFactor, () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ExamStart(user: user),
+                    ),
+                  );
+                }),
               ],
             ),
             SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 70)),

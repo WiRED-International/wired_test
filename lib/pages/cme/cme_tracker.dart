@@ -18,74 +18,12 @@ import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
 import '../module_library.dart';
 import 'credits_history.dart';
+import '../../models/user.dart';
 
 class CMETracker extends StatefulWidget {
 
   @override
   _CMETrackerState createState() => _CMETrackerState();
-}
-
-class User {
-  final String? firstName;
-  final String? lastName;
-  final String? email;
-  final String? dateJoined;
-  final List<dynamic>? quizScores;
-  final int creditsEarned;
-
-
-  User({
-    required this.firstName,
-    required this.lastName,
-    required this.email,
-    required this.dateJoined,
-    required this.quizScores,
-  }): creditsEarned = _calculateCredits(quizScores ?? []);
-
-  factory User.fromJson(Map<String, dynamic> json) {
-    List<dynamic>? quizScores = json['quizScores'] ?? [];
-    return User(
-      firstName: json['first_name'] ?? 'Unknown',
-      lastName: json['last_name'] ?? 'Unknown',
-      email: json['email'] ?? 'No email',
-      dateJoined: json['createdAt'] ?? 'Unknown Date',
-      quizScores: quizScores, // Provide an empty list for quizScores if null
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-    'firstName': firstName,
-    'lastName': lastName,
-    'email': email,
-    'dateJoined': dateJoined,
-    'quizScores': quizScores,
-  };
-
-  // Method to calculate creditsEarned
-  static const int creditsPerQuiz = 5;
-  static int _calculateCredits(List<dynamic>? quizScores) {
-    final int currentYear = DateTime.now().year;
-
-    if (quizScores == null) return 0;
-
-    return quizScores.where((score) {
-      if (score is Map<String, dynamic> &&
-          score['score'] != null &&
-          score['date_taken'] != null) {
-
-        final raw = score['score'];
-        final double scoreValue = raw is num
-            ? raw.toDouble()
-            : double.tryParse(raw.toString()) ?? 0.0;
-        final DateTime? dateTaken = DateTime.tryParse(score['date_taken'].toString());
-
-        return scoreValue >= 80.0 &&
-            dateTaken != null &&
-            dateTaken.year == currentYear;
-      }
-      return false;
-    }).length * creditsPerQuiz;
-  }
 }
 
 class _CMETrackerState extends State<CMETracker> {
