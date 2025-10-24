@@ -148,7 +148,13 @@ class ExamSyncService {
       final res = await _dio.put(
         '/exam-sessions/$sessionId/submit', // ✅ matches your working backend route
         data: payload,
+        options: Options(
+          validateStatus: (status) => status != null && status < 400,
+        ),
       );
+
+      print('🔹 [ExamSyncService] Response code: ${res.statusCode}');
+      print('🔹 [ExamSyncService] Response data: ${res.data}');
 
       if (res.statusCode == 200) {
         print('✅ Exam submitted successfully.');

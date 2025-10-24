@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../pages/cme/cme_info.dart';
 import '../pages/cme/login.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 
 class AuthProvider with ChangeNotifier {
   bool _isLoading = true;
@@ -96,11 +97,66 @@ class AuthProvider with ChangeNotifier {
     return now.isAfter(expiryUtc);
   }
 
+  Future<bool> hasInternet() async {
+    final connectivityResult = await Connectivity().checkConnectivity();
+    return connectivityResult != ConnectivityResult.none;
+  }
+
+  Future<bool> checkInternetAndNotify(BuildContext context,
+      {bool blockAccess = false}) async {
+    final hasConnection = await hasInternet();
+    if (hasConnection) return true;
+
+    if (!context.mounted) return false;
+
+    if (blockAccess) {
+      // Show AlertDialog if page must have internet
+      await showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('No Internet Connection'),
+          content: const Text(
+            'This page requires an internet connection. '
+                'Please reconnect and try again.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Show a Snackbar for non-blocking notice
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No internet connection. Some features may be limited.'),
+          backgroundColor: Colors.orangeAccent,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+
+    return false;
+  }
+
   // Handle authentication status and redirect if needed
   void handleAuthentication(BuildContext context) {
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await loadStoredAuthData();
+
+      // 🛜 Check connectivity
+      final online = await hasInternet();
+
+      if (!online) {
+        if (context.mounted) {
+          Navigator.pushReplacementNamed(context, '/offline');
+        }
+        return;
+      }
+
       if (_authToken == null) {
         if (context.mounted) {
           Navigator.pushReplacement(

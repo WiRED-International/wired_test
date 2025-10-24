@@ -13,6 +13,7 @@ import 'services/retry_queue_service.dart';
 import 'state/exam_controller.dart';
 import 'models/exam_models.dart';
 import 'l10n/app_localizations.dart';
+import 'utils/encrypted_hive.dart';
 
 
 Future<void> main() async {
@@ -32,7 +33,7 @@ Future<void> main() async {
   // ----------------------------------------------------------
   const bool clearBoxesForDev = false; // ✅ set to false for production
   if (clearBoxesForDev) {
-    await Hive.deleteBoxFromDisk('exam_attempts');
+    await Hive.deleteBoxFromDisk('examAttempts');
     await Hive.deleteBoxFromDisk('examBox');
     await Hive.deleteBoxFromDisk('retry_queue');
     debugPrint('🧹 Cleared Hive boxes for development');
@@ -44,9 +45,9 @@ Future<void> main() async {
   Hive.registerAdapter(AnswerRecordAdapter());
   Hive.registerAdapter(PendingSubmissionAdapter());
 
-  final attemptsBox = await Hive.openBox<ExamAttempt>('exam_attempts');
+  final attemptsBox = await openEncryptedBox<ExamAttempt>('examAttempts');
   final retryBox = await Hive.openBox<PendingSubmission>('retry_queue');
-  final examBox = await Hive.openBox('examBox');
+  final examBox = await openEncryptedBox('examBox');
 
   // Initialize AuthProvider before runApp
   final authProvider = AuthProvider();

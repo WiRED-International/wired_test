@@ -173,13 +173,21 @@ class _MyHomePageState extends State<MyHomePage> {
                 onLibraryTap: () {
                   Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
                 },
-                onTrackerTap: () {
+                onTrackerTap: () async {
                   final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
+                  // 🔹 1️⃣ Prevent action if auth is still loading
                   if (authProvider.isLoading) {
                     debugPrint("AuthProvider is still loading, delaying navigation...");
                     return;
                   }
+
+                  // 🔹 2️⃣ Check connectivity (block access if offline)
+                  final hasConnection =
+                  await authProvider.checkInternetAndNotify(context, blockAccess: true);
+                  if (!hasConnection) return; // Stop navigation if offline
+
+                  // 🔹 3️⃣ If online, proceed with AuthGuard navigation
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -188,14 +196,24 @@ class _MyHomePageState extends State<MyHomePage> {
                   );
                 },
                 onMenuTap: () async {
-                  bool isLoggedIn = await checkIfUserIsLoggedIn();
+                  final auth = Provider.of<AuthProvider>(context, listen: false);
+
+                  // 🔹 1️⃣ Check login state
+                  bool isLoggedIn = auth.isLoggedIn;
+
+                  // 🔹 2️⃣ Check connectivity (non-blocking for Menu & GuestMenu)
+                  await auth.checkInternetAndNotify(context, blockAccess: false);
+
+                  // 🔹 3️⃣ Navigate to the correct menu page
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => isLoggedIn ? Menu(onLocaleChange: widget.onLocaleChange) : GuestMenu(onLocaleChange: widget.onLocaleChange),
+                      builder: (context) => isLoggedIn
+                          ? Menu(onLocaleChange: widget.onLocaleChange)
+                          : GuestMenu(onLocaleChange: widget.onLocaleChange),
                     ),
                   );
-                },
+                }
               ),
             ),
         ],

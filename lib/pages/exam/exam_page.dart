@@ -30,12 +30,29 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
   bool _error = false;
   bool _cameBackFromReview = false;
   bool _readyToSubmit = false;
+  late ExamController controller;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _initializeExamState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      controller = Provider.of<ExamController>(context, listen: false);
+
+      controller.timeExpired.addListener(() {
+        if (controller.timeExpired.value && mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ReviewAnswersPage(
+                questions: controller.getCachedQuestions() ?? [],
+                readOnly: true, // ✅ locks review mode
+              ),
+            ),
+          );
+        }
+      });
+      await _initializeExamState();
+    });
   }
 
   /// Handles resume or fresh load
@@ -465,7 +482,7 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                         final nextIndex = _currentIndex + 1;
                         controller.saveProgress(nextIndex);
 
-                        // 🟢 CASE 1: Next question
+                        // 🟢 1️⃣ Next question
                         if (_currentIndex < _questions.length - 1) {
                           setState(() => _currentIndex = nextIndex);
                           _pageController.nextPage(
@@ -475,93 +492,20 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                           return;
                         }
 
-                        // 🟡 CASE 2: Last question → go to ReviewAnswersPage
-                        if (_currentIndex == _questions.length - 1 && !_readyToSubmit) {
-                          // Reset the flags when navigating to review again
-                          _cameBackFromReview = false;
+                        // 🟡 2️⃣ Last question → open ReviewAnswersPage
+                        final result = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => ReviewAnswersPage(questions: _questions),
+                          ),
+                        );
 
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ReviewAnswersPage(questions: _questions),
-                            ),
-                          );
-
-                          // 🟢 Case 1: User came back from review (didn't submit)
-                          if (result == 'back_to_questions') {
-                            setState(() {
-                              _cameBackFromReview = true;
-                              _readyToSubmit = false;
-                            });
-                          }
-
-                          // 🟣 Case 2: User submitted exam from review page
-                          else if (result == 'submitted') {
-                            setState(() {
-                              _readyToSubmit = true;
-                              _cameBackFromReview = false;
-                            });
-                          }
-
-                          return; // stop further execution
+                        // 🔙 Only handle "back to questions"
+                        if (result == 'back_to_questions') {
+                          setState(() {});
                         }
 
-                        // 🔵 CASE 3: User ready to submit (final)
-                        if (_readyToSubmit) {
-                          final ok = await controller.submitNow(
-                            onSubmit: (payload) async {
-                              final sync = context.read<ExamSyncService>();
-                              return await sync.submitExam(payload);
-                            },
-                            onEnqueue: (payload) async {
-                              final retry = context.read<RetryQueueService>();
-                              await retry.enqueueExamSubmission(payload);
-                            },
-                          );
-
-                          debugPrint('🟣 [ExamPage] submitNow() returned: $ok');
-
-                          if (!context.mounted) return;
-
-                          if (ok) {
-                            // ✅ Show simple alert dialog
-                            await showDialog(
-                              context: context,
-                              barrierDismissible: false,
-                              builder: (context) => AlertDialog(
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                title: const Row(
-                                  children: [
-                                    Icon(Icons.check_circle, color: Colors.green),
-                                    SizedBox(width: 8),
-                                    Text('Exam Completed'),
-                                  ],
-                                ),
-                                content: const Text(
-                                  'Your exam was submitted successfully.\n\nTap Close to return to the Home page.',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.of(context).pop(); // Close dialog
-                                      Navigator.of(context).popUntil((route) => route.isFirst); // Go home
-                                    },
-                                    child: const Text('Close'),
-                                  ),
-                                ],
-                              ),
-                            );
-                          } else {
-                            // 🟡 Fallback if submission failed (offline mode)
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('📡 You are offline. Submission queued for retry.'),
-                                duration: Duration(seconds: 3),
-                              ),
-                            );
-                            Navigator.of(context).popUntil((route) => route.isFirst);
-                          }
-                        }
+                        // No submission handling here — handled fully in ReviewAnswersPage
                       },
 
                       // 🧠 Button text logic

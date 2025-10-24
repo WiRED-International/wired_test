@@ -6,8 +6,9 @@ import '../../services/retry_queue_service.dart';
 
 class ReviewAnswersPage extends StatelessWidget {
   final List<Map<String, dynamic>> questions;
+  final bool readOnly;
 
-  const ReviewAnswersPage({super.key, required this.questions});
+  const ReviewAnswersPage({super.key, required this.questions, this.readOnly = false,});
 
   @override
   Widget build(BuildContext context) {
@@ -22,7 +23,10 @@ class ReviewAnswersPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Review Your Answers'),
+        automaticallyImplyLeading: !readOnly,
+        title: Text(
+          readOnly ? 'Review (Read-Only)' : 'Review Your Answers',
+        ),
         backgroundColor: const Color(0xFF0070C0),
         foregroundColor: Colors.white,
       ),
@@ -31,9 +35,15 @@ class ReviewAnswersPage extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Check your answers before submitting',
-              style: TextStyle(fontSize: 16, color: Colors.black54),
+            Text(
+              readOnly
+                  ? 'Time is up! You can review your answers but cannot change them.'
+                  : 'Check your answers before submitting',
+              style: TextStyle(
+                fontSize: 16,
+                color: readOnly ? Colors.redAccent : Colors.black54,
+                fontWeight: readOnly ? FontWeight.bold : FontWeight.normal,
+              ),
             ),
             const SizedBox(height: 20),
 
@@ -49,7 +59,7 @@ class ReviewAnswersPage extends StatelessWidget {
             const SizedBox(height: 20),
 
             // ⚠️ Warning for unanswered
-            if (unanswered > 0)
+            if (!readOnly && unanswered > 0)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
@@ -91,7 +101,10 @@ class ReviewAnswersPage extends StatelessWidget {
                   final borderColor = isAnswered ? Colors.green : Colors.redAccent;
 
                   return GestureDetector(
-                    onTap: () {
+                    // ✅ Disable tap navigation when readOnly
+                    onTap: readOnly
+                        ? null
+                        : () {
                       Navigator.pop(context, index);
                     },
                     child: Stack(
@@ -113,17 +126,12 @@ class ReviewAnswersPage extends StatelessWidget {
                             ),
                           ),
                         ),
-
-                        // 🏳 Flag overlay
                         if (isFlagged)
                           const Positioned(
                             top: 4,
                             right: 4,
-                            child: Icon(
-                              Icons.flag,
-                              color: Colors.orangeAccent,
-                              size: 18,
-                            ),
+                            child: Icon(Icons.flag,
+                                color: Colors.orangeAccent, size: 18),
                           ),
                       ],
                     ),
@@ -131,8 +139,6 @@ class ReviewAnswersPage extends StatelessWidget {
                 },
               ),
             ),
-
-            const SizedBox(height: 10),
           ],
         ),
       ),
@@ -148,18 +154,20 @@ class ReviewAnswersPage extends StatelessWidget {
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              OutlinedButton.icon(
-                icon: const Icon(Icons.arrow_back),
-                label: const Text('Back to Questions'),
-                onPressed: () {
-                  Navigator.pop(context, 'back_to_questions');
-                },
-              ),
+              // 🟡 Hide "Back to Questions" when readOnly
+              if (!readOnly)
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.arrow_back),
+                  label: const Text('Back to Questions'),
+                  onPressed: () => Navigator.pop(context, 'back_to_questions'),
+                ),
+              if (readOnly)
+                const SizedBox.shrink(),
               ElevatedButton.icon(
                 icon: const Icon(Icons.check_circle_outline, color: Colors.white),
-                label: const Text(
-                  'Submit Exam',
-                  style: TextStyle(color: Colors.white),
+                label: Text(
+                  readOnly ? 'Submit Exam' : 'Submit Exam',
+                  style: const TextStyle(color: Colors.white),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
@@ -180,8 +188,15 @@ class ReviewAnswersPage extends StatelessWidget {
       persistentFooterButtons: [
         Center(
           child: Text(
-            '⏰ Time remaining: $formattedTime',
-            style: const TextStyle(color: Colors.black54, fontSize: 14),
+            readOnly
+                ? '⏰ Exam time expired'
+                : '⏰ Time remaining: $formattedTime',
+            style: TextStyle(
+              color: readOnly ? Colors.redAccent : Colors.black54,
+              fontSize: 14,
+              fontWeight:
+              readOnly ? FontWeight.bold : FontWeight.normal,
+            ),
           ),
         ),
       ],
@@ -211,31 +226,108 @@ class ReviewAnswersPage extends StatelessWidget {
       ),
     );
 
-    if (confirmed == true && context.mounted) {
-      await _handleSubmit(context);
-    }
-  }
+    if (confirmed != true || !context.mounted) return;
 
-  Future<void> _handleSubmit(BuildContext context) async {
-    final controller = context.read<ExamController>();
-    final sync = context.read<ExamSyncService>();
-    final retry = context.read<RetryQueueService>();
-
-    await controller.submitNow(
-      onSubmit: (payload) => sync.submitPayload(payload),
-      onEnqueue: (payload) => retry.enqueue(payload),
+    // ✅ Show loading spinner
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              CircularProgressIndicator(
+                color: Colors.green,
+                strokeWidth: 3,
+              ),
+              SizedBox(height: 16),
+              Text(
+                'Submitting Exam…',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
 
-    if (controller.active?.submitted == true && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Exam submitted successfully!')),
+    try {
+      final controller = context.read<ExamController>();
+      final ok = await controller.submitNow(
+        onSubmit: (payload) async {
+          final sync = context.read<ExamSyncService>();
+          return await sync.submitExam(payload);
+        },
+        onEnqueue: (payload) async {
+          final retry = context.read<RetryQueueService>();
+          await retry.enqueueExamSubmission(payload);
+        },
       );
-      Navigator.pop(context, 'submitted');
-    } else if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('📡 Offline: submission queued for retry')),
-      );
-      Navigator.pop(context, 'submitted');
+
+      if (context.mounted) Navigator.of(context).pop(); // close spinner
+
+      if (!context.mounted) return;
+
+      if (ok) {
+        // ✅ Show success alert
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.green, size: 28),
+                SizedBox(width: 8),
+                Text('Exam Completed'),
+              ],
+            ),
+            content: const Text(
+              'Your exam was submitted successfully!\n\n'
+                  'Tap Close to return to the Home page.',
+              style: TextStyle(fontSize: 16),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop(); // close dialog
+                  Navigator.of(context).popUntil((r) => r.isFirst); // return home
+                },
+                child: const Text(
+                  'Close',
+                  style: TextStyle(fontSize: 16, color: Colors.green),
+                ),
+              ),
+            ],
+          ),
+        );
+      } else {
+        // ❌ Submission failed — stay on review page
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('📡 Submission failed. Please check your connection and try again.'),
+            duration: Duration(seconds: 8),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.of(context).pop(); // close spinner if open
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('⚠️ Error submitting exam: $e'),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
     }
   }
 

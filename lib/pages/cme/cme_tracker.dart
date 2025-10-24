@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -36,7 +38,7 @@ class _CMETrackerState extends State<CMETracker> {
   @override
   void initState() {
     super.initState();
-    userData = fetchUserData();
+    userData = fetchUserData(context);
 
     _buttonColors = {
       "Credits History": [
@@ -88,7 +90,14 @@ class _CMETrackerState extends State<CMETracker> {
     return await _storage.read(key: 'authToken');
   }
 
-  Future<User> fetchUserData() async {
+  Future<User> fetchUserData(BuildContext context) async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final hasConnection = await auth.hasInternet();
+
+    if (!hasConnection) {
+      throw const SocketException('No Internet Connection');
+    }
+
     final token = await getAuthToken();
     if (token == null) {
       throw Exception('User is not logged in');
@@ -98,26 +107,36 @@ class _CMETrackerState extends State<CMETracker> {
     final apiEndpoint = '/users/me';
 
     final url = Uri.parse('$apiBaseUrl$apiEndpoint');
-    final response = await http.get(
-      url,
-      headers: {
-        'Authorization': 'Bearer $token', // Include the token in the header
-        'Content-Type': 'application/json',
-      },
-    );
+    try {
+      final response = await http
+          .get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      )
+          .timeout(const Duration(seconds: 10)); // 🕓 10s timeout
 
-    if (response.statusCode == 200) {
-      final json = jsonDecode(response.body) as Map<String, dynamic>;
-      print('API Response: $json');
-      return User.fromJson(json); // Parse the top-level response directly
-    } else {
-      throw Exception('Failed to fetch user data: ${response.statusCode}');
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body) as Map<String, dynamic>;
+        debugPrint('✅ API Response: $json');
+        return User.fromJson(json);
+      } else {
+        throw HttpException('Failed to fetch user data: ${response.statusCode}');
+      }
+    } on TimeoutException {
+      throw TimeoutException('Connection timed out. Please try again.');
+    } on SocketException {
+      throw const SocketException('No Internet Connection');
+    } catch (e) {
+      throw Exception('Unexpected error: $e');
     }
   }
 
   void refreshScores() {
     setState(() {
-      userData = fetchUserData();
+      userData = fetchUserData(context);
     });
   }
 
@@ -136,7 +155,42 @@ class _CMETrackerState extends State<CMETracker> {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             } else if (snapshot.hasError) {
-              return Center(child: Text('Error: ${snapshot.error}'));
+              final error = snapshot.error.toString();
+              String message;
+
+              if (error.contains('SocketException')) {
+                message = 'You are offline. Please check your connection.';
+              } else if (error.contains('TimeoutException')) {
+                message = 'Request timed out. Please try again later.';
+              } else if (error.contains('401') || error.contains('403')) {
+                message = 'Session expired. Please log in again.';
+              } else {
+                message = 'Failed to load data.\n$error';
+              }
+
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.wifi_off, size: 80, color: Colors.grey),
+                      const SizedBox(height: 20),
+                      Text(
+                        message,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 18),
+                      ),
+                      const SizedBox(height: 30),
+                      ElevatedButton.icon(
+                        onPressed: () => refreshScores(),
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
             } else if (!snapshot.hasData) {
               return const Center(child: Text('No data available'));
             }

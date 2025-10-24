@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -19,6 +21,7 @@ import '../exam/exam_start.dart';
 import '../home_page.dart';
 import '../module_library.dart';
 import '../../models/user.dart';
+import 'guestMenu.dart';
 
 
 class Menu extends StatefulWidget {
@@ -48,30 +51,45 @@ class _MenuState extends State<Menu> {
   }
 
   Future<User> fetchUserData() async {
-    final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final hasConnection = await auth.hasInternet();
 
-    final apiEndpoint = '/users/me';
+    if (!hasConnection) {
+      throw const SocketException('No Internet Connection');
+    }
 
     final token = await getAuthToken();
     if (token == null) {
       throw Exception('User is not logged in');
     }
 
+    final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
+    final apiEndpoint = '/users/me';
     final url = Uri.parse('$apiBaseUrl$apiEndpoint');
-    final response = await http.get(
-      url,
-      headers: {
-        'Authorization': 'Bearer $token', // Include the token in the header
-        'Content-Type': 'application/json',
-      },
-    );
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token', // Include the token in the header
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 10));
 
-    if (response.statusCode == 200) {
-      final json = jsonDecode(response.body) as Map<String, dynamic>;
-      print('API Response: $json');
-      return User.fromJson(json); // Parse the top-level response directly
-    } else {
-      throw Exception('Failed to fetch user data: ${response.statusCode}');
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body) as Map<String, dynamic>;
+        debugPrint('✅ API Response: $json');
+        return User.fromJson(json);
+      } else if (response.statusCode == 401) {
+        throw const HttpException('Unauthorized');
+      } else {
+        throw HttpException('Failed to fetch user data: ${response.statusCode}');
+      }
+    } on TimeoutException {
+      throw TimeoutException('Connection timed out. Please try again.');
+    } on SocketException {
+      throw const SocketException('No Internet Connection');
+    } catch (e) {
+      throw Exception('Unexpected error: $e');
     }
   }
 
@@ -138,14 +156,63 @@ class _MenuState extends State<Menu> {
         child: FutureBuilder<User>(
           future: userData,
           builder: (context, snapshot) {
+            // 🌀 Loading
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
-            } else if (snapshot.hasError) {
-              return Center(child: Text('Error: ${snapshot.error}'));
-            } else if (!snapshot.hasData) {
+            }
+
+            // ❌ Error / Offline / Unauthorized
+            if (snapshot.hasError) {
+              final error = snapshot.error.toString();
+              String message;
+
+              if (error.contains('SocketException')) {
+                message = 'Please connect to the internet to access your account menu.';
+              } else if (error.contains('Unauthorized') || error.contains('401')) {
+                message = 'Session expired. Please log in again.';
+              } else if (error.contains('TimeoutException')) {
+                message = 'Connection timed out. Please try again.';
+              } else {
+                message = 'Error loading data.\n$error';
+              }
+
+              // 🔹 If user is not logged in, show GuestMenu
+              if (error.contains('User is not logged in') || error.contains('Unauthorized')) {
+                return const GuestMenu();
+              }
+
+              // 🔹 If offline or another issue, show friendly message + retry
+              return Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.wifi_off, size: 80, color: Colors.grey),
+                      const SizedBox(height: 20),
+                      Text(
+                        message,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 18),
+                      ),
+                      const SizedBox(height: 30),
+                      ElevatedButton.icon(
+                        onPressed: () => refreshScores(),
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            // 🟡 No data fallback
+            if (!snapshot.hasData) {
               return const Center(child: Text('No data available'));
             }
 
+            // ✅ Success → logged-in user with connection
             final user = snapshot.data!;
             final int creditsEarned = user.creditsEarned ?? 0;
             return Stack(
@@ -247,10 +314,7 @@ class _MenuState extends State<Menu> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) =>
-                                AuthGuard(
-                                  child: CMETracker(),
-                                ),
+                            builder: (context) => AuthGuard(child: CMETracker(),),
                           ),
                         );
                       },

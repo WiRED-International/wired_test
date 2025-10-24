@@ -1,7 +1,10 @@
+import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import '../models/exam_models.dart';
+import '../pages/exam/review_answers_page.dart';
 import '../utils/validation.dart';
 import '../services/exam_sync_service.dart';
 
@@ -10,7 +13,9 @@ class ExamController extends ChangeNotifier {
   final ExamSyncService _syncService;
   final Box _examBox; // ✅ persistent exam session data
   final Map<int, bool> _flaggedQuestions = {}; // questionId → true/false
+  final ValueNotifier<bool> timeExpired = ValueNotifier(false);
   bool isFlagged(int questionId) => _flaggedQuestions[questionId] ?? false;
+  Timer? _cleanupTimer; // clears cache after 3 hours (runtime)
 
   void toggleFlag(int questionId) {
     _flaggedQuestions[questionId] = !(_flaggedQuestions[questionId] ?? false);
@@ -96,6 +101,14 @@ class ExamController extends ChangeNotifier {
           questions.map((q) => Map<String, dynamic>.from(q)).toList());
 
       _startTimer();
+
+      // 🧹 Schedule automatic cache cleanup after 3 hours (runtime)
+      _cleanupTimer?.cancel();
+      _cleanupTimer = Timer(const Duration(hours: 3), () async {
+        debugPrint('🕒 [ExamController] Auto-clearing cache after 3 hours (runtime)');
+        await clearExamPersistence();
+      });
+
       notifyListeners();
 
       debugPrint('🧠 [ExamController] Started new exam and cached ${questions.length} questions.');
@@ -143,9 +156,20 @@ class ExamController extends ChangeNotifier {
     final savedIndex = _examBox.get('current_index');
     final remainingSeconds = _examBox.get('remaining_seconds');
     final isPaused = _examBox.get('is_paused') ?? false;
-
     final isReviewed = _examBox.get('is_reviewed') ?? false;
+
     restoreFlags();
+
+    // 🕒 Check 3-hour global cache expiration
+    if (startTimeStr != null) {
+      final startedAt = DateTime.tryParse(startTimeStr);
+      if (startedAt != null && DateTime.now().isAfter(startedAt.add(const Duration(hours: 3)))) {
+        debugPrint('🕒 [ExamController] Cache expired (3-hour limit) — clearing.');
+        await clearExamPersistence();
+        return;
+      }
+    }
+
     if (startTimeStr == null || duration == null || examId == null) {
       debugPrint('⚠️ [ExamController] No saved exam found.');
       return;
@@ -170,7 +194,7 @@ class ExamController extends ChangeNotifier {
           questionId: a['question_id'],
           selectedOptionId: a['selected_option'],
           updatedAt:
-          DateTime.tryParse(a['updated_at'] ?? '') ?? DateTime.now(),
+            DateTime.tryParse(a['updated_at'] ?? '') ?? DateTime.now(),
         );
       }).toList();
     }
@@ -186,8 +210,16 @@ class ExamController extends ChangeNotifier {
     await _attempts.put(_active!.attemptId, _active!);
     await _examBox.put('current_index', savedIndex);
 
+    // ⏱️ Case 1: Exam still has time left — resume normally
     if (!_isPaused && _remainingSeconds > 0) {
       _startTimer();
+    }
+
+    // ⏰ Case 2: Timer already hit zero — redirect to Review Page (read-only)
+    if (_remainingSeconds <= 0 && !_active!.submitted) {
+      debugPrint('⏰ [ExamController] Time already expired — redirecting to review.');
+      await Future.delayed(const Duration(milliseconds: 300));
+      return;
     }
 
     restoreFlags();
@@ -231,8 +263,19 @@ class ExamController extends ChangeNotifier {
   }
 
   Future<void> _submitOnTimeout() async {
-    debugPrint('⏰ Exam time expired! Auto-submitting...');
-    await clearExamPersistence();
+    debugPrint('⏰ Exam time expired!');
+    _tick?.cancel();
+
+    // Mark as reviewed but don't clear cache
+    if (_active != null) {
+      _active!.isReviewed = true;
+      await _active!.save();
+    }
+
+    // Notify UI through ValueNotifier
+    timeExpired.value = true;
+
+    // Notify listeners (UI can react)
     notifyListeners();
   }
 
@@ -348,33 +391,49 @@ class ExamController extends ChangeNotifier {
     required Future<bool> Function(Map<String, dynamic>) onSubmit,
     required Future<void> Function(Map<String, dynamic>) onEnqueue,
   }) async {
-    if (_active == null) return false;
-    final payload = await buildSubmissionPayload();
-    if (payload == null) return false;
-
-    bool ok = false;
     try {
-      ok = await onSubmit(payload);
+      if (_active == null) return false;
+      // 🔹 Build submission data
+      final payload = await buildSubmissionPayload();
+      if (payload == null) return false;
+
+      bool ok = false;
+      try {
+        ok = await onSubmit(payload);
+      } catch (e) {
+        debugPrint('❌ [ExamController] Submit failed: $e');
+        ok = false;
+      }
+
+      if (ok) {
+        // Mark submission successful
+        _active!
+          ..submitted = true
+          ..submittedAt = DateTime.now();
+        await _active!.save();
+        debugPrint('✅ [ExamController] Submission successful — clearing Hive...');
+        // ✅ Clear all persisted exam data
+        await clearExamPersistence();
+      } else {
+        // 🟡 Network or backend failure → enqueue for retry
+        debugPrint('⚠️ [ExamController] Submission failed — enqueuing for retry');
+        await onEnqueue(payload);
+      }
+
+      notifyListeners();
+      debugPrint('🎯 [ExamController] ok=$ok | active.submitted=${_active?.submitted}');
+      return ok; // ✅ return true if submission succeeded
     } catch (e) {
-      debugPrint('❌ [ExamController] Submit failed: $e');
-      ok = false;
+      debugPrint('❌ [ExamController] Exception during submit: $e');
+      // Don’t clear cache if submission failed!
+      final fallbackPayload = await buildSubmissionPayload();
+      if (fallbackPayload != null) {
+        await onEnqueue(fallbackPayload);
+      } else {
+        debugPrint('⚠️ [ExamController] Could not build fallback payload, skipping enqueue');
+      }
+      return false;
     }
-
-    if (ok) {
-      _active!
-        ..submitted = true
-        ..submittedAt = DateTime.now();
-      await _active!.save();
-      debugPrint('✅ [ExamController] Submission successful — clearing Hive...');
-      // ✅ Clear all persisted exam data
-      await clearExamPersistence();
-    } else {
-      await onEnqueue(payload);
-    }
-
-    notifyListeners();
-    debugPrint('🎯 [ExamController] ok=$ok | active.submitted=${_active?.submitted}');
-    return ok; // ✅ return true if submission succeeded
   }
 
   // 🧹 Clear all Hive data related to the ongoing exam
@@ -409,6 +468,7 @@ class ExamController extends ChangeNotifier {
   @override
   void dispose() {
     _tick?.cancel();
+    _cleanupTimer?.cancel(); // stop 3-hour timer when controller destroyed
     super.dispose();
   }
 }
