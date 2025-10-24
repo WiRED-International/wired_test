@@ -1,11 +1,12 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/svg.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:archive/archive_io.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter/foundation.dart';
 import 'package:wired_test/pages/home_page.dart';
 import '../providers/auth_guard.dart';
 import '../utils/custom_app_bar.dart';
@@ -18,6 +19,8 @@ import 'menu/guestMenu.dart';
 import 'menu/menu.dart';
 import 'module_library.dart';
 import '../services/location_service.dart';
+import '../utils/download_section.dart';
+import 'dart:isolate';
 
 
 class ModuleInfo extends StatefulWidget {
@@ -71,6 +74,9 @@ class _ModuleInfoState extends State<ModuleInfo> {
   late Future<Modules> futureModule;
   late List<Modules> moduleData = [];
   final GlobalKey _moduleNameKey = GlobalKey();
+  double _downloadProgress = 0.0;
+  bool _isDownloading = false;
+  String _progressText = "";
   double topPadding = 0;
   bool _isLoading = false;
   Map<String, double?>? _location;
@@ -101,80 +107,106 @@ class _ModuleInfoState extends State<ModuleInfo> {
 
   // Download the Module
   Future<void> downloadModule(String url, String fileName) async {
-    bool hasPermission = await checkAndRequestStoragePermission();
-    print("Has Permission: $hasPermission");
+    final storagePath = await getStoragePath();
+    final modulesDir = Directory('$storagePath/modules');
+    if (!modulesDir.existsSync()) modulesDir.createSync(recursive: true);
 
-    if (true) {
-      final storagePath = await getStoragePath();
-      final modulesDirectoryPath = '$storagePath/modules';
-      final modulesDirectory = Directory(modulesDirectoryPath);
+    final zipFile = File('${modulesDir.path}/$fileName');
+    print('DEBUG: Downloading to ${zipFile.path}');
 
-      // Check if the individuals modules directory exists
-      if (!modulesDirectory.existsSync()) {
-        modulesDirectory.createSync(recursive: true);
-        print('Directory created: $modulesDirectoryPath');
+    try {
+      final request = await HttpClient().getUrl(Uri.parse(url));
+      final response = await request.close();
+
+      if (response.statusCode != 200) {
+        throw Exception('Download failed with ${response.statusCode}');
       }
 
-      final modulesFilePath = '$modulesDirectoryPath/$fileName';
-      final file = File(modulesFilePath);
+      final sink = zipFile.openWrite();
+      int received = 0;
+      final total = response.contentLength;
+      final startTime = DateTime.now();
 
-      try {
-        final response = await http.get(Uri.parse(url));
-        await file.writeAsBytes(response.bodyBytes);
+      // 🕒 Throttle timer
+      DateTime lastUpdate = DateTime.now();
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Downloaded $fileName')),
-        );
-        print('Directory: $storagePath');
-        print('File Path: $modulesFilePath');
+      await for (final chunk in response) {
+        received += chunk.length;
+        sink.add(chunk);
 
-        // Unzip the downloaded file
-        final bytes = file.readAsBytesSync();
-        final archive = ZipDecoder().decodeBytes(bytes);
+        if (total != null && total > 0) {
+          final now = DateTime.now();
+          final elapsed = now.difference(startTime).inMilliseconds / 1000.0; // seconds
+          final speed = received / elapsed; // bytes/second
+          final remainingBytes = total - received;
+          final etaSeconds = remainingBytes / speed;
 
-        for (var file in archive) {
-          final filename = file.name;
-          final extractedFilePath = '$modulesDirectoryPath/$filename';
-          print('Processing file: $filename at path: $extractedFilePath');
+          final progress = received / total;
+          final percent = (progress * 100).toStringAsFixed(1);
+          final mbSpeed = (speed / (1024 * 1024)).toStringAsFixed(2);
+          final eta = etaSeconds < 60
+              ? '${etaSeconds.toStringAsFixed(0)}s'
+              : '${(etaSeconds / 60).toStringAsFixed(1)}m';
 
-          if (file.isFile) {
-            final data = file.content as List<int>;
-            File(extractedFilePath)
-              ..createSync(recursive: true)
-              ..writeAsBytesSync(data);
-          } else {
-            Directory(extractedFilePath).createSync(recursive: true);
-            print('Directory created: $extractedFilePath');
+          // ✅ Throttle UI updates (every 0.25 seconds)
+          if (now.difference(lastUpdate).inMilliseconds > 250) {
+            lastUpdate = now;
+            setState(() {
+              _downloadProgress = progress;
+              _progressText = '$percent% • $mbSpeed MB/s • $eta left';
+            });
           }
         }
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Unzipped $fileName')),
-        );
-        print('Unzipped to: $storagePath');
-
-        // Delete the zip file
-        try {
-          await file.delete();
-          print('Zip file deleted: $modulesFilePath');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Unzipped and deleted $fileName')),
-          );
-        } catch (e) {
-          print('Error deleting zip file: $e');
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error deleting $fileName')),
-          );
-        }
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error downloading $fileName')),
-        );
       }
-    } else {
-      openAppSettings();
+
+      await sink.close();
+      print('✅ Download complete: ${zipFile.path}');
+
+      // ✅ Create a ReceivePort for communication
+      final receivePort = ReceivePort();
+
+      // ✅ Prepare UI for extraction
+      setState(() {
+        _progressText = "Download complete — extracting files...";
+        _isDownloading = true;
+        _downloadProgress = 1.0;
+      });
+
+      // ✅ Run extraction in background isolate
+      await Isolate.spawn(_extractZipWithProgress, {
+        'zipPath': zipFile.path,
+        'outputDir': modulesDir.path,
+        'sendPort': receivePort.sendPort,
+      });
+
+      // ✅ Listen for messages (progress updates)
+      await for (final message in receivePort) {
+        if (message is double) {
+          // numeric progress 0.0–1.0
+          final percent = (message * 100).toStringAsFixed(1);
+          setState(() {
+            _downloadProgress = message;
+            _progressText = "Extracting… $percent%";
+          });
+        } else if (message is String && message == 'done') {
+          // extraction complete
+          await zipFile.delete();
+          print('🗑️ Deleted ZIP after extraction.');
+          setState(() {
+            _isDownloading = false;
+            _progressText = "Extraction complete!";
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Downloaded and extracted $fileName')),
+          );
+          receivePort.close();
+          break;
+        }
+      }
+    } catch (e) {
+      print('❌ Download error: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Permission denied')),
+        SnackBar(content: Text('Error downloading $fileName: $e')),
       );
     }
   }
@@ -191,7 +223,6 @@ class _ModuleInfoState extends State<ModuleInfo> {
     });
     await widget.locationService.saveDownload(widget.moduleId, location);
   }
-  
 
 // Consider using AutoSizeText for the module name instead of RichText
 
@@ -328,52 +359,175 @@ class _ModuleInfoState extends State<ModuleInfo> {
   }
 
   Widget _buildPortraitLayout(screenWidth, screenHeight, baseSize) {
-    return Column(
+    return Stack(
       children: [
-        SizedBox(
-            height: baseSize * (isTablet(context) ? 0.03 : 0.03),
-        ),
-        // Module Description Container
-        Flexible(
-          flex: 6,
-          child: Stack(
-            children: [
-              Container(
-                height: baseSize * (isTablet(context) ? 60 : 60),
-                decoration: BoxDecoration(
-                  color: Colors.transparent,
-                ),
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      bottom: 50,
-                      left: 10,
-                      right: 10,
+        // 🔹 Main content (your original layout)
+        Column(
+          children: [
+            SizedBox(
+              height: baseSize * (isTablet(context) ? 0.03 : 0.03),
+            ),
+            // 🟢 Module Description Container
+            Flexible(
+              flex: 6,
+              child: Stack(
+                children: [
+                  Container(
+                    height: baseSize * (isTablet(context) ? 60 : 60),
+                    decoration: const BoxDecoration(color: Colors.transparent),
+                    child: SingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: 50,
+                          left: 10,
+                          right: 10,
+                        ),
+                        child: RichText(
+                          textAlign: TextAlign.center,
+                          text: TextSpan(
+                            children: [
+                              TextSpan(
+                                text: '${widget.moduleName}\n',
+                                style: TextStyle(
+                                  fontSize: baseSize * (isTablet(context) ? 0.06 : 0.065),
+                                  fontWeight: FontWeight.w500,
+                                  color: const Color(0xFF0070C0),
+                                ),
+                              ),
+                              WidgetSpan(
+                                child: SizedBox(
+                                  height: baseSize * (isTablet(context) ? 0.08 : 0.08),
+                                ),
+                              ),
+                              TextSpan(
+                                text: '${widget.moduleDescription}\n',
+                                style: TextStyle(
+                                  fontSize: baseSize * (isTablet(context) ? 0.04 : 0.045),
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                    child: RichText(
-                      textAlign: TextAlign.center,
-                      text: TextSpan(
+                  ),
+                  // 🟢 Gradient text fade
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: IgnorePointer(
+                      child: Container(
+                        height: 80,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            stops: const [0.0, 5.0],
+                            colors: [
+                              Color(0xFFFCDBB3).withOpacity(0.0),
+                              Color(0xFFFDD8AD),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // 🟢 Download Button
+            Flexible(
+              flex: 1,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: GestureDetector(
+                  onTap: _isLoading || _isDownloading
+                      ? null
+                      : () async {
+                    if (widget.downloadLink != null) {
+                      setState(() {
+                        _isLoading = true;
+                        _isDownloading = true;
+                      });
+
+                      String fileName = "${widget.moduleName}.zip";
+                      await downloadModule(widget.downloadLink!, fileName);
+                      await getLocationAndSaveDownload();
+
+                      setState(() {
+                        _isLoading = false;
+                        _isDownloading = false;
+                      });
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              DownloadConfirm(moduleName: widget.moduleName),
+                        ),
+                      );
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'No download link found for ${widget.moduleName}',
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                  child: Container(
+                    width: baseSize * (isTablet(context) ? 0.5 : 0.55),
+                    height: baseSize * (isTablet(context) ? 0.10 : 0.12),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [
+                          Color(0xFF0070C0),
+                          Color(0xFF00C1FF),
+                          Color(0xFF0070C0),
+                        ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                      borderRadius: BorderRadius.circular(35),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.5),
+                          spreadRadius: 1,
+                          blurRadius: 5,
+                          offset: const Offset(1, 3),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          TextSpan(
-                            text: '${widget.moduleName}\n',
+                          _isLoading || _isDownloading
+                              ? const CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 3,
+                          )
+                              : Text(
+                            "Download",
                             style: TextStyle(
-                              fontSize: baseSize * (isTablet(context) ? 0.06 : 0.065),
+                              fontSize: baseSize *
+                                  (isTablet(context) ? 0.071 : 0.071),
                               fontWeight: FontWeight.w500,
-                              color: Color(0xFF0070C0),
+                              color: Colors.white,
                             ),
                           ),
-                          WidgetSpan(
-                            child: SizedBox(
-                              height: baseSize * (isTablet(context) ? 0.08 : 0.08),
-                            ),
-                          ),
-                          TextSpan(
-                            text: '${widget.moduleDescription}\n',
-                            style: TextStyle(
-                              fontSize: baseSize * (isTablet(context) ? 0.04 : 0.045),
-                              fontWeight: FontWeight.w500,
-                              color: Colors.black,
-                            ),
+                          const SizedBox(width: 7),
+                          SvgPicture.asset(
+                            'assets/icons/download_icon.svg',
+                            height: baseSize *
+                                (isTablet(context) ? 0.0675 : 0.0675),
+                            width: baseSize *
+                                (isTablet(context) ? 0.0675 : 0.0675),
                           ),
                         ],
                       ),
@@ -381,316 +535,349 @@ class _ModuleInfoState extends State<ModuleInfo> {
                   ),
                 ),
               ),
-              // Container for gradient text fade
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: IgnorePointer(
-                  child: Container(
-                      height: 80,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          stops: [0.0, 5.0],
-                          colors: [
-                            // Colors.transparent,
-                            // Color(0xFFFFF0DC),
-                            //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                            Color(0xFFFCDBB3).withOpacity(0.0),
-                            Color(0xFFFDD8AD),
-                          ],
-                        ),
-                      )
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
-        // Download Button
-        Flexible(
-          flex: 1,
-          child: Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: GestureDetector(
-              onTap: _isLoading
-                  ? null
-                  : () async {
 
-                if (widget.downloadLink != null) {
-                  setState(() {
-                    _isLoading = true;
-                  });
-
-                  String fileName = "$widget.moduleName.zip";
-                  await downloadModule(widget.downloadLink!, fileName);
-                  await getLocationAndSaveDownload();
-                  setState(() {_isLoading = false;});
-
-                  Navigator.push(context,
-                    MaterialPageRoute(
-                      builder: (context) => DownloadConfirm(
-                        moduleName: widget.moduleName
-                      )
-                    ),
-                  );
-                  
-                } else {
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(
-                    SnackBar(content: Text(
-                        'No download link found for ${widget
-                            .moduleName}')),
-                  );
-                }
-              },
+        // 🔹 Overlay progress bar in the center of the screen
+        if (_isDownloading) ...[
+          Container(
+            color: Colors.black.withOpacity(0.4), // dim background
+            child: Center(
               child: Container(
-                width: baseSize * (isTablet(context) ? 0.5 : 0.55),
-                height: baseSize * (isTablet(context) ? 0.10 : 0.12),
+                width: screenWidth * 0.8,
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [
-                      Color(0xFF0070C0),
-                      Color(0xFF00C1FF),
-                      Color(0xFF0070C0),
-                    ], // Your gradient colors
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
-                  borderRadius: BorderRadius.circular(35),
-                  boxShadow: [
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: const [
                     BoxShadow(
-                      color: Colors.black.withOpacity(
-                          0.5),
-                      spreadRadius: 1,
-                      blurRadius: 5,
-                      offset: const Offset(1,
-                          3), // changes position of shadow
-                    ),
+                      color: Colors.black26,
+                      blurRadius: 10,
+                      offset: Offset(0, 4),
+                    )
                   ],
                 ),
-                child: Center(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      _isLoading
-                          ? CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 3,
-                      )
-                          : Text(
-                        "Download",
-                        style: TextStyle(
-                          fontSize: baseSize * (isTablet(context) ? 0.071 : 0.071),
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white,
-                        ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      "Downloading...",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0070C0),
                       ),
-                      const SizedBox(width: 7,),
-                      SvgPicture.asset(
-                        'assets/icons/download_icon.svg',
-                        // height: 42,
-                        // width: 42,
-                        height: baseSize * (isTablet(context) ? 0.0675 : 0.0675),
-                        width: baseSize * (isTablet(context) ? 0.0675 : 0.0675),
+                    ),
+                    const SizedBox(height: 16),
+                    LinearProgressIndicator(
+                      value: _downloadProgress,
+                      minHeight: 8,
+                      backgroundColor: Colors.grey.shade300,
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Color(0xFF22C55E),
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      _progressText,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
-        )
+        ],
       ],
     );
   }
 
+
   Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
-    return Column(
+    return Stack(
       children: [
-        SizedBox(
-          height: baseSize * (isTablet(context) ? 0.05 : 0.03),
-        ),
+        // 🔹 Main landscape content (your original layout)
+        Column(
+          children: [
+            SizedBox(
+              height: baseSize * (isTablet(context) ? 0.05 : 0.03),
+            ),
 
-        // Module Description Container
-        Flexible(
-          flex: 6,
-          child: Stack(
-            children: [
-              Container(
-                height: baseSize * (isTablet(context) ? 0.65 : 0.65),
-                //width: 400,
-                decoration: BoxDecoration(
-                  color: Colors.transparent,
-                ),
-                child: SingleChildScrollView(
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      bottom: 50,
-                      left: 20,
-                      right: 20,
+            // 🟢 Module Description Container
+            Flexible(
+              flex: 6,
+              child: Stack(
+                children: [
+                  Container(
+                    height: baseSize * (isTablet(context) ? 0.65 : 0.65),
+                    decoration: const BoxDecoration(
+                      color: Colors.transparent,
                     ),
-                    child: RichText(
-                      textAlign: TextAlign.center,
-                      text: TextSpan(
-                        children: [
-                          TextSpan(
-                            text: '${widget.moduleName}\n',
-                            style: TextStyle(
-                              //fontSize: 32.0,
-                              fontSize: baseSize * (isTablet(context) ? 0.06 : 0.065),
-                              fontWeight: FontWeight.w500,
-                              color: Color(0xFF0070C0),
-                            ),
+                    child: SingleChildScrollView(
+                      child: Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: 50,
+                          left: 20,
+                          right: 20,
+                        ),
+                        child: RichText(
+                          textAlign: TextAlign.center,
+                          text: TextSpan(
+                            children: [
+                              TextSpan(
+                                text: '${widget.moduleName}\n',
+                                style: TextStyle(
+                                  fontSize:
+                                  baseSize * (isTablet(context) ? 0.06 : 0.065),
+                                  fontWeight: FontWeight.w500,
+                                  color: const Color(0xFF0070C0),
+                                ),
+                              ),
+                              WidgetSpan(
+                                child: SizedBox(
+                                  height: baseSize *
+                                      (isTablet(context) ? 0.08 : 0.08),
+                                ),
+                              ),
+                              TextSpan(
+                                text: '${widget.moduleDescription}\n',
+                                style: TextStyle(
+                                  fontSize: screenHeight *
+                                      (isTablet(context) ? 0.04 : 0.045),
+                                  fontWeight: FontWeight.w500,
+                                  color: Colors.black,
+                                ),
+                              ),
+                            ],
                           ),
-                          WidgetSpan(
-                            child: SizedBox(
-                              height: baseSize * (isTablet(context) ? 0.08 : 0.08),
-                            ),
-                          ),
-                          TextSpan(
-                            text: '${widget.moduleDescription}\n',
-                            style: TextStyle(
-                              fontSize: screenHeight * (isTablet(context) ? 0.04 : 0.045),
-                              fontWeight: FontWeight.w500,
-                              color: Colors.black,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              // Container for gradient text fade
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: IgnorePointer(
-                  child: Container(
-                    height: 80,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        stops: [0.0, 5.0],
-                        colors: [
-                          // Colors.transparent,
-                          // Color(0xFFFFF0DC),
-                          //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                          Color(0xFFFCDBB3).withOpacity(0.0),
-                          Color(0xFFFDD8AD),
-                        ],
-                      ),
-                    )
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        // Download Button
-        Flexible(
-          flex: 1,
-          child: Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: GestureDetector(
-              onTap: _isLoading
-                  ? null
-                  : () async {
-                if (widget.downloadLink != null) {
-                  setState(() {
-                    _isLoading = true;
-                  });
-
-                  String fileName = "$widget.moduleName.zip";
-                  await downloadModule(widget.downloadLink!, fileName);
-                  await getLocationAndSaveDownload();
-                  setState(() {_isLoading = false;});
-
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => DownloadConfirm(
-                        moduleName: widget.moduleName
-                      )
-                    )
-                  );
-                  print("Module Id: ${widget.moduleId}");
-                } else {
-                  ScaffoldMessenger.of(context)
-                      .showSnackBar(
-                    SnackBar(content: Text(
-                        'No download link found for ${widget
-                            .moduleName}')),
-                  );
-                }
-              },
-              child: Container(
-                width: baseSize * (isTablet(context) ? 0.5 : 0.55),
-                height: baseSize * (isTablet(context) ? 0.10 : 0.12),
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [
-                      Color(0xFF0070C0),
-                      Color(0xFF00C1FF),
-                      Color(0xFF0070C0),
-                    ], // Your gradient colors
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
-                  borderRadius: BorderRadius.circular(30),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(
-                          0.5),
-                      spreadRadius: 1,
-                      blurRadius: 5,
-                      offset: const Offset(1,
-                          3), // changes position of shadow
-                    ),
-                  ],
-                ),
-                child: Center(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      _isLoading
-                          ? CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 3,
-                      )
-                          : Text(
-                        "Download",
-                        style: TextStyle(
-                          fontSize: baseSize * (isTablet(context) ? 0.07 : 0.07),
-                          fontWeight: FontWeight.w500,
-                          color: Colors.white,
                         ),
                       ),
-                      const SizedBox(width: 7,),
-                      SvgPicture.asset(
-                        'assets/icons/download_icon.svg',
-                        // height: 42,
-                        // width: 42,
-                        height: baseSize * (isTablet(context) ? 0.0675 : 0.0675),
-                        width: baseSize * (isTablet(context) ? 0.0675 : 0.0675),
+                    ),
+                  ),
+
+                  // 🟢 Gradient text fade
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: IgnorePointer(
+                      child: Container(
+                        height: 80,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            stops: const [0.0, 5.0],
+                            colors: [
+                              Color(0xFFFCDBB3).withOpacity(0.0),
+                              Color(0xFFFDD8AD),
+                            ],
+                          ),
+                        ),
                       ),
-                    ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // 🟢 Download Button
+            Flexible(
+              flex: 1,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: GestureDetector(
+                  onTap: _isLoading || _isDownloading
+                      ? null
+                      : () async {
+                    if (widget.downloadLink != null) {
+                      setState(() {
+                        _isLoading = true;
+                        _isDownloading = true;
+                      });
+
+                      String fileName = "${widget.moduleName}.zip";
+                      await downloadModule(widget.downloadLink!, fileName);
+                      await getLocationAndSaveDownload();
+
+                      setState(() {
+                        _isLoading = false;
+                        _isDownloading = false;
+                      });
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              DownloadConfirm(moduleName: widget.moduleName),
+                        ),
+                      );
+                      print("Module Id: ${widget.moduleId}");
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'No download link found for ${widget.moduleName}',
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                  child: Container(
+                    width: baseSize * (isTablet(context) ? 0.5 : 0.55),
+                    height: baseSize * (isTablet(context) ? 0.10 : 0.12),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [
+                          Color(0xFF0070C0),
+                          Color(0xFF00C1FF),
+                          Color(0xFF0070C0),
+                        ],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                      borderRadius: BorderRadius.circular(30),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.5),
+                          spreadRadius: 1,
+                          blurRadius: 5,
+                          offset: const Offset(1, 3),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          _isLoading || _isDownloading
+                              ? const CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 3,
+                          )
+                              : Text(
+                            "Download",
+                            style: TextStyle(
+                              fontSize: baseSize *
+                                  (isTablet(context) ? 0.07 : 0.07),
+                              fontWeight: FontWeight.w500,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(width: 7),
+                          SvgPicture.asset(
+                            'assets/icons/download_icon.svg',
+                            height: baseSize *
+                                (isTablet(context) ? 0.0675 : 0.0675),
+                            width: baseSize *
+                                (isTablet(context) ? 0.0675 : 0.0675),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
             ),
+          ],
+        ),
+
+        // 🔹 Overlay progress bar centered on screen (same as portrait)
+        if (_isDownloading) ...[
+          Container(
+            color: Colors.black.withOpacity(0.4), // Dim background
+            child: Center(
+              child: Container(
+                width: screenWidth * 0.6, // slightly narrower in landscape
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 10,
+                      offset: Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      "Downloading...",
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF0070C0),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    LinearProgressIndicator(
+                      value: _downloadProgress,
+                      minHeight: 8,
+                      backgroundColor: Colors.grey.shade300,
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                        Color(0xFF22C55E),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      _progressText,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
-        )
+        ],
       ],
     );
   }
 }
 
+Future<void> _extractZipWithProgress(Map<String, dynamic> args) async {
+  final zipFile = File(args['zipPath']!);
+  final outputDir = args['outputDir']!;
+  final sendPort = args['sendPort'] as SendPort;
+
+  print('📦 Background extraction started for ${zipFile.path}');
+  final inputStream = InputFileStream(zipFile.path);
+  final archive = ZipDecoder().decodeStream(inputStream);
+
+  int extracted = 0;
+  final total = archive.length;
+
+  for (final file in archive) {
+    final outPath = '$outputDir/${file.name}';
+
+    if (file.isFile) {
+      final output = OutputFileStream(outPath);
+      file.writeContent(output);
+      await output.close();
+    } else {
+      Directory(outPath).createSync(recursive: true);
+    }
+
+    extracted++;
+    // Send progress every few files to avoid too many UI updates
+    if (extracted % 5 == 0 || extracted == total) {
+      final progress = extracted / total;
+      sendPort.send(progress);
+    }
+  }
+
+  await inputStream.close();
+  print('✅ Extraction complete to $outputDir');
+  sendPort.send('done');
+}
