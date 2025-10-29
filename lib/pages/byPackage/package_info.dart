@@ -72,35 +72,49 @@ class _PackageInfoState extends State<PackageInfo> {
   double _downloadProgress = 0.0; // 0.0–1.0
   String _progressText = "";
 
-  // Get Permissions
-  Future<bool> checkAndRequestStoragePermission() async {
-    var status = await Permission.storage.status;
-    if (!status.isGranted) {
-      status = await Permission.storage.request();
-    }
-    return status.isGranted;
-  }
-
-  // Download the Package
-  Future<void> downloadPackage(String url, String fileName) async {
-
-    final directory = await getExternalStorageDirectory();
-    if (directory == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to access storage directory')),
-        );
-      }
-      return;
-    }
-
-    final packagesDir = Directory('${directory.path}/packages');
-    if (!packagesDir.existsSync()) packagesDir.createSync(recursive: true);
-
-    final zipFile = File('${packagesDir.path}/$fileName');
-    final receivePort = ReceivePort(); // for unzip progress
+  // ✅ Safe storage path
+  Future<String> getStoragePath() async {
+    Directory? baseDir;
 
     try {
+      // Prefer external app directory (visible via Files app)
+      baseDir = await getExternalStorageDirectory();
+    } catch (_) {}
+
+    // Fallback to internal app docs dir
+    baseDir ??= await getApplicationDocumentsDirectory();
+
+    // Ensure /packages folder exists
+    final packagesDir = Directory('${baseDir.path}/packages');
+    if (!await packagesDir.exists()) {
+      await packagesDir.create(recursive: true);
+      // Give Android a moment to register it
+      await Future.delayed(const Duration(milliseconds: 150));
+    }
+
+    return packagesDir.path;
+  }
+
+  // ✅ Streamed large-file download with progress + isolate extraction
+  Future<void> downloadPackage(String url, String fileName) async {
+    try {
+      final storagePath = await getStoragePath();
+      final packagesDir = Directory(storagePath);
+
+      if (!packagesDir.existsSync()) {
+        packagesDir.createSync(recursive: true);
+        print('Created packages directory: ${packagesDir.path}');
+      }
+
+      final zipFile = File('${packagesDir.path}/$fileName');
+
+      // Ensure parent directories exist (fixes PathNotFoundException)
+      if (!await zipFile.parent.exists()) {
+        await zipFile.parent.create(recursive: true);
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+
+      print('DEBUG: Downloading to ${zipFile.path}');
       final request = await HttpClient().getUrl(Uri.parse(url));
       final response = await request.close();
 
@@ -114,7 +128,6 @@ class _PackageInfoState extends State<PackageInfo> {
       final startTime = DateTime.now();
       DateTime lastUpdate = DateTime.now();
 
-      // Show overlay immediately
       if (mounted) {
         setState(() {
           _isDownloading = true;
@@ -127,13 +140,13 @@ class _PackageInfoState extends State<PackageInfo> {
         received += chunk.length;
         sink.add(chunk);
 
-        if (total != null && total > 0) {
+        if (total > 0) {
           final now = DateTime.now();
           if (now.difference(lastUpdate).inMilliseconds > 250) {
             final progress = received / total;
             final percent = (progress * 100).toStringAsFixed(1);
             final elapsed = now.difference(startTime).inSeconds;
-            final speed = received / (elapsed > 0 ? elapsed : 1); // bytes/s
+            final speed = received / (elapsed > 0 ? elapsed : 1);
             final mbSpeed = (speed / (1024 * 1024)).toStringAsFixed(2);
 
             if (mounted) {
@@ -148,6 +161,7 @@ class _PackageInfoState extends State<PackageInfo> {
       }
 
       await sink.close();
+      print('✅ Download complete: ${zipFile.path}');
 
       // Switch overlay text to extracting
       if (mounted) {
@@ -157,7 +171,8 @@ class _PackageInfoState extends State<PackageInfo> {
         });
       }
 
-      // Unzip in background isolate with progress
+      // 🧩 Extract in background isolate with progress
+      final receivePort = ReceivePort();
       await Isolate.spawn(_extractZipWithProgress, {
         'zipPath': zipFile.path,
         'outputDir': packagesDir.path,
@@ -166,7 +181,7 @@ class _PackageInfoState extends State<PackageInfo> {
 
       await for (final message in receivePort) {
         if (message is double) {
-          // 0.0–1.0 progress during extraction
+          // 0.0–1.0 extraction progress
           final percent = (message * 100).toStringAsFixed(0);
           if (mounted) {
             setState(() {
@@ -174,24 +189,29 @@ class _PackageInfoState extends State<PackageInfo> {
               _progressText = "Extracting… $percent%";
             });
           }
-        } else if (message is String && message == 'done') {
+        } else if (message == 'done') {
           await zipFile.delete();
+          print('🗑️ Deleted ZIP after extraction.');
+
           if (mounted) {
             setState(() {
-              _isDownloading = false; // hide overlay (AnimatedOpacity)
+              _isDownloading = false;
               _progressText = "Extraction complete!";
             });
           }
+
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Downloaded and extracted $fileName')),
             );
           }
+
           receivePort.close();
           break;
         }
       }
     } catch (e) {
+      print('❌ Package download error: $e');
       if (mounted) {
         setState(() => _isDownloading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -200,7 +220,6 @@ class _PackageInfoState extends State<PackageInfo> {
       }
     }
   }
-
   @override
   void initState() {
     super.initState();

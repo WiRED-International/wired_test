@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
-
 import 'functions.dart';
 
 class CustomSideNavBar extends StatelessWidget {
@@ -8,6 +7,7 @@ class CustomSideNavBar extends StatelessWidget {
   final VoidCallback onLibraryTap;
   final VoidCallback onTrackerTap;
   final VoidCallback onMenuTap;
+  final double? scale;
 
   const CustomSideNavBar({
     Key? key,
@@ -15,6 +15,7 @@ class CustomSideNavBar extends StatelessWidget {
     required this.onLibraryTap,
     required this.onTrackerTap,
     required this.onMenuTap,
+    this.scale,
   }) : super(key: key);
 
   @override
@@ -22,142 +23,154 @@ class CustomSideNavBar extends StatelessWidget {
     var screenWidth = MediaQuery.of(context).size.width;
     var screenHeight = MediaQuery.of(context).size.height;
     var baseSize = MediaQuery.of(context).size.shortestSide;
+    final isTabletDevice = isTablet(context);
+    final effectiveScale = scale ?? (isTabletDevice ? 1.0 : 1.0);
+
+    double iconSize = baseSize * 0.08 * effectiveScale;
+    double fontSize = baseSize * 0.03 * effectiveScale;
+    double verticalPadding = screenHeight * 0.04 * effectiveScale;
 
     return Container(
-      width: screenWidth * 0.08, // Adjust the width of the side nav
+      width: screenWidth * (isTabletDevice ? 0.08 : 0.08), // Adjust the width of the side nav
       decoration: const BoxDecoration(
         color: Colors.transparent,
-        // gradient: LinearGradient(
-        //   begin: Alignment.topCenter,
-        //   end: Alignment.bottomCenter,
-        //   colors: [
-        //     Color(0xFFFFF0DC),
-        //     Color(0xFFF9EBD9),
-        //     Color(0xFFFFC888),
-        //   ],
-        // ),
       ), // You can change the background color if needed
       child: SingleChildScrollView(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            // Home Button
-            Semantics(
-              label: 'Home button',
-              button: true,
-              onTapHint: "Tap to go to Home",
-              child: GestureDetector(
-                onTap: onHomeTap,
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: screenHeight * 0.04),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.home,
-                        size: baseSize * (isTablet(context) ? .07 : 0.08),
-                        color: Colors.black,
-                      ),
-                      Text(
-                        "Home",
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: baseSize * (isTablet(context) ? .028 : 0.03),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+            // =====================
+            // 🔹 HOME BUTTON
+            // =====================
+            _buildNavItem(
+              context,
+              label: "Home",
+              icon: Icons.home,
+              onTap: onHomeTap,
+              iconSize: iconSize,
+              fontSize: fontSize,
+              verticalPadding: verticalPadding,
             ),
-            // Library Button
-            Semantics(
-              label: 'Library button',
-              button: true,
-              onTapHint: "Tap to go to Library",
-              child: GestureDetector(
-                onTap: onLibraryTap,
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: screenHeight * 0.04),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.library_books,
-                        size: baseSize * (isTablet(context) ? .07 : 0.08),
-                        color: Colors.black,
-                      ),
-                      Text(
-                        "Library",
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: baseSize * (isTablet(context) ? .028 : 0.03),
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+
+            // =====================
+            // 🔹 LIBRARY BUTTON
+            // =====================
+            _buildNavItem(
+              context,
+              label: "Library",
+              icon: Icons.library_books,
+              onTap: onLibraryTap,
+              iconSize: iconSize,
+              fontSize: fontSize,
+              verticalPadding: verticalPadding,
             ),
-            // Policy Button
-            Semantics(
-              label: 'CME Tracker button',
-              button: true,
-              onTapHint: "Tap to track your CME credits",
-              child: GestureDetector(
-                onTap: onTrackerTap,
-                child: Padding(
-                  padding: EdgeInsets.symmetric(vertical: screenHeight * 0.04),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SvgPicture.asset(
-                        'assets/icons/cme1.svg',
-                        //width: baseSize * (isTablet(context) ? .07 : 0.1),
-                        height: baseSize * (isTablet(context) ? .07 : 0.08),
-                        color: Colors.black,
-                      ),
-                      Text(
-                          "Tracker",
-                          style: TextStyle(
-                            color: Colors.black,
-                            fontSize: baseSize * (isTablet(context) ? .028 : 0.03),
-                            fontWeight: FontWeight.w500,
-                          )
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+
+            // =====================
+            // 🔹 TRACKER BUTTON (SVG)
+            // =====================
+            _buildSvgNavItem(
+              context,
+              label: "Tracker",
+              svgPath: 'assets/icons/cme1.svg',
+              onTap: onTrackerTap,
+              iconSize: iconSize,
+              fontSize: fontSize,
+              verticalPadding: verticalPadding,
             ),
-            Semantics(
-              label: 'Menu button',
-              button: true,
-              onTapHint: "Tap to go to Menu",
-              child: GestureDetector(
-                onTap: onMenuTap,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SvgPicture.asset(
-                      'assets/icons/hamburger.svg',
-                      //width: baseSize * (isTablet(context) ? .07 : 0.1),
-                      height: baseSize * (isTablet(context) ? .07 : 0.08),
-                      color: Colors.black,
-                    ),
-                    Text(
-                        "Menu",
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: baseSize * (isTablet(context) ? .028 : 0.03),
-                          fontWeight: FontWeight.w500,
-                        )
-                    ),
-                  ],
-                ),
-              ),
-            )
+
+            // =====================
+            // 🔹 MENU BUTTON (SVG)
+            // =====================
+            _buildSvgNavItem(
+              context,
+              label: "Menu",
+              svgPath: 'assets/icons/hamburger.svg',
+              onTap: onMenuTap,
+              iconSize: iconSize,
+              fontSize: fontSize,
+              verticalPadding: verticalPadding,
+            ),
           ],
+        ),
+      ),
+    );
+  }
+
+  // =====================
+  // 🔹 Helper for Icon Buttons
+  // =====================
+  Widget _buildNavItem(
+      BuildContext context, {
+        required String label,
+        required IconData icon,
+        required VoidCallback onTap,
+        required double iconSize,
+        required double fontSize,
+        required double verticalPadding,
+      }) {
+    return Semantics(
+      label: '$label button',
+      button: true,
+      onTapHint: "Tap to go to $label",
+      child: GestureDetector(
+        onTap: onTap,
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: verticalPadding),
+          child: Column(
+            children: [
+              Icon(icon, size: iconSize, color: Colors.black),
+              Text(
+                label,
+                style: TextStyle(
+                  color: Colors.black,
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // =====================
+  // 🔹 Helper for SVG Buttons
+  // =====================
+  Widget _buildSvgNavItem(
+      BuildContext context, {
+        required String label,
+        required String svgPath,
+        required VoidCallback onTap,
+        required double iconSize,
+        required double fontSize,
+        required double verticalPadding,
+      }) {
+    return Semantics(
+      label: '$label button',
+      button: true,
+      onTapHint: "Tap to go to $label",
+      child: GestureDetector(
+        onTap: onTap,
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: verticalPadding),
+          child: Column(
+            children: [
+              SvgPicture.asset(
+                svgPath,
+                height: iconSize,
+                color: Colors.black,
+              ),
+              Text(
+                label,
+                style: TextStyle(
+                  color: Colors.black,
+                  fontSize: fontSize,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

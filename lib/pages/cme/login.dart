@@ -7,10 +7,13 @@ import 'package:provider/provider.dart';
 import 'package:wired_test/pages/cme/register.dart';
 import 'package:wired_test/providers/auth_provider.dart';
 import '../../providers/auth_guard.dart';
+import '../../providers/quiz_score_provider.dart';
+import '../../providers/user_provider.dart';
 import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
 import '../../utils/side_nav_bar.dart';
+import '../creditsTracker/credits_tracker.dart';
 import '../home_page.dart';
 import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
@@ -130,21 +133,32 @@ class _LoginState extends State<Login> {
         Provider.of<AuthProvider>(context, listen: false).logIn(authToken, expiry);
 
         // Extract user data
+        final userProvider = Provider.of<UserProvider>(context, listen: false);
         final user = responseData['user'] ?? {};
-        String firstName = user['firstName'] ?? 'Unknown';
-        String lastName = user['lastName'] ?? 'Unknown';
-        String email = user['email'] ?? 'unknown@example.com';
-        String dateJoined = user['createdAt'] ?? 'Unknown';
-
-        debugPrint('User Data: firstName=$firstName, lastName=$lastName, email=$email, dateJoined=$dateJoined');
+        userProvider.setUser(
+          user['firstName'] ?? 'Unknown',
+          user['lastName'] ?? 'Unknown',
+          user['email'] ?? 'unknown@example.com',
+          user['createdAt'] ?? 'Unknown',
+        );
 
         // Store user_id securely
         await _storage.write(key: 'user_id', value: userId.toString());
 
+        // Fetch quiz scores once and cache them
+        final quizProvider = Provider.of<QuizScoreProvider>(context, listen: false);
+        await quizProvider.fetchQuizScores();
+
+        debugPrint('User Data: '
+            'firstName=${user['firstName']}, '
+            'lastName=${user['lastName']}, '
+            'email=${user['email']}, '
+            'dateJoined=${user['createdAt']}');
+
         // Navigate to CMETracker screen
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => CMETracker()),
+          MaterialPageRoute(builder: (context) => CreditsTracker()),
         );
       }
     }

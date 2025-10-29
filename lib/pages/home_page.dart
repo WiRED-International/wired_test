@@ -9,6 +9,7 @@ import '../providers/auth_provider.dart';
 import '../utils/custom_nav_bar.dart';
 import '../utils/updateChecker.dart';
 import 'cme/cme_tracker.dart';
+import 'creditsTracker/credits_tracker.dart';
 import 'menu/guestMenu.dart';
 import 'menu/menu.dart';
 import 'module_info.dart';
@@ -180,10 +181,15 @@ class _MyHomePageState extends State<MyHomePage> {
                     debugPrint("AuthProvider is still loading, delaying navigation...");
                     return;
                   }
+                  // Navigator.push(
+                  //   context,
+                  //   MaterialPageRoute(
+                  //     builder: (context) => AuthGuard(child: CMETracker()),
+                  //   ),
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => AuthGuard(child: CMETracker()),
+                      builder: (context) => AuthGuard(child: CreditsTracker()),
                     ),
                   );
                 },

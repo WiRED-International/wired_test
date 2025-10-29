@@ -26,54 +26,54 @@ class _WebViewScreenState extends State<WebViewScreen> {
     return Scaffold(
       body: SafeArea(
         child: InAppWebView(
-            initialUrlRequest: widget.urlRequest,
-            initialSettings: InAppWebViewSettings(
-              javaScriptEnabled: true,
-              mediaPlaybackRequiresUserGesture: false,
-              allowsInlineMediaPlayback: true,
-              useOnLoadResource: true,
-              useOnDownloadStart: true,
-              allowFileAccess: true,
-              allowContentAccess: true,
-              useWideViewPort: true,
-              useHybridComposition: true,
-              hardwareAcceleration: true,
-            ),
-            onWebViewCreated: (controller) {
-              _webViewController = controller;
-            },
-            onLoadStop: (controller, url) async {
-              print("✅ Page finished loading: $url");
+          initialUrlRequest: widget.urlRequest,
+          initialSettings: InAppWebViewSettings(
+            javaScriptEnabled: true,
+            mediaPlaybackRequiresUserGesture: false,
+            allowsInlineMediaPlayback: true,
+            useOnLoadResource: true,
+            useOnDownloadStart: true,
+            allowFileAccess: true,
+            allowContentAccess: true,
+            useWideViewPort: true,
+            useHybridComposition: true,
+            hardwareAcceleration: true,
+          ),
+          onWebViewCreated: (controller) {
+            _webViewController = controller;
+          },
+          onLoadStop: (controller, url) async {
+            print("✅ Page finished loading: $url");
 
-              // Retrieve authentication details
-              String? moduleId = await secureStorage.read(key: "module_id");
-              String? moduleName = await secureStorage.read(key: "module_name");
+            // Retrieve authentication details
+            String? moduleId = await secureStorage.read(key: "module_id");
+            String? moduleName = await secureStorage.read(key: "module_name");
 
-              print("📌 Stored Data Before Injection:");
-              print("🔹 ModuleID: $moduleId");
-              print("🔹 ModuleName: $moduleName");
+            print("📌 Stored Data Before Injection:");
+            print("🔹 ModuleID: $moduleId");
+            print("🔹 ModuleName: $moduleName");
 
-              if (moduleId != null && moduleName != null && moduleName.isNotEmpty) {
-                // Inject JavaScript into WebView
-                await _webViewController.evaluateJavascript(source: """
+            if (moduleId != null && moduleName != null && moduleName.isNotEmpty) {
+              // Inject JavaScript into WebView
+              await _webViewController.evaluateJavascript(source: """
                   window.moduleId = "$moduleId"; // ✅ Make sure it is window.moduleId
                   window.moduleName = "$moduleName";
                   console.log("✅ Injected moduleId: " + window.moduleId);
                   console.log("✅ Injected moduleName: " + window.moduleName);
                 """);
-              } else {
-                print("❌ ERROR: Module ID or Name missing before injection.");
-              }
+            } else {
+              print("❌ ERROR: Module ID or Name missing before injection.");
+            }
 
-              // Verify if the injection worked
-              String? checkInjectedModuleId = await _webViewController.evaluateJavascript(source: "window.moduleId;");
-              print("🔍 Post-Injection moduleId Check: $checkInjectedModuleId");
+            // Verify if the injection worked
+            String? checkInjectedModuleId = await _webViewController.evaluateJavascript(source: "window.moduleId;");
+            print("🔍 Post-Injection moduleId Check: $checkInjectedModuleId");
 
-              String? checkInjectedModuleName = await _webViewController.evaluateJavascript(source: "window.moduleName;");
-              print("🔍 Post-Injection moduleName Check: $checkInjectedModuleName");
+            String? checkInjectedModuleName = await _webViewController.evaluateJavascript(source: "window.moduleName;");
+            print("🔍 Post-Injection moduleName Check: $checkInjectedModuleName");
 
-              // Inject JS to detect clicked links (even if Storyline opens PDFs via JavaScript)
-              await _webViewController.evaluateJavascript(source: """
+            // Inject JS to detect clicked links (even if Storyline opens PDFs via JavaScript)
+            await _webViewController.evaluateJavascript(source: """
               document.addEventListener('click', function(event) {
                 let target = event.target.closest('a');
                 if (target) {
@@ -87,8 +87,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
               });
             """);
 
-              // Inject JS to detect PDFs opened in iframes
-              await _webViewController.evaluateJavascript(source: """
+            // Inject JS to detect PDFs opened in iframes
+            await _webViewController.evaluateJavascript(source: """
               setTimeout(() => {
                 let iframes = document.getElementsByTagName('iframe');
                 for (let iframe of iframes) {
@@ -97,121 +97,34 @@ class _WebViewScreenState extends State<WebViewScreen> {
               }, 3000);
             """);
 
-              // Override window.open to capture JavaScript-triggered PDFs
-              await _webViewController.evaluateJavascript(source: """
+            // Override window.open to capture JavaScript-triggered PDFs
+            await _webViewController.evaluateJavascript(source: """
               window.open = function(url) {
                 console.log('📂 JavaScript opened:', url);
                 window.location.href = url;
               };
             """);
-            },
-            onConsoleMessage: (controller, consoleMessage) async {
-              print("📝 JavaScript console message: ${consoleMessage.message}");
+          },
+          onConsoleMessage: (controller, consoleMessage) async {
+            print("📝 JavaScript console message: ${consoleMessage.message}");
 
-              try {
-                String cleanMessage = consoleMessage.message.trim();
+            try {
+              String cleanMessage = consoleMessage.message.trim();
 
-                // Detect and print any message containing `module_id`
-                if (cleanMessage.contains("module_id")) {
-                  print("📌 Debug: Storyline Sent Data - $cleanMessage");
-                }
-
-                // Detect and print any message containing `module_name`
-                if (cleanMessage.contains("module_name")) {
-                  print("📌 Debug: Storyline Sent Data - $cleanMessage");
-                }
-
-                // Detect PDF Links opened via JavaScript
-                if (cleanMessage.contains(".pdf")) {
-                  print("📂 Detected PDF link: $cleanMessage");
-
-                  // Retrieve `moduleId` from WebView
-                  String? moduleId = await _webViewController.evaluateJavascript(source: "window.moduleId");
-                  if (moduleId == null || moduleId.isEmpty) {
-                    print("❌ ERROR: Module ID not found in WebView!");
-                    return;
-                  }
-
-                  print("🔹 Retrieved moduleId from WebView: $moduleId");
-
-                  // Extract actual file name
-                  String fileName = cleanMessage.split("/").last;
-                  print("📂 Extracted PDF file name: $fileName");
-
-                  // Get correct external storage path
-                  Directory? externalDir = await getExternalStorageDirectory();
-                  // if (externalDir == null) {
-                  //   print("❌ ERROR: External storage directory not found.");
-                  //   return;
-                  // }
-
-                  // Construct full file path
-                  // String filePath = "${externalDir.path}/files/$moduleId/story_content/external_files/$fileName";
-                  // print("📂 Constructed PDF file path: $filePath");
-
-                  // Open PDF with correct path
-                  await _openLocalPdf(cleanMessage, moduleId);
-                  return;
-                }
-
-                // Extract and clean JSON message
-                final int jsonStartIndex = cleanMessage.indexOf("{");
-                if (jsonStartIndex != -1) {
-                  cleanMessage = cleanMessage.substring(jsonStartIndex);
-                }
-
-                // Validate and parse JSON
-                if (cleanMessage.startsWith("{") && cleanMessage.endsWith("}")) {
-                  final Map<String, dynamic> jsonData = json.decode(cleanMessage);
-
-                  print("📥 Received Data from Storyline:");
-                  print("🔹 ModuleID: ${jsonData['module_id']}");
-                  print("🔹 ModuleName: ${jsonData['module_name']}");
-                  print("🔹 Quiz Score: ${jsonData['quiz_score']}");
-
-                  // If module_id is missing, retrieve it from WebView
-                  if (!jsonData.containsKey("module_id") || jsonData["module_id"] == null) {
-                    print("⚠️ Module ID missing in Storyline data! Attempting retrieval...");
-
-                    // Retrieve moduleId from WebView
-                    String? injectedModuleId = await _webViewController.evaluateJavascript(source: "window.moduleId;");
-                    if (injectedModuleId != null && injectedModuleId.isNotEmpty) {
-                      jsonData["module_id"] = injectedModuleId;
-                      print("✅ Injected missing module ID: $injectedModuleId");
-                    } else {
-                      print("❌ Failed to retrieve module ID from WebView!");
-                    }
-                  }
-
-                  // If module_name is missing, retrieve it from WebView
-                  if (!jsonData.containsKey("module_name") || jsonData["module_name"] == null) {
-                    print("⚠️ Module Name missing in Storyline data! Attempting retrieval...");
-
-                    // Retrieve moduleName from WebView
-                    String? injectedModuleName = await _webViewController.evaluateJavascript(source: "window.moduleName;");
-                    if (injectedModuleName != null && injectedModuleName.isNotEmpty) {
-                      jsonData["module_name"] = injectedModuleName;
-                      print("✅ Injected missing module Name: $injectedModuleName");
-                    } else {
-                      print("❌ Failed to retrieve module Name from WebView!");
-                    }
-                  }
-
-                  // Store the quiz score in Secure Storage
-                  await _storeScoreInSecureStorage(jsonData);
-                } else {
-                  print("⚠️ Warning: Message does not appear to be valid JSON.");
-                }
-              } catch (e) {
-                print("❌ Error parsing WebView message: $e");
+              // Detect and print any message containing `module_id`
+              if (cleanMessage.contains("module_id")) {
+                print("📌 Debug: Storyline Sent Data - $cleanMessage");
               }
-            },
 
-// Handle downloads properly
-            onDownloadStartRequest: (controller, downloadStartRequest) async {
-              print("📥 Download Request Triggered: ${downloadStartRequest.url} - MIME Type: ${downloadStartRequest.mimeType}");
+              // Detect and print any message containing `module_name`
+              if (cleanMessage.contains("module_name")) {
+                print("📌 Debug: Storyline Sent Data - $cleanMessage");
+              }
 
-              if (downloadStartRequest.mimeType == "application/pdf") {
+              // Detect PDF Links opened via JavaScript
+              if (cleanMessage.contains(".pdf")) {
+                print("📂 Detected PDF link: $cleanMessage");
+
                 // Retrieve `moduleId` from WebView
                 String? moduleId = await _webViewController.evaluateJavascript(source: "window.moduleId");
                 if (moduleId == null || moduleId.isEmpty) {
@@ -221,59 +134,146 @@ class _WebViewScreenState extends State<WebViewScreen> {
 
                 print("🔹 Retrieved moduleId from WebView: $moduleId");
 
-                await _openLocalPdf(downloadStartRequest.url.toString(), moduleId);
+                // Extract actual file name
+                String fileName = cleanMessage.split("/").last;
+                print("📂 Extracted PDF file name: $fileName");
+
+                // Get correct external storage path
+                Directory? externalDir = await getExternalStorageDirectory();
+                // if (externalDir == null) {
+                //   print("❌ ERROR: External storage directory not found.");
+                //   return;
+                // }
+
+                // Construct full file path
+                // String filePath = "${externalDir.path}/files/$moduleId/story_content/external_files/$fileName";
+                // print("📂 Constructed PDF file path: $filePath");
+
+                // Open PDF with correct path
+                await _openLocalPdf(cleanMessage, moduleId);
+                return;
               }
-            },
+
+              // Extract and clean JSON message
+              final int jsonStartIndex = cleanMessage.indexOf("{");
+              if (jsonStartIndex != -1) {
+                cleanMessage = cleanMessage.substring(jsonStartIndex);
+              }
+
+              // Validate and parse JSON
+              if (cleanMessage.startsWith("{") && cleanMessage.endsWith("}")) {
+                final Map<String, dynamic> jsonData = json.decode(cleanMessage);
+
+                print("📥 Received Data from Storyline:");
+                print("🔹 ModuleID: ${jsonData['module_id']}");
+                print("🔹 ModuleName: ${jsonData['module_name']}");
+                print("🔹 Quiz Score: ${jsonData['quiz_score']}");
+
+                // If module_id is missing, retrieve it from WebView
+                if (!jsonData.containsKey("module_id") || jsonData["module_id"] == null) {
+                  print("⚠️ Module ID missing in Storyline data! Attempting retrieval...");
+
+                  // Retrieve moduleId from WebView
+                  String? injectedModuleId = await _webViewController.evaluateJavascript(source: "window.moduleId;");
+                  if (injectedModuleId != null && injectedModuleId.isNotEmpty) {
+                    jsonData["module_id"] = injectedModuleId;
+                    print("✅ Injected missing module ID: $injectedModuleId");
+                  } else {
+                    print("❌ Failed to retrieve module ID from WebView!");
+                  }
+                }
+
+                // If module_name is missing, retrieve it from WebView
+                if (!jsonData.containsKey("module_name") || jsonData["module_name"] == null) {
+                  print("⚠️ Module Name missing in Storyline data! Attempting retrieval...");
+
+                  // Retrieve moduleName from WebView
+                  String? injectedModuleName = await _webViewController.evaluateJavascript(source: "window.moduleName;");
+                  if (injectedModuleName != null && injectedModuleName.isNotEmpty) {
+                    jsonData["module_name"] = injectedModuleName;
+                    print("✅ Injected missing module Name: $injectedModuleName");
+                  } else {
+                    print("❌ Failed to retrieve module Name from WebView!");
+                  }
+                }
+
+                // Store the quiz score in Secure Storage
+                await _storeScoreInSecureStorage(jsonData);
+              } else {
+                print("⚠️ Warning: Message does not appear to be valid JSON.");
+              }
+            } catch (e) {
+              print("❌ Error parsing WebView message: $e");
+            }
+          },
+
+// Handle downloads properly
+          onDownloadStartRequest: (controller, downloadStartRequest) async {
+            print("📥 Download Request Triggered: ${downloadStartRequest.url} - MIME Type: ${downloadStartRequest.mimeType}");
+
+            if (downloadStartRequest.mimeType == "application/pdf") {
+              // Retrieve `moduleId` from WebView
+              String? moduleId = await _webViewController.evaluateJavascript(source: "window.moduleId");
+              if (moduleId == null || moduleId.isEmpty) {
+                print("❌ ERROR: Module ID not found in WebView!");
+                return;
+              }
+
+              print("🔹 Retrieved moduleId from WebView: $moduleId");
+
+              await _openLocalPdf(downloadStartRequest.url.toString(), moduleId);
+            }
+          },
 
 // Override URL loading behavior
-            shouldOverrideUrlLoading: (controller, navigationAction) async {
-              final uri = navigationAction.request.url;
-              if (uri != null) {
-                print("🔗 Intercepted Link: $uri");
+          shouldOverrideUrlLoading: (controller, navigationAction) async {
+            final uri = navigationAction.request.url;
+            if (uri != null) {
+              print("🔗 Intercepted Link: $uri");
 
-                if (uri.toString().endsWith(".pdf")) {
-                  print("📂 PDF detected! Forcing download.");
+              if (uri.toString().endsWith(".pdf")) {
+                print("📂 PDF detected! Forcing download.");
 
-                  // Retrieve `moduleId` from WebView
-                  String? moduleId = await _webViewController.evaluateJavascript(source: "window.moduleId");
-                  if (moduleId == null || moduleId.isEmpty) {
-                    print("❌ ERROR: Module ID not found in WebView!");
-                    return NavigationActionPolicy.CANCEL;
-                  }
-
-                  await _openLocalPdf(uri.toString(), moduleId);
+                // Retrieve `moduleId` from WebView
+                String? moduleId = await _webViewController.evaluateJavascript(source: "window.moduleId");
+                if (moduleId == null || moduleId.isEmpty) {
+                  print("❌ ERROR: Module ID not found in WebView!");
                   return NavigationActionPolicy.CANCEL;
                 }
 
-                return NavigationActionPolicy.ALLOW;
+                await _openLocalPdf(uri.toString(), moduleId);
+                return NavigationActionPolicy.CANCEL;
               }
-              return NavigationActionPolicy.CANCEL;
-            },
 
-            shouldInterceptRequest: (controller, request) async {
-              final uri = request.url;
-              final path = uri.toString();
+              return NavigationActionPolicy.ALLOW;
+            }
+            return NavigationActionPolicy.CANCEL;
+          },
 
-              if (path.endsWith(".mp3") && path.startsWith("file://")) {
-                try {
-                  final file = File(uri.toFilePath());
-                  final bytes = await file.readAsBytes();
-                  return WebResourceResponse(
-                    data: bytes,
-                    statusCode: 200,
-                    reasonPhrase: "OK",
-                    headers: {
-                      'Content-Type': 'audio/mpeg',
-                      'Access-Control-Allow-Origin': '*',
-                    },
-                  );
-                } catch (e) {
-                  print("❌ Error serving MP3: $e");
-                  return null;
-                }
+          shouldInterceptRequest: (controller, request) async {
+            final uri = request.url;
+            final path = uri.toString();
+
+            if (path.endsWith(".mp3") && path.startsWith("file://")) {
+              try {
+                final file = File(uri.toFilePath());
+                final bytes = await file.readAsBytes();
+                return WebResourceResponse(
+                  data: bytes,
+                  statusCode: 200,
+                  reasonPhrase: "OK",
+                  headers: {
+                    'Content-Type': 'audio/mpeg',
+                    'Access-Control-Allow-Origin': '*',
+                  },
+                );
+              } catch (e) {
+                print("❌ Error serving MP3: $e");
+                return null;
               }
-              return null;
-            },
+            }
+            return null;
+          },
         ),
       ),
     );

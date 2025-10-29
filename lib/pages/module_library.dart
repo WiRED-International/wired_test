@@ -59,102 +59,102 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
     return match?.group(2); // Return the captured group (module ID)
   }
 
-Future<void> testStoragePath() async {
-  final directory = await getStoragePath();
-  print("DEBUG: getStoragePath() returned -> $directory");
-  if (directory == null) {
-    print("ERROR: getStoragePath() returned NULL!");
-  } else {
-    print("DEBUG: directory.path -> ${directory.path}");
-  }
-}
-
-Future<Directory> getStoragePath() async {
-  Directory directory;
-
-  if (Platform.isAndroid) {
-    directory = await getExternalStorageDirectory() ?? await getApplicationDocumentsDirectory();  
-  } else if (Platform.isIOS || Platform.isMacOS) {
-    directory = await getApplicationSupportDirectory();
-  } else if (Platform.isWindows || Platform.isLinux) {
-    directory = await getApplicationDocumentsDirectory();
-  } else {
-    throw Exception("Unsupported platform");
+  Future<void> testStoragePath() async {
+    final directory = await getStoragePath();
+    print("DEBUG: getStoragePath() returned -> $directory");
+    if (directory == null) {
+      print("ERROR: getStoragePath() returned NULL!");
+    } else {
+      print("DEBUG: directory.path -> ${directory.path}");
+    }
   }
 
-  print("DEBUG: getStoragePath() returning -> ${directory.path}");
-  return directory;
-}
+  Future<Directory> getStoragePath() async {
+    Directory directory;
+
+    if (Platform.isAndroid) {
+      directory = await getExternalStorageDirectory() ?? await getApplicationDocumentsDirectory();
+    } else if (Platform.isIOS || Platform.isMacOS) {
+      directory = await getApplicationSupportDirectory();
+    } else if (Platform.isWindows || Platform.isLinux) {
+      directory = await getApplicationDocumentsDirectory();
+    } else {
+      throw Exception("Unsupported platform");
+    }
+
+    print("DEBUG: getStoragePath() returning -> ${directory.path}");
+    return directory;
+  }
 
   Future<List<ModuleFile>> _fetchModules() async {
     final directory = await getStoragePath();
     if (directory == null) {
-    print("ERROR: getStoragePath() returned NULL in _fetchModules()");
-    return [];
+      print("ERROR: getStoragePath() returned NULL in _fetchModules()");
+      return [];
     }
 
-      final packagesDirectory = Directory('${directory.path}/packages');
-      final modulesDirectory = Directory('${directory.path}/modules');
+    final packagesDirectory = Directory('${directory.path}/packages');
+    final modulesDirectory = Directory('${directory.path}/modules');
 
-      print("DEBUG: Checking directories -> Packages: ${packagesDirectory.path}, Modules: ${modulesDirectory.path}");
+    print("DEBUG: Checking directories -> Packages: ${packagesDirectory.path}, Modules: ${modulesDirectory.path}");
 
-      List<ModuleFile> fetchedModules = [];
+    List<ModuleFile> fetchedModules = [];
 
-      // Process files in packages directory
-      if (packagesDirectory.existsSync()) {
-        final packageFiles = packagesDirectory.listSync().whereType<File>().toList();
-        print("DEBUG: Found ${packageFiles.length} package files.");
-        fetchedModules.addAll(packageFiles.map((file) {
-          String fileName = file.path.split('/').last.replaceAll('.htm', '');
+    // Process files in packages directory
+    if (packagesDirectory.existsSync()) {
+      final packageFiles = packagesDirectory.listSync().whereType<File>().toList();
+      print("DEBUG: Found ${packageFiles.length} package files.");
+      fetchedModules.addAll(packageFiles.map((file) {
+        String fileName = file.path.split('/').last.replaceAll('.htm', '');
 
-          String? moduleId;
-          try {
-            final content = file.readAsStringSync(); // Read file content
-            moduleId = extractPackageModuleId(content); // Extract module ID
-          } catch (e) {
-            print("Error reading file: ${file.path}, $e");
-          }
+        String? moduleId;
+        try {
+          final content = file.readAsStringSync(); // Read file content
+          moduleId = extractPackageModuleId(content); // Extract module ID
+        } catch (e) {
+          print("Error reading file: ${file.path}, $e");
+        }
 
-          return ModuleFile(
-            file: file,
-            path: file.path,
-            moduleName: fileName,
-            moduleId: moduleId ?? fileName, // Fallback to fileName if ID not found
-          );
-        }).toList());
-      }
+        return ModuleFile(
+          file: file,
+          path: file.path,
+          moduleName: fileName,
+          moduleId: moduleId ?? fileName, // Fallback to fileName if ID not found
+        );
+      }).toList());
+    }
 
-      // Process files in modules directory
-      if (modulesDirectory.existsSync()) {
-        final moduleFiles = modulesDirectory.listSync().whereType<File>().toList();
-        print("DEBUG: Found ${moduleFiles.length} module files.");
-        fetchedModules.addAll(moduleFiles.map((file) {
-          String fileName = file.path.split('/').last.replaceAll('.htm', '');
+    // Process files in modules directory
+    if (modulesDirectory.existsSync()) {
+      final moduleFiles = modulesDirectory.listSync().whereType<File>().toList();
+      print("DEBUG: Found ${moduleFiles.length} module files.");
+      fetchedModules.addAll(moduleFiles.map((file) {
+        String fileName = file.path.split('/').last.replaceAll('.htm', '');
 
-          String? moduleId;
-          try {
-            final content = file.readAsStringSync(); // Read file content
-            moduleId = extractModuleId(content); // Extract module ID
-          } catch (e) {
-            print("Error reading file: ${file.path}, $e");
-          }
+        String? moduleId;
+        try {
+          final content = file.readAsStringSync(); // Read file content
+          moduleId = extractModuleId(content); // Extract module ID
+        } catch (e) {
+          print("Error reading file: ${file.path}, $e");
+        }
 
-          return ModuleFile(
-            file: file,
-            path: file.path,
-            moduleName: fileName,
-            moduleId: moduleId ?? fileName, // Fallback to fileName if ID not found
-          );
-        }).toList());
-      }
+        return ModuleFile(
+          file: file,
+          path: file.path,
+          moduleName: fileName,
+          moduleId: moduleId ?? fileName, // Fallback to fileName if ID not found
+        );
+      }).toList());
+    }
 
-      fetchedModules.sort((a, b) => a.moduleName.compareTo(b.moduleName));
+    fetchedModules.sort((a, b) => a.moduleName.compareTo(b.moduleName));
 
-      setState(() {
-        modules = fetchedModules;
-      });
+    setState(() {
+      modules = fetchedModules;
+    });
 
-      return fetchedModules;
+    return fetchedModules;
   }
 
   Future<List<FileSystemEntity>> _fetchResources() async {
@@ -410,252 +410,252 @@ Future<Directory> getStoragePath() async {
     );
   }
 
-      Widget _buildPortraitLayout(screenWidth, screenHeight, baseSize) {
-        return Column(
-          children: [
-            SizedBox(
-              height: baseSize * (isTablet(context) ? 0.031 : 0.031),
-            ),
-            Text(
-              "My Library",
-              style: TextStyle(
-                fontSize: baseSize * (isTablet(context) ? 0.08 : 0.08),
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF0070C0),
+  Widget _buildPortraitLayout(screenWidth, screenHeight, baseSize) {
+    return Column(
+      children: [
+        SizedBox(
+          height: baseSize * (isTablet(context) ? 0.031 : 0.031),
+        ),
+        Text(
+          "My Library",
+          style: TextStyle(
+            fontSize: baseSize * (isTablet(context) ? 0.08 : 0.08),
+            fontWeight: FontWeight.w500,
+            color: Color(0xFF0070C0),
+          ),
+          textAlign: TextAlign.center,
+        ),
+        SizedBox(
+          height: baseSize * (isTablet(context) ? 0.02 : 0.02),
+        ),
+        // Display appropriate list based on selectedType
+        SizedBox(
+          height: baseSize * (isTablet(context) ? 0.02 : 0.02),
+        ),
+        Flexible(
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(10), // Top left corner
+                topRight: Radius.circular(10), // Top right corne
               ),
-              textAlign: TextAlign.center,
+              color: const Color(0x00000000),
+              border: Border(
+                top: BorderSide(color: Colors.black, width: 2), // Top border
+                left: BorderSide(color: Colors.black, width: 2), // Left border
+                right: BorderSide(color: Colors.black, width: 2), // Right border
+              ),
             ),
-            SizedBox(
-              height: baseSize * (isTablet(context) ? 0.02 : 0.02),
-            ),
-            // Display appropriate list based on selectedType
-            SizedBox(
-              height: baseSize * (isTablet(context) ? 0.02 : 0.02),
-            ),
-            Flexible(
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.only(
-                    topLeft: Radius.circular(10), // Top left corner
-                    topRight: Radius.circular(10), // Top right corne
-                  ),
-                  color: const Color(0x00000000),
-                  border: Border(
-                    top: BorderSide(color: Colors.black, width: 2), // Top border
-                    left: BorderSide(color: Colors.black, width: 2), // Left border
-                    right: BorderSide(color: Colors.black, width: 2), // Right border
-                  ),
-                ),
-                child: Stack(
-                  children: [
-                    Container(
-                      //height: baseSize * (isTablet(context) ? 0.97 : 1.1),
-                      child: FutureBuilder<List<ModuleFile>>(
-                        future: futureModules,
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.waiting) {
-                            return const Center(child: CircularProgressIndicator());
-                          } else if (snapshot.hasError) {
-                            return const Center(child: Text('Error loading modules'));
-                          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                            return const Center(
-                                child: Text(
-                                    'You have not downloaded any modules yet. Please download the modules first.',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF548235),
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ));
-                          } else {
-                            return ListView.builder(
-                                itemCount: snapshot.data!.length + 1,
-                                itemBuilder: (context, index) {
-                                  if (index == snapshot.data!.length) {
+            child: Stack(
+              children: [
+                Container(
+                  //height: baseSize * (isTablet(context) ? 0.97 : 1.1),
+                  child: FutureBuilder<List<ModuleFile>>(
+                    future: futureModules,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      } else if (snapshot.hasError) {
+                        return const Center(child: Text('Error loading modules'));
+                      } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                        return const Center(
+                            child: Text(
+                              'You have not downloaded any modules yet. Please download the modules first.',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Color(0xFF548235),
+                              ),
+                              textAlign: TextAlign.center,
+                            ));
+                      } else {
+                        return ListView.builder(
+                            itemCount: snapshot.data!.length + 1,
+                            itemBuilder: (context, index) {
+                              if (index == snapshot.data!.length) {
 
-                                    return SizedBox(
-                                      height: baseSize * (isTablet(context) ? 0.135 : 0.135),// This is the last item
-                                    );
-                                  }
-                                  final moduleFile = snapshot.data![index];
+                                return SizedBox(
+                                  height: baseSize * (isTablet(context) ? 0.135 : 0.135),// This is the last item
+                                );
+                              }
+                              final moduleFile = snapshot.data![index];
 
-                                  return Column(
-                                    children: [
-                                      Container(
-                                        height: baseSize * (isTablet(context) ? 0.18 : 0.18),
-                                        child: Padding(
-                                          padding: EdgeInsets.all(baseSize * 0.02),
-                                          child: Row(
-                                            crossAxisAlignment: CrossAxisAlignment.center,
+                              return Column(
+                                children: [
+                                  Container(
+                                    height: baseSize * (isTablet(context) ? 0.18 : 0.18),
+                                    child: Padding(
+                                      padding: EdgeInsets.all(baseSize * 0.02),
+                                      child: Row(
+                                        crossAxisAlignment: CrossAxisAlignment.center,
+                                        children: [
+                                          // Module name text (Expanded to take available space)
+                                          Expanded(
+                                            child: Text(
+                                              moduleFile.moduleName,
+                                              style: TextStyle(
+                                                fontSize: baseSize * (isTablet(context) ? 0.0385 : 0.044),
+                                                fontWeight: FontWeight.w300,
+                                                color: Colors.black,
+                                              ),
+                                            ),
+                                          ),
+                                          // Buttons (Play and Delete)
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              // Module name text (Expanded to take available space)
-                                              Expanded(
-                                                child: Text(
-                                                  moduleFile.moduleName,
-                                                  style: TextStyle(
-                                                    fontSize: baseSize * (isTablet(context) ? 0.0385 : 0.044),
-                                                    fontWeight: FontWeight.w300,
-                                                    color: Colors.black,
+                                              SizedBox(width: baseSize * 0.02), // spacing between text and buttons
+                                              // Play button
+                                              Container(
+                                                height: baseSize * (isTablet(context) ? 0.09 : 0.11), // button height
+                                                width: baseSize * (isTablet(context) ? 0.13 : 0.13),   // button width
+                                                decoration: BoxDecoration(
+                                                  gradient: const LinearGradient(
+                                                    begin: Alignment.centerLeft,
+                                                    end: Alignment.centerRight,
+                                                    colors: [
+                                                      Color(0xFF87C9F8),
+                                                      Color(0xFF70E1F5),
+                                                    ],
+                                                  ),
+                                                  borderRadius: BorderRadius.circular(5),
+                                                ),
+                                                child: GestureDetector(
+                                                  onTap: () {
+                                                    saveModuleInfo(moduleFile.moduleId, moduleFile.moduleName);
+                                                    print( "Saving module id: $moduleFile.moduleId");
+                                                    Navigator.push(
+                                                      context,
+                                                      MaterialPageRoute(
+                                                        builder: (context) => WebViewScreen(
+                                                          urlRequest: URLRequest(url: WebUri(Uri.file(moduleFile.path).toString())),
+                                                          moduleId: moduleFile.moduleId, // ✅ Pass module ID
+                                                        ),
+                                                      ),
+                                                    );
+                                                  },
+                                                  child: FittedBox(
+                                                    fit: BoxFit.scaleDown, // Ensures the content scales down if too large
+                                                    child: Column(
+                                                      mainAxisAlignment: MainAxisAlignment.center, // Center vertically
+                                                      crossAxisAlignment: CrossAxisAlignment.center, // Center horizontally
+                                                      children: [
+                                                        Icon(
+                                                          Icons.play_arrow,
+                                                          color: Color(0xFF545454),
+                                                          size: baseSize * (isTablet(context) ? 0.07 : 0.07),
+                                                        ),
+                                                        Text(
+                                                          "Play",
+                                                          style: TextStyle(
+                                                            fontSize: baseSize * (isTablet(context) ? 0.04 : 0.04),
+                                                            fontWeight: FontWeight.w500,
+                                                            color: Color(0xFF545454),
+                                                          ),
+                                                        ),
+                                                      ],
+                                                    ),
                                                   ),
                                                 ),
                                               ),
-                                              // Buttons (Play and Delete)
-                                              Row(
-                                                mainAxisSize: MainAxisSize.min,
-                                                children: [
-                                                  SizedBox(width: baseSize * 0.02), // spacing between text and buttons
-                                                  // Play button
-                                                  Container(
-                                                    height: baseSize * (isTablet(context) ? 0.09 : 0.11), // button height
-                                                    width: baseSize * (isTablet(context) ? 0.13 : 0.13),   // button width
-                                                    decoration: BoxDecoration(
-                                                      gradient: const LinearGradient(
-                                                        begin: Alignment.centerLeft,
-                                                        end: Alignment.centerRight,
-                                                        colors: [
-                                                          Color(0xFF87C9F8),
-                                                          Color(0xFF70E1F5),
-                                                        ],
-                                                      ),
-                                                      borderRadius: BorderRadius.circular(5),
-                                                    ),
-                                                    child: GestureDetector(
-                                                      onTap: () {
-                                                        saveModuleInfo(moduleFile.moduleId, moduleFile.moduleName);
-                                                        print( "Saving module id: $moduleFile.moduleId");
-                                                        Navigator.push(
-                                                          context,
-                                                          MaterialPageRoute(
-                                                            builder: (context) => WebViewScreen(
-                                                              urlRequest: URLRequest(url: WebUri(Uri.file(moduleFile.path).toString())),
-                                                              moduleId: moduleFile.moduleId, // ✅ Pass module ID
-                                                            ),
-                                                          ),
-                                                        );
-                                                      },
-                                                      child: FittedBox(
-                                                        fit: BoxFit.scaleDown, // Ensures the content scales down if too large
-                                                        child: Column(
-                                                          mainAxisAlignment: MainAxisAlignment.center, // Center vertically
-                                                          crossAxisAlignment: CrossAxisAlignment.center, // Center horizontally
-                                                          children: [
-                                                            Icon(
-                                                              Icons.play_arrow,
-                                                              color: Color(0xFF545454),
-                                                              size: baseSize * (isTablet(context) ? 0.07 : 0.07),
-                                                            ),
-                                                            Text(
-                                                              "Play",
-                                                              style: TextStyle(
-                                                                fontSize: baseSize * (isTablet(context) ? 0.04 : 0.04),
-                                                                fontWeight: FontWeight.w500,
-                                                                color: Color(0xFF545454),
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  SizedBox(width: baseSize * 0.02), // Spacing between buttons
+                                              SizedBox(width: baseSize * 0.02), // Spacing between buttons
 
-                                                  // Delete button
-                                                  Container(
-                                                    height: baseSize * (isTablet(context) ? 0.09 : 0.11), // Increase the button height
-                                                    width: baseSize * (isTablet(context) ? 0.13 : 0.13),   // Increase the button width
-                                                    decoration: BoxDecoration(
-                                                      gradient: const LinearGradient(
-                                                        begin: Alignment.centerLeft,
-                                                        end: Alignment.centerRight,
-                                                        colors: [
-                                                          Color(0xFF70E1F5),
-                                                          Color(0xFF86A8E7),
-                                                        ],
-                                                      ),
-                                                      borderRadius: BorderRadius.circular(5),
-                                                    ),
-                                                    child: GestureDetector(
-                                                      onTap: () {
-                                                        print("Delete tapped");
-                                                        _showDeleteConfirmation(moduleFile.file.path.split('/').last);
-                                                      },
-                                                      child: FittedBox(
-                                                        child: Column(
-                                                          mainAxisAlignment: MainAxisAlignment.center, // Center vertically
-                                                          crossAxisAlignment: CrossAxisAlignment.center, // Center horizontally
-                                                          children: [
-                                                            Icon(
-                                                              Icons.delete,
-                                                              color: Color(0xFF545454),
-                                                              size: baseSize * (isTablet(context) ? 0.07 : 0.07), // Adjust icon size
-                                                            ),
-                                                            Text(
-                                                              "Delete",
-                                                              style: TextStyle(
-                                                                fontSize: baseSize * (isTablet(context) ? 0.04 : 0.04), // Adjust text size
-                                                                fontWeight: FontWeight.w500,
-                                                                color: Color(0xFF545454),
-                                                              ),
-                                                            ),
-                                                          ],
+                                              // Delete button
+                                              Container(
+                                                height: baseSize * (isTablet(context) ? 0.09 : 0.11), // Increase the button height
+                                                width: baseSize * (isTablet(context) ? 0.13 : 0.13),   // Increase the button width
+                                                decoration: BoxDecoration(
+                                                  gradient: const LinearGradient(
+                                                    begin: Alignment.centerLeft,
+                                                    end: Alignment.centerRight,
+                                                    colors: [
+                                                      Color(0xFF70E1F5),
+                                                      Color(0xFF86A8E7),
+                                                    ],
+                                                  ),
+                                                  borderRadius: BorderRadius.circular(5),
+                                                ),
+                                                child: GestureDetector(
+                                                  onTap: () {
+                                                    print("Delete tapped");
+                                                    _showDeleteConfirmation(moduleFile.file.path.split('/').last);
+                                                  },
+                                                  child: FittedBox(
+                                                    child: Column(
+                                                      mainAxisAlignment: MainAxisAlignment.center, // Center vertically
+                                                      crossAxisAlignment: CrossAxisAlignment.center, // Center horizontally
+                                                      children: [
+                                                        Icon(
+                                                          Icons.delete,
+                                                          color: Color(0xFF545454),
+                                                          size: baseSize * (isTablet(context) ? 0.07 : 0.07), // Adjust icon size
                                                         ),
-                                                      ),
+                                                        Text(
+                                                          "Delete",
+                                                          style: TextStyle(
+                                                            fontSize: baseSize * (isTablet(context) ? 0.04 : 0.04), // Adjust text size
+                                                            fontWeight: FontWeight.w500,
+                                                            color: Color(0xFF545454),
+                                                          ),
+                                                        ),
+                                                      ],
                                                     ),
                                                   ),
-                                                ],
+                                                ),
                                               ),
                                             ],
                                           ),
-                                        ),
+                                        ],
                                       ),
-                                      Container(
-                                        height: 2,
-                                        color: Colors.grey,
-                                      )
-                                    ],
-                                  );
-
-                                }
-                            );
-                          }
-                        },
-                      ),
-                    ),
-                    // Fade in the module list
-                    Positioned(
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      child: IgnorePointer(
-                        child: Container(
-                            height: 120,
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                stops: [0.0, 1.0],
-                                colors: [
-                                  // Colors.transparent,
-                                  // Color(0xFFFFF0DC),
-                                  //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                                  Color(0xFFFECF97).withOpacity(0.0),
-                                  Color(0xFFFECF97),
+                                    ),
+                                  ),
+                                  Container(
+                                    height: 2,
+                                    color: Colors.grey,
+                                  )
                                 ],
-                              ),
-                            )
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        );
-      }
+                              );
 
-Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
+                            }
+                        );
+                      }
+                    },
+                  ),
+                ),
+                // Fade in the module list
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: IgnorePointer(
+                    child: Container(
+                        height: 120,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            stops: [0.0, 1.0],
+                            colors: [
+                              // Colors.transparent,
+                              // Color(0xFFFFF0DC),
+                              //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
+                              Color(0xFFFECF97).withOpacity(0.0),
+                              Color(0xFFFECF97),
+                            ],
+                          ),
+                        )
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
     var baseSize = MediaQuery.of(context).size.shortestSide;
     return Column(
       children: [

@@ -82,39 +82,58 @@ class _ModuleInfoState extends State<ModuleInfo> {
   Map<String, double?>? _location;
 
   // Get Permissions
-  Future<bool> checkAndRequestStoragePermission() async {
-    var status = await Permission.storage.status;
-    if (!status.isGranted) {
-      status = await Permission.storage.request();
-    }
-    return status.isGranted;
-  }
+  // Future<bool> checkAndRequestStoragePermission() async {
+  //   var status = await Permission.storage.status;
+  //   if (!status.isGranted) {
+  //     status = await Permission.storage.request();
+  //   }
+  //   return status.isGranted;
+  // }
 
+  /// Attempts external first, falls back to internal if needed.
   Future<String> getStoragePath() async {
+    // Try external app-private directory first (visible via Files app)
+    Directory? baseDir;
+    try {
+      baseDir = await getExternalStorageDirectory();
+    } catch (_) {}
+    baseDir ??= await getApplicationDocumentsDirectory();
 
-    Directory? directory;
-
-    if (Platform.isAndroid) {
-      directory = await getExternalStorageDirectory(); // Android external storage
-    } else if (Platform.isIOS || Platform.isMacOS) {
-      directory = await getApplicationSupportDirectory(); // iOS/macOS safe location
-    } else if (Platform.isWindows || Platform.isLinux) {
-      directory = await getApplicationDocumentsDirectory(); // Windows/Linux
+    // Always ensure /modules exists and is fully registered
+    final modulesDir = Directory('${baseDir.path}/modules');
+    if (!await modulesDir.exists()) {
+      await modulesDir.create(recursive: true);
+      // Give Android time to register directory before writing
+      await Future.delayed(const Duration(milliseconds: 150));
     }
 
-    return directory?.path ?? "/default/path"; // Fallback path
+    return modulesDir.path;
   }
 
-  // Download the Module
+// ✅ STREAMED LARGE-FILE DOWNLOAD WITH PROGRESS + EXTRACTION
   Future<void> downloadModule(String url, String fileName) async {
-    final storagePath = await getStoragePath();
-    final modulesDir = Directory('$storagePath/modules');
-    if (!modulesDir.existsSync()) modulesDir.createSync(recursive: true);
-
-    final zipFile = File('${modulesDir.path}/$fileName');
-    print('DEBUG: Downloading to ${zipFile.path}');
-
     try {
+      final storagePath = await getStoragePath();
+      print('DEBUG: Storage path -> $storagePath');
+
+      // ⚙️ Ensure target directory exists
+      final modulesDir = Directory(storagePath);
+      if (!modulesDir.existsSync()) {
+        modulesDir.createSync(recursive: true);
+        print('Created directory: ${modulesDir.path}');
+      }
+
+      final zipFile = File('${modulesDir.path}/$fileName');
+
+      // ⚙️ Ensure parent directories exist (fixes PathNotFoundException)
+      if (!await zipFile.parent.exists()) {
+        await zipFile.parent.create(recursive: true);
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+
+      print('DEBUG: Downloading to ${zipFile.path}');
+
+      // 🔽 Streamed download (efficient for 100MB+ files)
       final request = await HttpClient().getUrl(Uri.parse(url));
       final response = await request.close();
 
@@ -126,35 +145,34 @@ class _ModuleInfoState extends State<ModuleInfo> {
       int received = 0;
       final total = response.contentLength;
       final startTime = DateTime.now();
-
-      // 🕒 Throttle timer
       DateTime lastUpdate = DateTime.now();
 
       await for (final chunk in response) {
         received += chunk.length;
         sink.add(chunk);
 
-        if (total != null && total > 0) {
+        if (total > 0) {
           final now = DateTime.now();
-          final elapsed = now.difference(startTime).inMilliseconds / 1000.0; // seconds
-          final speed = received / elapsed; // bytes/second
-          final remainingBytes = total - received;
-          final etaSeconds = remainingBytes / speed;
-
+          final elapsed = now.difference(startTime).inMilliseconds / 1000.0;
+          final speed = received / elapsed; // bytes/sec
           final progress = received / total;
+          final remainingBytes = total - received;
+          final etaSeconds = remainingBytes / (speed > 0 ? speed : 1);
           final percent = (progress * 100).toStringAsFixed(1);
           final mbSpeed = (speed / (1024 * 1024)).toStringAsFixed(2);
           final eta = etaSeconds < 60
               ? '${etaSeconds.toStringAsFixed(0)}s'
               : '${(etaSeconds / 60).toStringAsFixed(1)}m';
 
-          // ✅ Throttle UI updates (every 0.25 seconds)
+          // 🔄 Throttle updates every 250ms
           if (now.difference(lastUpdate).inMilliseconds > 250) {
             lastUpdate = now;
-            setState(() {
-              _downloadProgress = progress;
-              _progressText = '$percent% • $mbSpeed MB/s • $eta left';
-            });
+            if (mounted) {
+              setState(() {
+                _downloadProgress = progress;
+                _progressText = '$percent% • $mbSpeed MB/s • $eta left';
+              });
+            }
           }
         }
       }
@@ -162,40 +180,44 @@ class _ModuleInfoState extends State<ModuleInfo> {
       await sink.close();
       print('✅ Download complete: ${zipFile.path}');
 
-      // ✅ Create a ReceivePort for communication
+      // 🧩 Prepare extraction
       final receivePort = ReceivePort();
+      if (mounted) {
+        setState(() {
+          _progressText = "Download complete — extracting files…";
+          _isDownloading = true;
+          _downloadProgress = 1.0;
+        });
+      }
 
-      // ✅ Prepare UI for extraction
-      setState(() {
-        _progressText = "Download complete — extracting files...";
-        _isDownloading = true;
-        _downloadProgress = 1.0;
-      });
-
-      // ✅ Run extraction in background isolate
+      // 🧠 Extract in background isolate (non-blocking)
       await Isolate.spawn(_extractZipWithProgress, {
         'zipPath': zipFile.path,
         'outputDir': modulesDir.path,
         'sendPort': receivePort.sendPort,
       });
 
-      // ✅ Listen for messages (progress updates)
+      // 🧭 Listen for extraction progress
       await for (final message in receivePort) {
         if (message is double) {
-          // numeric progress 0.0–1.0
           final percent = (message * 100).toStringAsFixed(1);
-          setState(() {
-            _downloadProgress = message;
-            _progressText = "Extracting… $percent%";
-          });
-        } else if (message is String && message == 'done') {
-          // extraction complete
+          if (mounted) {
+            setState(() {
+              _downloadProgress = message;
+              _progressText = "Extracting… $percent%";
+            });
+          }
+        } else if (message == 'done') {
           await zipFile.delete();
           print('🗑️ Deleted ZIP after extraction.');
-          setState(() {
-            _isDownloading = false;
-            _progressText = "Extraction complete!";
-          });
+
+          if (mounted) {
+            setState(() {
+              _isDownloading = false;
+              _progressText = "Extraction complete!";
+            });
+          }
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Downloaded and extracted $fileName')),
           );
