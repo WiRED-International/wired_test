@@ -529,22 +529,22 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                         ),
                       ),
                     ),
-                    // Gradient fade overlay
+                    // Gradient fade overlays (top + bottom)
                     Positioned(
                       bottom: 0,
                       left: 0,
                       right: 0,
                       child: IgnorePointer(
                         child: Container(
-                          height: 120,
-                          decoration: BoxDecoration(
+                          height: scalingFactor * (isTablet(context) ? 60 : 100),
+                          decoration: const BoxDecoration(
                             gradient: LinearGradient(
                               begin: Alignment.topCenter,
                               end: Alignment.bottomCenter,
                               stops: [0.0, 1.0],
                               colors: [
-                                Color(0xFFFECF97).withOpacity(0.0),
-                                Color(0xFFFECF97),
+                                Color(0x00FFF0DC), // transparent (top) – 00 = 0% opacity
+                                Color(0xFFFFC888), // solid peach (bottom)
                               ],
                             ),
                           ),

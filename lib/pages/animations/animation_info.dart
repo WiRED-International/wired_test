@@ -76,36 +76,50 @@ class _AnimationInfoState extends State<AnimationInfo> {
   String _progressText = "";
   Map<String, double?>? _location;
 
-  // Get Permissions
-  Future<bool> checkAndRequestStoragePermission() async {
-    var status = await Permission.storage.status;
-    if (!status.isGranted) {
-      status = await Permission.storage.request();
-    }
-    return status.isGranted;
-  }
-
+  // ✅ Safe storage path
   Future<String> getStoragePath() async {
-    Directory? directory;
-    if (Platform.isAndroid) {
-      directory = await getExternalStorageDirectory(); // Android external storage
-    } else if (Platform.isIOS || Platform.isMacOS) {
-      directory = await getApplicationSupportDirectory(); // iOS/macOS safe location
-    } else if (Platform.isWindows || Platform.isLinux) {
-      directory = await getApplicationDocumentsDirectory(); // Windows/Linux
+    Directory? baseDir;
+
+    try {
+      // Use app-private external directory (visible via Files app)
+      baseDir = await getExternalStorageDirectory();
+    } catch (_) {}
+
+    // Fallback: internal app documents directory
+    baseDir ??= await getApplicationDocumentsDirectory();
+
+    // Create /modules folder if missing
+    final Directory modulesDir = Directory('${baseDir.path}/modules');
+    if (!await modulesDir.exists()) {
+      await modulesDir.create(recursive: true);
+      // Give Android a short moment to register the new folder
+      await Future.delayed(const Duration(milliseconds: 150));
     }
-    return directory?.path ?? "/default/path"; // Fallback path
+
+    return modulesDir.path;
   }
   // Download the Animation
   Future<void> downloadAnimation(String url, String fileName) async {
-    final storagePath = await getStoragePath();
-    final animationsDir = Directory('$storagePath/modules');
-    if (!animationsDir.existsSync()) animationsDir.createSync(recursive: true);
-
-    final zipFile = File('${animationsDir.path}/$fileName');
-    final receivePort = ReceivePort();
-
     try {
+      final storagePath = await getStoragePath();
+      final animationsDir = Directory(storagePath);
+
+      // Ensure folder exists (fixes PathNotFoundException)
+      if (!animationsDir.existsSync()) {
+        animationsDir.createSync(recursive: true);
+        print('Created animations directory: ${animationsDir.path}');
+      }
+
+      final zipFile = File('${animationsDir.path}/$fileName');
+
+      // Ensure parent directories exist and are writable
+      if (!await zipFile.parent.exists()) {
+        await zipFile.parent.create(recursive: true);
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+
+      print('DEBUG: Downloading to ${zipFile.path}');
+
       final request = await HttpClient().getUrl(Uri.parse(url));
       final response = await request.close();
 
@@ -119,10 +133,13 @@ class _AnimationInfoState extends State<AnimationInfo> {
       final startTime = DateTime.now();
       DateTime lastUpdate = DateTime.now();
 
-      setState(() {
-        _isDownloading = true;
-        _progressText = "Starting download...";
-      });
+      if (mounted) {
+        setState(() {
+          _isDownloading = true;
+          _progressText = "Starting download...";
+          _downloadProgress = 0.0;
+        });
+      }
 
       await for (final chunk in response) {
         received += chunk.length;
@@ -130,28 +147,35 @@ class _AnimationInfoState extends State<AnimationInfo> {
 
         if (total > 0) {
           final now = DateTime.now();
-          if (now.difference(lastUpdate).inMilliseconds > 300) {
+          if (now.difference(lastUpdate).inMilliseconds > 250) {
             final progress = received / total;
             final percent = (progress * 100).toStringAsFixed(1);
             final elapsed = now.difference(startTime).inSeconds;
             final speed = received / (elapsed > 0 ? elapsed : 1);
             final mbSpeed = (speed / (1024 * 1024)).toStringAsFixed(2);
 
-            setState(() {
-              _downloadProgress = progress;
-              _progressText = "$percent% • $mbSpeed MB/s";
-            });
+            if (mounted) {
+              setState(() {
+                _downloadProgress = progress;
+                _progressText = "$percent% • $mbSpeed MB/s";
+              });
+            }
             lastUpdate = now;
           }
         }
       }
 
       await sink.close();
-      setState(() {
-        _progressText = "Download complete — extracting...";
-      });
+      print('✅ Download complete: ${zipFile.path}');
 
-      // ✅ Extract in background isolate
+      if (mounted) {
+        setState(() {
+          _progressText = "Download complete — extracting files…";
+        });
+      }
+
+      // 🧩 Extract in background isolate (non-blocking)
+      final receivePort = ReceivePort();
       await Isolate.spawn(_extractZipWithProgress, {
         'zipPath': zipFile.path,
         'outputDir': animationsDir.path,
@@ -161,16 +185,23 @@ class _AnimationInfoState extends State<AnimationInfo> {
       await for (final message in receivePort) {
         if (message is double) {
           final percent = (message * 100).toStringAsFixed(0);
-          setState(() {
-            _downloadProgress = message;
-            _progressText = "Extracting… $percent%";
-          });
-        } else if (message is String && message == 'done') {
+          if (mounted) {
+            setState(() {
+              _downloadProgress = message;
+              _progressText = "Extracting… $percent%";
+            });
+          }
+        } else if (message == 'done') {
           await zipFile.delete();
-          setState(() {
-            _isDownloading = false;
-            _progressText = "Extraction complete!";
-          });
+          print('🗑️ Deleted ZIP after extraction.');
+
+          if (mounted) {
+            setState(() {
+              _isDownloading = false;
+              _progressText = "Extraction complete!";
+            });
+          }
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Downloaded and extracted $fileName')),
           );
@@ -179,12 +210,16 @@ class _AnimationInfoState extends State<AnimationInfo> {
         }
       }
     } catch (e) {
-      setState(() => _isDownloading = false);
+      print('❌ Animation download error: $e');
+      if (mounted) {
+        setState(() => _isDownloading = false);
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error downloading $fileName: $e')),
       );
     }
   }
+
   @override
   void initState() {
     super.initState();

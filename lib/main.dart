@@ -5,6 +5,7 @@ import 'package:wired_test/pages/home_page.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:wired_test/providers/auth_provider.dart';
 import 'package:wired_test/providers/user_provider.dart';
+import 'package:wired_test/providers/quiz_score_provider.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 // import 'package:flutter_gen/gen_l10n/app_localizations.dart';
@@ -54,14 +55,20 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
+        // 🔐 Authentication
         ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
-        ChangeNotifierProvider(create: (_) => UserProvider()), // Add UserProvider
 
-        // 🔹 Exam system providers
+        // 👤 User identity (profile info)
+        ChangeNotifierProvider(create: (_) => UserProvider()),
+
+        // 🧮 Quiz and module progress tracking
+        ChangeNotifierProvider(create: (_) => QuizScoreProvider()),
+
+        // 🧩 Exam system
         Provider(create: (_) => RetryQueueService(retryBox)),
         Provider(create: (_) => ExamSyncService(attemptsBox, retryBox)),
 
-        // 🔹 Controller depends on ExamSyncService
+        // 🎯 Exam controller (depends on ExamSyncService)
         ChangeNotifierProxyProvider<ExamSyncService, ExamController>(
           create: (context) {
             final syncService = context.read<ExamSyncService>();
