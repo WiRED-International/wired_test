@@ -269,7 +269,7 @@ class _LoginState extends State<Login> {
                               context,
                               MaterialPageRoute(
                                 builder: (context) => AuthGuard(
-                                  child: CMETracker(),
+                                  child: CreditsTracker(),
                                 ),
                               ),
                             );
@@ -318,7 +318,7 @@ class _LoginState extends State<Login> {
                         context,
                         MaterialPageRoute(
                           builder: (context) => AuthGuard(
-                            child: CMETracker(),
+                            child: CreditsTracker(),
                           ),
                         ),
                       );

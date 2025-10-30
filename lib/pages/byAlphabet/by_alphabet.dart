@@ -6,6 +6,7 @@ import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
 import '../../utils/side_nav_bar.dart';
 import '../cme/cme_tracker.dart';
+import '../creditsTracker/credits_tracker.dart';
 import '../home_page.dart';
 import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
@@ -184,7 +185,7 @@ class _ByAlphabetState extends State<ByAlphabet> {
                               context,
                               MaterialPageRoute(
                                 builder: (context) => AuthGuard(
-                                  child: CMETracker(),
+                                  child: CreditsTracker(),
                                 ),
                               ),
                             );
@@ -234,7 +235,7 @@ class _ByAlphabetState extends State<ByAlphabet> {
                         context,
                         MaterialPageRoute(
                           builder: (context) => AuthGuard(
-                            child: CMETracker(),
+                            child: CreditsTracker(),
                           ),
                         ),
                       );

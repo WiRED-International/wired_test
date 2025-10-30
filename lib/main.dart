@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wired_test/pages/home_page.dart';
@@ -48,6 +49,13 @@ Future<void> main() async {
   final attemptsBox = await Hive.openBox<ExamAttempt>('exam_attempts');
   final retryBox = await Hive.openBox<PendingSubmission>('retry_queue');
   final examBox = await Hive.openBox('examBox');
+
+  // // 🧹 TEMP FIX: clear corrupted quiz_scores from FlutterSecureStorage
+  // // ----------------------------------------------------------
+  // final secureStorage = const FlutterSecureStorage();
+  // await secureStorage.delete(key: "pending_quiz_scores");
+  // debugPrint('🧹 Cleared malformed quiz_scores key from secure storage');
+  // // ----------------------------------------------------------
 
   // Initialize AuthProvider before runApp
   final authProvider = AuthProvider();

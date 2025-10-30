@@ -11,6 +11,7 @@ class User {
   final String? dateJoined;
   final List<dynamic>? quizScores;
   final int creditsEarned;
+  final int totalCredits;
 
   User({
     required this.id,
@@ -22,9 +23,18 @@ class User {
     required this.organization,
     required this.dateJoined,
     required this.quizScores,
+    this.totalCredits = 50,
   }) : creditsEarned = calculateCredits(quizScores ?? []);
 
   factory User.fromJson(Map<String, dynamic> json) {
+    final parsedQuizScores = (json['quizScores'] as List<dynamic>?)?.map((q) {
+      final module = q['module'] ?? {};
+      return {
+        ...q,
+        'credit_type': module['credit_type'] ?? 'none',
+      };
+    }).toList() ?? [];
+
     return User(
       id: json['id'],
       firstName: json['first_name'] ?? 'Unknown',
@@ -34,7 +44,9 @@ class User {
       country: json['country']?['name'] ?? 'Unknown',
       organization: json['organization']?['name'] ?? 'Unknown',
       dateJoined: json['createdAt'] ?? 'Unknown Date',
-      quizScores: json['quizScores'] ?? [],
+      quizScores: parsedQuizScores,
+      totalCredits:
+      (json['totalCredits'] ?? json['total_credits'] ?? 50).toInt(),
     );
   }
 
@@ -44,9 +56,11 @@ class User {
     'lastName': lastName,
     'email': email,
     'role': role,
-    "country": country,
-    "organization": organization,
+    'country': country,
+    'organization': organization,
     'dateJoined': dateJoined,
     'quizScores': quizScores,
+    'creditsEarned': creditsEarned,
+    'totalCredits': totalCredits,
   };
 }

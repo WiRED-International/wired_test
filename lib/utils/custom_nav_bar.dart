@@ -20,13 +20,16 @@ class CustomBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseSize = MediaQuery.of(context).size.shortestSide;
+    final baseSize = MediaQuery
+        .of(context)
+        .size
+        .shortestSide;
     final isTabletDevice = isTablet(context);
     final effectiveScale = scale ?? (isTabletDevice ? 1.0 : 1.0);
 
-    final double barHeight = baseSize * 0.17 * effectiveScale;
+    final double barHeight = baseSize * 0.2 * effectiveScale;
     final double iconSize = baseSize * 0.08 * effectiveScale;
-    final double fontSize = baseSize * 0.035 * effectiveScale;
+    final double fontSize = baseSize * 0.04 * effectiveScale;
 
     return Container(
       color: Colors.transparent,
@@ -66,7 +69,7 @@ class CustomBottomNavBar extends StatelessWidget {
           _buildSvgNavItem(
             context,
             label: "Tracker",
-            svgPath: 'assets/icons/cme1.svg',
+            svgPath: 'assets/icons/credits.svg',
             onTap: onTrackerTap,
             iconSize: iconSize,
             fontSize: fontSize,
@@ -91,14 +94,13 @@ class CustomBottomNavBar extends StatelessWidget {
   // =====================
   // 🔹 Helper for Icon Buttons
   // =====================
-  Widget _buildIconNavItem(
-      BuildContext context, {
-        required String label,
-        required IconData icon,
-        required VoidCallback onTap,
-        required double iconSize,
-        required double fontSize,
-      }) {
+  Widget _buildIconNavItem(BuildContext context, {
+    required String label,
+    required IconData icon,
+    required VoidCallback onTap,
+    required double iconSize,
+    required double fontSize,
+  }) {
     return Semantics(
       label: '$label button',
       button: true,
@@ -109,7 +111,7 @@ class CustomBottomNavBar extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(icon, size: iconSize, color: Colors.black),
-            SizedBox(height: 4),
+            SizedBox(height: 1),
             Text(
               label,
               style: TextStyle(
@@ -127,14 +129,16 @@ class CustomBottomNavBar extends StatelessWidget {
   // =====================
   // 🔹 Helper for SVG Buttons
   // =====================
-  Widget _buildSvgNavItem(
-      BuildContext context, {
-        required String label,
-        required String svgPath,
-        required VoidCallback onTap,
-        required double iconSize,
-        required double fontSize,
-      }) {
+  Widget _buildSvgNavItem(BuildContext context, {
+    required String label,
+    required String svgPath,
+    required VoidCallback onTap,
+    required double iconSize,
+    required double fontSize,
+  }) {
+    // Detect if this is the colored Credits icon
+    final bool isCreditsIcon = svgPath.contains('credits');
+
     return Semantics(
       label: '$label button',
       button: true,
@@ -144,8 +148,13 @@ class CustomBottomNavBar extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SvgPicture.asset(svgPath, height: iconSize, color: Colors.black),
-            SizedBox(height: 4),
+            SvgPicture.asset(
+              svgPath,
+              height: iconSize,
+              // 🟢 Only apply color override if NOT the Credits icon
+              color: isCreditsIcon ? null : Colors.black,
+            ),
+            SizedBox(height: 1),
             Text(
               label,
               style: TextStyle(

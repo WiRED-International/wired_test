@@ -133,7 +133,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => AuthGuard(child: CMETracker()),
+                            builder: (context) => AuthGuard(child: CreditsTracker()),
                           ),
                         );
                       },

@@ -194,19 +194,43 @@ int calculateCredits(List<dynamic>? quizScores) {
 
   if (quizScores == null) return 0;
 
-  return quizScores.where((score) {
-    if (score is Map<String, dynamic> &&
-        score['score'] != null &&
-        score['date_taken'] != null) {
-      final scoreValue = double.tryParse(score['score'].toString()) ?? 0.0;
-      final DateTime? dateTaken = DateTime.tryParse(score['date_taken'].toString());
+  int totalCredits = 0;
 
-      return scoreValue >= 80.0 &&
+  for (var score in quizScores) {
+    if (score is Map<String, dynamic>) {
+      final rawScore = score['score'];
+      final double scoreValue =
+      (rawScore is num) ? rawScore.toDouble() : double.tryParse(rawScore.toString()) ?? 0.0;
+
+      final rawDate = score['date_taken'];
+      final DateTime? dateTaken = rawDate != null
+          ? DateTime.tryParse(rawDate.toString())
+          : null;
+
+      // 🧠 Handle both flattened and nested credit_type
+      final String creditType = (score['credit_type'] ??
+          score['module']?['credit_type'] ??
+          'none')
+          .toString()
+          .toLowerCase();
+
+      // ✅ Debug
+      debugPrint('🧮 Evaluating: score=$scoreValue, creditType=$creditType, date=${dateTaken?.year}');
+
+      if (creditType == 'cme' &&
+          scoreValue >= 80.0 &&
           dateTaken != null &&
-          dateTaken.year == currentYear;
+          dateTaken.year == currentYear) {
+        totalCredits += 5;
+        debugPrint('✅ Counted: $scoreValue (${dateTaken.year})');
+      } else {
+        debugPrint('❌ Skipped: score=$scoreValue, creditType=$creditType, date=${dateTaken?.year}');
+      }
     }
-    return false;
-  }).length * 5;
+  }
+
+  debugPrint('📊 Total CME credits counted: $totalCredits');
+  return totalCredits;
 }
 // Get storage path based on platform
 Future<Directory> getStoragePath() async {

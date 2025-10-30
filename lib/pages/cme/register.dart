@@ -9,6 +9,7 @@ import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
 import '../../utils/side_nav_bar.dart';
+import '../creditsTracker/credits_tracker.dart';
 import '../home_page.dart';
 import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
@@ -35,6 +36,9 @@ class _RegisterState extends State<Register> {
 
   List<Map<String, dynamic>> _countrySuggestions = [];
   Map<String, dynamic>? _selectedCountry;
+  List<Map<String, dynamic>> _organizations = [];
+  List<Map<String, dynamic>> _filteredOrganizations = [];
+  Map<String, dynamic>? _selectedOrganization;
   Timer? _debounce;
 
   @override
@@ -43,24 +47,17 @@ class _RegisterState extends State<Register> {
     super.dispose();
   }
 
-  void _onCountryChanged(String query) {
-    if (_debounce?.isActive ?? false) _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
-      if (query.isNotEmpty) {
-        _fetchCountrySuggestions(query);
-      } else {
-        setState(() {
-          _countrySuggestions = [];
-        });
-      }
-    });
+  @override
+  void initState() {
+    super.initState();
+    _fetchCountries();
+    _fetchOrganizations();
   }
 
-  Future<void> _fetchCountrySuggestions(String query) async {
+  Future<void> _fetchCountries() async {
     final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
+    final url = Uri.parse('$apiBaseUrl/countries');
 
-    final apiEndpoint = '/countries?query=$query';
-    final url = Uri.parse('$apiBaseUrl$apiEndpoint');
     try {
       final response = await http.get(url);
       if (response.statusCode == 200) {
@@ -72,69 +69,117 @@ class _RegisterState extends State<Register> {
           }).toList();
         });
       } else {
-        print('Error fetching country suggestions');
+        print('Error fetching countries: ${response.statusCode}');
       }
     } catch (error) {
       print('Error: $error');
     }
   }
 
-  Widget _buildCountryField() {
-    return Stack(
-      children: [
-        TextFormField(
-          controller: _countryController,
+  Widget _buildCountryDropdown() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: SizedBox(
+        width: double.infinity, // ✅ full width
+        child: DropdownButtonFormField<Map<String, dynamic>>(
+          value: _selectedCountry,
+          isExpanded: true, // ✅ prevents overflow inside the Row
           decoration: const InputDecoration(
             labelText: 'Country',
-            hintText: 'Start typing your country',
             border: OutlineInputBorder(),
+            contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 12),
           ),
+          items: _countrySuggestions.map((country) {
+            return DropdownMenuItem<Map<String, dynamic>>(
+              value: country,
+              child: Text(
+                country['name'],
+                overflow: TextOverflow.ellipsis, // ✅ handle long names gracefully
+              ),
+            );
+          }).toList(),
           onChanged: (value) {
-            _onCountryChanged(value);
-            // Reset _selectedCountry if user types manually
-            if (_selectedCountry != value) {
-              _selectedCountry = null;
-            }
+            setState(() {
+              _selectedCountry = value;
+              _countryController.text = value?['name'] ?? '';
+
+              // 🔹 Filter organizations by selected country
+              _filteredOrganizations = _organizations
+                  .where((org) => org['country_id'] == _selectedCountry?['id'])
+                  .toList();
+
+              _selectedOrganization = null;
+            });
           },
           validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please enter your country';
-            }
-            if (_selectedCountry == null && _countrySuggestions.isEmpty) {
-              return 'Please select a valid country from the dropdown';
-            }
+            if (value == null) return 'Please select your country';
             return null;
           },
         ),
-        if (_countrySuggestions.isNotEmpty)
-        Container(
-          margin: const EdgeInsets.only(top: 55.0),
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border.all(color: Colors.grey),
-            borderRadius: BorderRadius.circular(8.0),
+      ),
+    );
+  }
+
+  Future<void> _fetchOrganizations() async {
+    final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
+    final url = Uri.parse('$apiBaseUrl/organizations');
+
+    try {
+      final response = await http.get(url);
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        setState(() {
+          _organizations = data.map((item) => {
+            'id': item['id'],
+            'name': item['name'],
+            'country_id': item['country_id'],
+            'city_id': item['city_id'],
+            'country_name': item['country']?['name'],
+            'city_name': item['cities']?['name'],
+          }).toList();
+        });
+      } else {
+        print('Error fetching organizations: ${response.statusCode}');
+      }
+    } catch (error) {
+      print('Error: $error');
+    }
+  }
+
+  Widget _buildOrganizationDropdown() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: SizedBox(
+        width: double.infinity, // ✅ same width behavior
+        child: DropdownButtonFormField<Map<String, dynamic>>(
+          value: _selectedOrganization,
+          isExpanded: true, // ✅ ensures icon + text never overflow
+          decoration: const InputDecoration(
+            labelText: 'Organization',
+            border: OutlineInputBorder(),
+            contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 12),
           ),
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: _countrySuggestions.length,
-            itemBuilder: (context, index) {
-              final suggestion = _countrySuggestions[index];
-              return ListTile(
-                title: Text(suggestion['name']),
-                onTap: () {
-                  setState(() {
-                    _countryController.text = suggestion['name']; // Display name
-                    _selectedCountry = suggestion; // Store id and name
-                    _countrySuggestions = []; // Clear suggestions
-                  });
-                  print('Selected country: $_selectedCountry');
-                },
-              );
-            },
-          ),
+          items: _filteredOrganizations.map((org) {
+            return DropdownMenuItem<Map<String, dynamic>>(
+              value: org,
+              child: Text(
+                "${org['name']} (${org['city_name']})",
+                overflow: TextOverflow.ellipsis, // ✅ keep text tidy in narrow layouts
+              ),
+            );
+          }).toList(),
+          onChanged: (value) {
+            setState(() {
+              _selectedOrganization = value;
+              _organizationController.text = value?['name'] ?? '';
+            });
+          },
+          validator: (value) {
+            if (value == null) return 'Please select your organization';
+            return null;
+          },
         ),
-      ],
+      ),
     );
   }
 
@@ -197,7 +242,7 @@ class _RegisterState extends State<Register> {
       "email": _emailController.text.trim(),
       "country_id": _selectedCountry!['id'],
       "city": _cityController.text.trim(),
-      "organization": _organizationController.text.trim(),
+      "organization_id": _selectedOrganization?['id'],
       "password": _passwordController.text.trim(),
     };
 
@@ -229,7 +274,17 @@ class _RegisterState extends State<Register> {
     }
   }
 
-
+  InputDecoration _inputDecoration(String label, {String? hintText}) {
+    return InputDecoration(
+      labelText: label,
+      hintText: hintText,
+      border: const OutlineInputBorder(),
+      contentPadding: const EdgeInsets.symmetric(
+        vertical: 14,  // 🟢 Normalize vertical padding
+        horizontal: 12,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -285,7 +340,7 @@ class _RegisterState extends State<Register> {
                               context,
                               MaterialPageRoute(
                                 builder: (context) => AuthGuard(
-                                  child: CMETracker(),
+                                  child: CreditsTracker(),
                                 ),
                               ),
                             );
@@ -334,7 +389,7 @@ class _RegisterState extends State<Register> {
                         context,
                         MaterialPageRoute(
                           builder: (context) => AuthGuard(
-                            child: CMETracker(),
+                            child: CreditsTracker(),
                           ),
                         ),
                       );
@@ -356,10 +411,10 @@ class _RegisterState extends State<Register> {
         ),
       ),
     );
-
   }
 
   Widget _buildPortraitLayout(scalingFactor) {
+    final double fieldSpacing = scalingFactor * (isTablet(context) ? 12 : 15);
     return Center(
       child: Form(
         key: _formKey,
@@ -368,6 +423,7 @@ class _RegisterState extends State<Register> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: <Widget>[
+              // Title
               Text(
                 "Register",
                 textAlign: TextAlign.center,
@@ -380,6 +436,7 @@ class _RegisterState extends State<Register> {
               SizedBox(
                 height: scalingFactor * (isTablet(context) ? 10 : 10),
               ),
+              // First Name
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 10 : 10)),
                 child: _buildTextField(
@@ -394,6 +451,7 @@ class _RegisterState extends State<Register> {
                   },
                 ),
               ),
+              // Last Name
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 10 : 10)),
                 child: _buildTextField(
@@ -408,6 +466,7 @@ class _RegisterState extends State<Register> {
                   },
                 ),
               ),
+              // Email
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 10 : 10)),
                 child: _buildTextField(
@@ -417,12 +476,18 @@ class _RegisterState extends State<Register> {
                   validator: _validateEmail,
                 ),
               ),
+              // Country
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 10 : 10)),
-                child: _buildCountryField(),
+                child: _buildCountryDropdown(),
               ),
               // _buildCityField(),
-              // _buildOrganizationField(),
+              // Organization
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 10 : 10)),
+                child: _buildOrganizationDropdown(),
+              ),
+
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 10 : 10)),
                 child: _buildTextField(
@@ -560,107 +625,111 @@ class _RegisterState extends State<Register> {
     );
   }
 
-  Widget _buildLandscapeLayout(scalingFactor) {
+  Widget _buildLandscapeLayout(double scalingFactor) {
+    final bool tablet = isTablet(context);
+    final double fieldSpacing = scalingFactor * (tablet ? 12 : 15);
+
     return Center(
       child: Form(
         key: _formKey,
         child: SingleChildScrollView(
-          padding: EdgeInsets.only(top: scalingFactor * (isTablet(context) ? 0.02 : 10)),
+          padding: EdgeInsets.symmetric(
+            horizontal: scalingFactor * (tablet ? 20 : 15),
+            vertical: scalingFactor * 10,
+          ),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: <Widget>[
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // 🟦 Title
               Text(
                 "Register",
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: scalingFactor * (isTablet(context) ? 24 : 28),
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF0070C0),
+                  fontSize: scalingFactor * (tablet ? 28 : 30),
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF0070C0),
                 ),
               ),
-              SizedBox(
-                height: scalingFactor * (isTablet(context) ? 10 : 10),
+              SizedBox(height: fieldSpacing * 1.2),
+
+              // 🟫 Two-column layout
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 🟩 Left Column
+                  Expanded(
+                    flex: 1,
+                    child: Column(
+                      children: [
+                        _buildTextField(
+                          controller: _firstNameController,
+                          label: "First Name",
+                          hintText: "Enter your first name",
+                          validator: (v) =>
+                          v == null || v.isEmpty ? "Please enter your first name" : null,
+                        ),
+                        _buildTextField(
+                          controller: _lastNameController,
+                          label: "Last Name",
+                          hintText: "Enter your last name",
+                          validator: (v) =>
+                          v == null || v.isEmpty ? "Please enter your last name" : null,
+                        ),
+                        _buildTextField(
+                          controller: _emailController,
+                          label: "Email",
+                          hintText: "Enter your email",
+                          validator: _validateEmail,
+                        ),
+                        _buildCountryDropdown(),
+                      ],
+                    ),
+                  ),
+
+                  SizedBox(width: fieldSpacing * 2), // spacing between columns
+
+                  // 🟩 Right Column
+                  Expanded(
+                    flex: 1,
+                    child: Column(
+                      children: [
+                        _buildOrganizationDropdown(),
+                        _buildTextField(
+                          controller: _passwordController,
+                          label: "Password",
+                          hintText: "Enter your password",
+                          validator: _validatePassword,
+                        ),
+                        _buildTextField(
+                          controller: _confirmPasswordController,
+                          label: "Confirm Password",
+                          hintText: "Confirm your password",
+                          validator: (v) {
+                            if (v == null || v.isEmpty) {
+                              return "Please confirm your password";
+                            }
+                            if (v != _passwordController.text) {
+                              return "Passwords do not match";
+                            }
+                            return null;
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 80 : 100)),
-                child: _buildTextField(
-                  controller: _firstNameController,
-                  label: "First Name",
-                  hintText: "Enter your first name",
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return "Please enter your first name";
-                    }
-                    return null;
-                  },
-                ),
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 80 : 100)),
-                child: _buildTextField(
-                  controller: _lastNameController,
-                  label: "Last Name",
-                  hintText: "Enter your last name",
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return "Please enter your last name";
-                    }
-                    return null;
-                  },
-                ),
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 80 : 100)),
-                child: _buildTextField(
-                  controller: _emailController,
-                  label: "Email",
-                  hintText: "Enter your email",
-                  validator: _validateEmail,
-                ),
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 80 : 100)),
-                child: _buildCountryField(),
-              ),
-              // _buildCityField(),
-              // _buildOrganizationField(),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 80 : 100)),
-                child: _buildTextField(
-                  controller: _passwordController,
-                  label: "Password",
-                  hintText: "Enter your password",
-                  validator: _validatePassword,
-                ),
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 80 : 100)),
-                child: _buildTextField(
-                  controller: _confirmPasswordController,
-                  label: "Confirm Password",
-                  hintText: "Confirm your password",
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return "Please confirm your password";
-                    }
-                    if (value != _passwordController.text) {
-                      return "Passwords do not match";
-                    }
-                    return null;
-                  },
-                ),
-              ),
-              SizedBox(
-                height: scalingFactor * (isTablet(context) ? 30 : 25),
-              ),
+
+              SizedBox(height: fieldSpacing * 2),
+
+              // 🟩 Register button
               Semantics(
                 label: 'Register Button',
                 hint: 'Tap to register',
                 child: GestureDetector(
                   onTap: () async {
-                    bool isSuccess = await _submitForm(); // Wait for submission result
+                    bool isSuccess = await _submitForm();
                     if (isSuccess) {
-                      // Navigate to RegistrationConfirm if successful
                       Navigator.push(
                         context,
                         MaterialPageRoute(builder: (context) => RegistrationConfirm()),
@@ -668,79 +737,52 @@ class _RegisterState extends State<Register> {
                     }
                   },
                   child: FractionallySizedBox(
-                    widthFactor: isTablet(context) ? 0.3 : 0.3,
+                    widthFactor: tablet ? 0.4 : 0.5,
                     child: Container(
-                      height: scalingFactor * (isTablet(context) ? 30 : 30),
+                      height: scalingFactor * (tablet ? 35 : 45),
                       decoration: BoxDecoration(
-                        color: Color(0xFF0070C0),
-                        // gradient: const LinearGradient(
-                        //   colors: [
-                        //     Color(0xFF0070C0),
-                        //     Color(0xFF00C1FF),
-                        //     Color(0xFF0070C0),
-                        //   ], // Your gradient colors
-                        //   begin: Alignment.topCenter,
-                        //   end: Alignment.bottomCenter,
-                        // ),
+                        color: const Color(0xFF0070C0),
                         borderRadius: BorderRadius.circular(10),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withOpacity(0.5),
                             spreadRadius: 1,
                             blurRadius: 5,
-                            offset: const Offset(
-                                1, 3), // changes position of shadow
+                            offset: const Offset(1, 3),
                           ),
                         ],
                       ),
-                      child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            double buttonWidth = constraints.maxWidth;
-                            double fontSize = buttonWidth * 0.2;
-                            double padding = buttonWidth * 0.02;
-                            return Padding(
-                              padding: EdgeInsets.all(padding),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Flexible(
-                                    child: FittedBox(
-                                      fit: BoxFit.fitWidth,
-                                      child: Text(
-                                        "Register",
-                                        style: TextStyle(
-                                          fontSize: fontSize,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
+                      child: Center(
+                        child: Text(
+                          "Register",
+                          style: TextStyle(
+                            fontSize: scalingFactor * (tablet ? 18 : 20),
+                            fontWeight: FontWeight.w600,
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
+              SizedBox(height: fieldSpacing * 2),
+
+              // 🟨 Footer
               Padding(
-                padding: EdgeInsets.symmetric(vertical: scalingFactor * (isTablet(context) ? 35 : 30)),
+                padding: EdgeInsets.only(bottom: scalingFactor * 25),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
                       "Already have an account?",
                       style: TextStyle(
-                        fontSize: scalingFactor * (isTablet(context) ? 16 : 18),
+                        fontSize: scalingFactor * (tablet ? 16 : 18),
                         fontWeight: FontWeight.w500,
                         color: Colors.black,
                       ),
                     ),
-                    SizedBox(
-                      width: scalingFactor * (isTablet(context) ? 10 : 10),
-                    ),
+                    SizedBox(width: scalingFactor * 10),
                     GestureDetector(
                       onTap: () {
                         Navigator.push(
@@ -751,12 +793,12 @@ class _RegisterState extends State<Register> {
                       child: Text(
                         "Login",
                         style: TextStyle(
-                          fontSize: scalingFactor * (isTablet(context) ? 16 : 18),
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF0070C0),
+                          fontSize: scalingFactor * (tablet ? 16 : 18),
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF0070C0),
                         ),
                       ),
-                    )
+                    ),
                   ],
                 ),
               ),
@@ -776,14 +818,18 @@ Widget _buildTextField({
   bool obscureText = false,
   String? Function(String?)? validator,
 }) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(vertical: 8.0),
+  return Container(
+    margin: const EdgeInsets.only(bottom: 12), // ✅ consistent vertical spacing between fields
     child: TextFormField(
       controller: controller,
       decoration: InputDecoration(
         labelText: label,
         hintText: hintText,
-        border: OutlineInputBorder(),
+        border: const OutlineInputBorder(),
+        contentPadding: const EdgeInsets.symmetric(
+          vertical: 14,  // ✅ normalize vertical height
+          horizontal: 12,
+        ),
       ),
       keyboardType: keyboardType,
       obscureText: obscureText,

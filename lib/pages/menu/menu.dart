@@ -15,6 +15,7 @@ import '../../utils/side_nav_bar.dart';
 import 'package:http/http.dart' as http;
 import '../cme/cme_tracker.dart';
 import '../cme/login.dart';
+import '../creditsTracker/credits_tracker.dart';
 import '../exam/exam_start.dart';
 import '../home_page.dart';
 import '../module_library.dart';
@@ -182,7 +183,7 @@ class _MenuState extends State<Menu> {
                             MaterialPageRoute(
                               builder: (context) =>
                                   AuthGuard(
-                                    child: CMETracker(),
+                                    child: CreditsTracker(),
                                   ),
                             ),
                           );
@@ -249,7 +250,7 @@ class _MenuState extends State<Menu> {
                           MaterialPageRoute(
                             builder: (context) =>
                                 AuthGuard(
-                                  child: CMETracker(),
+                                  child: CreditsTracker(),
                                 ),
                           ),
                         );
@@ -320,14 +321,14 @@ class _MenuState extends State<Menu> {
                     );
                   }
                 }),
-                _buildInkWellButton(context, 'Exams', scalingFactor, () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ExamStart(user: user),
-                    ),
-                  );
-                }),
+                // _buildInkWellButton(context, 'Exams', scalingFactor, () {
+                //   Navigator.push(
+                //     context,
+                //     MaterialPageRoute(
+                //       builder: (context) => ExamStart(user: user),
+                //     ),
+                //   );
+                // }),
               ],
             ),
             SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 70)),

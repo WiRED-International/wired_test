@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
-import '../pages/cme/cme_info.dart';
+import '../pages/cme/credits_tracker_info.dart';
 import '../pages/cme/login.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -105,7 +105,7 @@ class AuthProvider with ChangeNotifier {
         if (context.mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => CmeInfo()),
+            MaterialPageRoute(builder: (context) => CreditsTrackerInfo()),
           );
         }
       } else if (isTokenExpired()) {

@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
+import 'package:wired_test/pages/creditsTracker/specializationTraining/specialization_training_list.dart';
 import '../../models/user.dart';
 import '../../providers/auth_guard.dart';
 import '../../providers/auth_provider.dart';
@@ -17,6 +18,7 @@ import '../home_page.dart';
 import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
 import '../module_library.dart';
+import 'advancedTraining/advanced_training_list.dart';
 import 'basicTraining/basic_training_list.dart';
 
 class CreditsTracker extends StatefulWidget {
@@ -307,54 +309,82 @@ class _CreditsTrackerState extends State<CreditsTracker> {
             SizedBox(height: baseSize * 0.04),
 
             // 🟦🟩🟪🟧 Credit Cards Grid
-            Wrap(
-              spacing: baseSize * 0.04,
-              runSpacing: baseSize * 0.04,
-              alignment: WrapAlignment.center,
-              children: [
-                _creditCard(
-                  label: "CHW Basic Training",
-                  color: const Color(0xFF007BFF),
-                  icon: Icons.school_rounded,
-                  baseSize: baseSize,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => AuthGuard(child: BasicTrainingList()),
-                      ),
-                    );
-                  },
-                ),
-                _creditCard(
-                  label: "CME Credits",
-                  color: const Color(0xFF22C55E),
-                  icon: Icons.health_and_safety_rounded,
-                  baseSize: baseSize,
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => AuthGuard(child: CMETracker()),
-                      ),
-                    );
-                  },
-                ),
-                _creditCard(
-                  label: "Advanced Training",
-                  color: const Color(0xFF8B5CF6),
-                  icon: Icons.workspace_premium_rounded,
-                  baseSize: baseSize,
-                  onTap: () {},
-                ),
-                _creditCard(
-                  label: "Specialized Training",
-                  color: const Color(0xFFFF6B00),
-                  icon: Icons.star_rounded,
-                  baseSize: baseSize,
-                  onTap: () {},
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final double screenWidth = constraints.maxWidth;
+                final double spacing = baseSize * 0.04;
+
+                // ✅ Force 2 columns even on small phones
+                final double cardWidth = (screenWidth / 2) - spacing * 0.6;
+
+                return Wrap(
+                  spacing: spacing,
+                  runSpacing: spacing,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    _creditCard(
+                      label: "CHW Basic Training",
+                      color: const Color(0xFF007BFF),
+                      icon: Icons.school_rounded,
+                      baseSize: baseSize * 0.9, // slightly smaller for fit
+                      width: cardWidth,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AuthGuard(child: BasicTrainingList()),
+                          ),
+                        );
+                      },
+                    ),
+                    _creditCard(
+                      label: "CME Credits",
+                      color: const Color(0xFF22C55E),
+                      icon: Icons.health_and_safety_rounded,
+                      baseSize: baseSize * 0.9,
+                      width: cardWidth,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AuthGuard(child: CMETracker()),
+                          ),
+                        );
+                      },
+                    ),
+                    _creditCard(
+                      label: "Advanced Training",
+                      color: const Color(0xFF8B5CF6),
+                      icon: Icons.workspace_premium_rounded,
+                      baseSize: baseSize * 0.9,
+                      width: cardWidth,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AuthGuard(child: AdvancedTrainingList()),
+                          ),
+                        );
+                      },
+                    ),
+                    _creditCard(
+                      label: "Specialized Training",
+                      color: const Color(0xFFFF6B00),
+                      icon: Icons.star_rounded,
+                      baseSize: baseSize * 0.9,
+                      width: cardWidth,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AuthGuard(child: SpecializationTrainingList()),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                );
+              },
             ),
 
             SizedBox(height: baseSize * 0.06),
@@ -414,7 +444,7 @@ class _CreditsTrackerState extends State<CreditsTracker> {
                 Text(
                   "Credit Tracking",
                   style: TextStyle(
-                    fontSize: baseSize * (isTablet(context) ? 0.045 : 0.05),
+                    fontSize: baseSize * (isTablet(context) ? 0.05 : 0.06),
                     fontWeight: FontWeight.bold,
                     color: Colors.black87,
                   ),
@@ -429,7 +459,7 @@ class _CreditsTrackerState extends State<CreditsTracker> {
                   child: Text(
                     "Welcome to the Credit Tracking section. Here you can view and manage your training credits and course progress.",
                     style: TextStyle(
-                      fontSize: baseSize * (isTablet(context) ? 0.03 : 0.033),
+                      fontSize: baseSize * (isTablet(context) ? 0.035 : 0.04),
                       color: Colors.black87,
                       height: 1.4,
                     ),
@@ -444,7 +474,7 @@ class _CreditsTrackerState extends State<CreditsTracker> {
                   "Your training progress is securely stored and protected",
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: baseSize * 0.025,
+                    fontSize: baseSize * 0.032,
                     color: Colors.black54,
                     fontStyle: FontStyle.italic,
                   ),
@@ -471,6 +501,7 @@ class _CreditsTrackerState extends State<CreditsTracker> {
                       style: TextStyle(
                         fontSize: baseSize * (isTablet(context) ? 0.035 : 0.04),
                         fontWeight: FontWeight.bold,
+                        color: Colors.white,
                       ),
                     ),
                     style: ElevatedButton.styleFrom(
@@ -520,54 +551,80 @@ class _CreditsTrackerState extends State<CreditsTracker> {
                 SizedBox(height: baseSize * 0.04),
 
                 // 🟦🟩🟪🟧 Grid of credit cards
-                Wrap(
-                  spacing: baseSize * 0.03,
-                  runSpacing: baseSize * 0.03,
-                  alignment: WrapAlignment.center,
-                  children: [
-                    _creditCard(
-                      label: "CHW Basic Training",
-                      color: const Color(0xFF007BFF),
-                      icon: Icons.school_rounded,
-                      baseSize: baseSize,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => AuthGuard(child: BasicTrainingList()),
-                          ),
-                        );
-                      },
-                    ),
-                    _creditCard(
-                      label: "CME Credits",
-                      color: const Color(0xFF22C55E),
-                      icon: Icons.health_and_safety_rounded,
-                      baseSize: baseSize,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => AuthGuard(child: CMETracker()),
-                          ),
-                        );
-                      },
-                    ),
-                    _creditCard(
-                      label: "Advanced Training",
-                      color: const Color(0xFF8B5CF6),
-                      icon: Icons.workspace_premium_rounded,
-                      baseSize: baseSize,
-                      onTap: () {},
-                    ),
-                    _creditCard(
-                      label: "Specialized Training",
-                      color: const Color(0xFFFF6B00),
-                      icon: Icons.star_rounded,
-                      baseSize: baseSize,
-                      onTap: () {},
-                    ),
-                  ],
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final double screenWidth = constraints.maxWidth;
+                    final double spacing = baseSize * 0.03;
+                    final double cardWidth = (screenWidth / 2) - spacing * 0.6;
+
+                    return Wrap(
+                      spacing: spacing,
+                      runSpacing: spacing,
+                      alignment: WrapAlignment.center,
+                      children: [
+                        _creditCard(
+                          label: "CHW Basic Training",
+                          color: const Color(0xFF007BFF),
+                          icon: Icons.school_rounded,
+                          baseSize: baseSize * 0.9,
+                          width: cardWidth,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => AuthGuard(child: BasicTrainingList()),
+                              ),
+                            );
+                          },
+                        ),
+                        _creditCard(
+                          label: "CME Credits",
+                          color: const Color(0xFF22C55E),
+                          icon: Icons.health_and_safety_rounded,
+                          baseSize: baseSize * 0.9,
+                          width: cardWidth,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => AuthGuard(child: CMETracker()),
+                              ),
+                            );
+                          },
+                        ),
+                        _creditCard(
+                          label: "Advanced Training",
+                          color: const Color(0xFF8B5CF6),
+                          icon: Icons.workspace_premium_rounded,
+                          baseSize: baseSize * 0.9,
+                          width: cardWidth,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => AuthGuard(child: AdvancedTrainingList()),
+                              ),
+                            );
+                          },
+                        ),
+                        _creditCard(
+                          label: "Specialized Training",
+                          color: const Color(0xFFFF6B00),
+                          icon: Icons.star_rounded,
+                          baseSize: baseSize * 0.9,
+                          width: cardWidth,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => AuthGuard(child: SpecializationTrainingList()),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -583,9 +640,10 @@ class _CreditsTrackerState extends State<CreditsTracker> {
     required IconData icon,
     required double baseSize,
     required VoidCallback onTap,
+    double? width,
   }) {
     return SizedBox(
-      width: 160,
+      width: width ?? 160,
       height: 80,
       child: ElevatedButton.icon(
         onPressed: onTap,
@@ -603,7 +661,7 @@ class _CreditsTrackerState extends State<CreditsTracker> {
           style: TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.w600,
-            fontSize: baseSize * 0.03,
+            fontSize: baseSize * (isTablet(context) ? 0.04 : 0.039),
           ),
         ),
       ),

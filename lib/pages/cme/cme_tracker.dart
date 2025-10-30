@@ -1,3 +1,4 @@
+import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -8,80 +9,39 @@ import 'package:wired_test/pages/cme/submit_credits.dart';
 import '../../providers/auth_guard.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/creditText.dart';
+import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
 import '../../utils/landscape_profile_section.dart';
 import '../../utils/profile_section.dart';
 import '../../utils/side_nav_bar.dart';
+import '../creditsTracker/credits_tracker.dart';
 import '../home_page.dart';
 import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
 import '../module_library.dart';
 import 'credits_history.dart';
 import '../../models/user.dart';
+import '../../../providers/quiz_score_provider.dart';
 
 class CMETracker extends StatefulWidget {
+  const CMETracker({Key? key}) : super(key: key);
 
   @override
-  _CMETrackerState createState() => _CMETrackerState();
+  State<CMETracker> createState() => _CMETrackerState();
 }
 
 class _CMETrackerState extends State<CMETracker> {
-  final double circleDiameter = 130.0;
-  final double circleDiameterSmall = 115.0;
-  late Future<User> userData;
   final _storage = const FlutterSecureStorage();
-  bool showCreditsHistory = false;
+  late Future<User> userData;
 
   @override
   void initState() {
     super.initState();
     userData = fetchUserData();
-
-    _buttonColors = {
-      "Credits History": [
-        Color(0xFF6B72FF),
-        Color(0xFF325BFF),
-        Color(0xFF6B72FF),
-      ],
-      "Submit New Credits": [
-        Color(0xFF6B72FF),
-        Color(0xFF325BFF),
-        Color(0xFF6B72FF),
-      ],
-    };
-
-    _buttonScales = {
-      "Credits History": 1.0,
-      "Submit New Credits": 1.0,
-    };
-  }
-
-  Map<String, double> _buttonScales = {};
-  Map<String, List<Color>> _buttonColors = {};
-
-  void _onTapDown(String label) {
-    setState(() {
-      _buttonScales[label] = 0.95; // Slightly shrink the button on press
-      _buttonColors[label] = [
-        _buttonColors[label]![0].withValues(alpha: 0.8),
-        _buttonColors[label]![1].withValues(alpha: 0.8),
-        _buttonColors[label]![2].withValues(alpha: 0.8),
-      ];
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Provider.of<QuizScoreProvider>(context, listen: false).fetchQuizScores();
     });
-  }
-
-  void _onTapUp(String label, VoidCallback onTap) {
-    setState(() {
-      _buttonScales[label] = 1.0; // Restore button size
-      _buttonColors[label] = [
-        _buttonColors[label]![0].withValues(alpha: 1.0), // Restore original color
-        _buttonColors[label]![1].withValues(alpha: 1.0),
-        _buttonColors[label]![2].withValues(alpha: 1.0),
-      ];
-    });
-
-    onTap(); // Execute the actual button function
   }
 
   Future<String?> getAuthToken() async {
@@ -90,585 +50,859 @@ class _CMETrackerState extends State<CMETracker> {
 
   Future<User> fetchUserData() async {
     final token = await getAuthToken();
-    if (token == null) {
-      throw Exception('User is not logged in');
-    }
+    if (token == null) throw Exception('User not logged in');
+
     final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
+    final url = Uri.parse('$apiBaseUrl/users/me');
 
-    final apiEndpoint = '/users/me';
-
-    final url = Uri.parse('$apiBaseUrl$apiEndpoint');
     final response = await http.get(
       url,
       headers: {
-        'Authorization': 'Bearer $token', // Include the token in the header
+        'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
       },
     );
 
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body) as Map<String, dynamic>;
-      print('API Response: $json');
-      return User.fromJson(json); // Parse the top-level response directly
+      return User.fromJson(json);
     } else {
       throw Exception('Failed to fetch user data: ${response.statusCode}');
     }
   }
 
-  void refreshScores() {
+  // ✅ Refresh user + quiz scores
+  Future<void> refreshData() async {
     setState(() {
       userData = fetchUserData();
     });
+    await Provider.of<QuizScoreProvider>(context, listen: false)
+        .fetchQuizScores();
   }
 
+  int calculateCredits(List<dynamic>? quizScores) {
+    final int currentYear = DateTime.now().year;
+    if (quizScores == null) {
+      debugPrint('🚫 quizScores is NULL');
+      return 0;
+    }
+
+    if (quizScores.isEmpty) {
+      debugPrint('⚠️ quizScores is EMPTY!');
+      return 0;
+    }
+
+    debugPrint('📦 Received ${quizScores.length} quiz scores for credit calculation');
+    for (var s in quizScores) {
+      debugPrint('🔍 Entry: ${jsonEncode(s)}');
+    }
+
+    int totalCredits = 0;
+
+    for (var score in quizScores) {
+      if (score is Map<String, dynamic>) {
+        final double scoreValue = double.tryParse(score['score'].toString()) ?? 0.0;
+        final DateTime? dateTaken = DateTime.tryParse(score['date_taken'].toString());
+        final String creditType = (score['credit_type'] ??
+            score['module']?['credit_type'] ??
+            'none')
+            .toString()
+            .toLowerCase();
+
+        debugPrint('🧮 Evaluating: score=$scoreValue, creditType=$creditType, date=${dateTaken?.year}');
+
+        if (creditType == 'cme' &&
+            scoreValue >= 80.0 &&
+            dateTaken != null &&
+            dateTaken.year == currentYear) {
+          totalCredits += 5;
+          debugPrint('✅ Counted: $scoreValue (${dateTaken.year})');
+        } else {
+          debugPrint('❌ Skipped: score=$scoreValue, creditType=$creditType, date=${dateTaken?.year}');
+        }
+      }
+    }
+
+    debugPrint('📊 Total CME credits counted: $totalCredits');
+    return totalCredits;
+  }
+
+  // =====================================================
+  // 🧭 Main Build
+  // =====================================================
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
+    final screenWidth = mediaQuery.size.width;
+    final screenHeight = mediaQuery.size.height;
+    final baseSize = mediaQuery.size.shortestSide;
     final isLandscape = mediaQuery.orientation == Orientation.landscape;
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final scalingFactor = getScalingFactor(context);
+    final isTabletDevice = isTablet(context);
+    final scale = isTabletDevice ? 1.0 : 1.0;
 
     return Scaffold(
       body: SafeArea(
-        child: FutureBuilder<User>(
-          future: userData,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            } else if (snapshot.hasError) {
-              return Center(child: Text('Error: ${snapshot.error}'));
-            } else if (!snapshot.hasData) {
-              return const Center(child: Text('No data available'));
-            }
-
-            final user = snapshot.data!;
-            final int creditsEarned = user.creditsEarned ?? 0;
-            return Stack(
-              children: [
-                // Background Gradient
-                Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Color(0xFFFFF0DC),
-                        Color(0xFFF9EBD9),
-                        Color(0xFFFFC888),
-                      ],
-                    ),
-                  ),
-                ),
-                isLandscape
-                    ? Row(
-                  children: [
-                    // Side Navigation Bar (Fixed Width)
-                    SizedBox(
-                      // width: screenSize.width * 0.12, // Adjust width as needed
-                      width: scalingFactor * (isTablet(context) ? 55 : 58),
-                      child: CustomSideNavBar(
-                        onHomeTap: () => _navigateTo(context, const MyHomePage()),
-                        onLibraryTap: () => _navigateTo(context, ModuleLibrary()),
-                        onTrackerTap: () {},
-                        onMenuTap: () async {
-                          bool isLoggedIn = await checkIfUserIsLoggedIn();
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    // Right Content (Profile + Main Content)
-                    Expanded(
-                      child: Column(
-                        children: [
-                          LandscapeProfileSection(
-                            firstName: user.firstName ?? 'Guest',
-                            dateJoined: user.dateJoined ?? 'Unknown',
-                            creditsEarned: creditsEarned,
-                          ),
-                          SizedBox(height: scalingFactor * (isTablet(context) ? 15 : 15)),
-                          Expanded(
-                            child: Center(
-                              child: _buildLandscapeLayout(
-                                context,
-                                scalingFactor,
-                                authProvider,
-                                user.firstName,
-                                user.dateJoined,
-                                user.quizScores,
-                                creditsEarned,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+        child: Stack(
+          children: [
+            // 🟠 Background Gradient
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0xFFFFF0DC),
+                    Color(0xFFF9EBD9),
+                    Color(0xFFFFC888),
                   ],
-                )
-                    : Column(
-                  children: [
-                    ProfileSection(
-                      firstName: user.firstName ?? 'Guest',
-                      dateJoined: user.dateJoined ?? 'Unknown',
-                      creditsEarned: creditsEarned,
-                    ),
-                    //SizedBox(height: screenSize.height * (isTabletDevice ? 0.05 : .04)),
-                    SizedBox(height: scalingFactor * (isTablet(context) ? 25 : 40)),
-                    Expanded(
-                      child: Center(
-                        child: _buildPortraitLayout(
-                          context,
-                          scalingFactor,
-                          authProvider,
-                          user.firstName,
-                          user.dateJoined,
-                          user.quizScores,
-                          creditsEarned,
+                ),
+              ),
+            ),
+
+            Column(
+              children: [
+                // AppBar
+                CustomAppBar(
+                  onBackPressed: () => Navigator.pop(context),
+                  requireAuth: false,
+                  scale: scale,
+                ),
+
+                // Main content area
+                Expanded(
+                  child: Row(
+                    children: [
+                      // 🔹 Side Nav (Landscape only)
+                      if (isLandscape)
+                        CustomSideNavBar(
+                          onHomeTap: () =>
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => const MyHomePage()),
+                              ),
+                          onLibraryTap: () =>
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) => ModuleLibrary()),
+                              ),
+                          onTrackerTap: () =>
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        AuthGuard(child: CreditsTracker())),
+                              ),
+                          onMenuTap: () async {
+                            bool isLoggedIn = await checkIfUserIsLoggedIn();
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                isLoggedIn ? const Menu() : const GuestMenu(),
+                              ),
+                            );
+                          },
+                          scale: scale,
+                        ),
+
+                      // Main content
+                      Expanded(
+                        child: FutureBuilder<User>(
+                          future: userData,
+                          builder: (context, userSnapshot) {
+                            if (userSnapshot.connectionState == ConnectionState.waiting) {
+                              return const Center(child: CircularProgressIndicator());
+                            }
+                            if (userSnapshot.hasError) {
+                              return Center(child: Text('Error: ${userSnapshot.error}'));
+                            }
+
+                            final user = userSnapshot.data!;
+                            final double totalCredits = user.totalCredits.toDouble();
+
+                            // ✅ Now listen to provider *inside* the FutureBuilder
+                            return Consumer<QuizScoreProvider>(
+                              builder: (context, quizProvider, child) {
+                                final quizScores =
+                                List<Map<String, dynamic>>.from(quizProvider.quizScores);
+
+                                if (quizProvider.isLoading) {
+                                  return const Center(
+                                    child: Text(
+                                      "Loading your CME credits...",
+                                      style: TextStyle(fontSize: 16, color: Colors.black54),
+                                    ),
+                                  );
+                                }
+
+                                if (quizScores.isEmpty) {
+                                  return const Center(
+                                    child: Text(
+                                      "You haven’t earned any CME credits yet.\nComplete a quiz to get started!",
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: Colors.black54,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  );
+                                }
+
+                                // ✅ Calculate credits only once provider is ready
+                                final double earnedCredits =
+                                calculateCredits(quizScores).toDouble();
+
+                                debugPrint('🎯 Provider ready — ${quizScores.length} scores, $earnedCredits credits');
+
+                                // ✅ Filter CME modules for “recent credits” section
+                                final cmeScores = quizScores
+                                    .where((q) =>
+                                (q['credit_type']?.toString().toLowerCase() == 'cme'))
+                                    .toList();
+                                cmeScores.sort((a, b) =>
+                                    (b['date_taken'] ?? '').compareTo(a['date_taken'] ?? ''));
+                                final recentCredits = cmeScores.take(3).toList();
+
+                                final orientation = MediaQuery.of(context).orientation;
+
+                                return AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 400),
+                                  switchInCurve: Curves.easeIn,
+                                  switchOutCurve: Curves.easeOut,
+                                  transitionBuilder: (child, animation) =>
+                                      FadeTransition(opacity: animation, child: child),
+                                  child: orientation == Orientation.landscape
+                                      ? KeyedSubtree(
+                                    key: const ValueKey('landscape'),
+                                    child: _buildLandscapeLayout(
+                                      context,
+                                      screenWidth,
+                                      screenHeight,
+                                      baseSize,
+                                      scale,
+                                      earnedCredits,
+                                      totalCredits,
+                                      recentCredits,
+                                    ),
+                                  )
+                                      : KeyedSubtree(
+                                    key: const ValueKey('portrait'),
+                                    child: _buildPortraitLayout(
+                                      context,
+                                      screenWidth,
+                                      screenHeight,
+                                      baseSize,
+                                      scale,
+                                      earnedCredits,
+                                      totalCredits,
+                                      recentCredits,
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
                         ),
                       ),
-                    ),
-                    CustomBottomNavBar(
-                      onHomeTap: () => _navigateTo(context, const MyHomePage()),
-                      onLibraryTap: () => _navigateTo(context, ModuleLibrary()),
-                      onTrackerTap: () {},
-                      onMenuTap: () async {
-                        bool isLoggedIn = await checkIfUserIsLoggedIn();
+                    ],
+                  ),
+                ),
+
+                // Bottom Nav (Portrait only)
+                if (!isLandscape)
+                  CustomBottomNavBar(
+                    onHomeTap: () =>
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const MyHomePage()),
+                        ),
+                    onLibraryTap: () =>
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => ModuleLibrary()),
+                        ),
+                    onTrackerTap: () =>
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
-                          ),
-                        );
-                      },
+                              builder: (_) => AuthGuard(child: CreditsTracker())),
+                        ),
+                    onMenuTap: () async {
+                      bool isLoggedIn = await checkIfUserIsLoggedIn();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                          isLoggedIn ? const Menu() : const GuestMenu(),
+                        ),
+                      );
+                    },
+                    scale: scale,
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // =====================================================
+  // 📱 Portrait Layout
+  // =====================================================
+  Widget _buildPortraitLayout(BuildContext context,
+      double screenWidth,
+      double screenHeight,
+      double baseSize,
+      double scale,
+      double earnedCredits,
+      double totalCredits,
+      List<Map<String, dynamic>> recentCredits,) {
+    final safeTotal = totalCredits == 0 ? 1.0 : totalCredits;
+    final percentComplete = (earnedCredits / safeTotal).clamp(0.0, 1.0);
+    final remainingCredits = (safeTotal - earnedCredits).clamp(0.0, safeTotal);
+
+    return RefreshIndicator(
+      onRefresh: () async {
+        await refreshData();
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Updated! Your credits are refreshed.'),
+            backgroundColor: Color(0xFF16A34A),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      },
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: EdgeInsets.symmetric(
+          horizontal: baseSize * 0.07 * scale,
+          vertical: baseSize * 0.03 * scale,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Text(
+              "CME Credits",
+              style: TextStyle(
+                fontSize: baseSize * 0.055 * scale,
+                fontWeight: FontWeight.bold,
+                color: Colors.black87,
+              ),
+            ),
+            SizedBox(height: baseSize * 0.01 * scale),
+            Text(
+              "Track your Continuing Medical Education progress",
+              style: TextStyle(
+                fontSize: baseSize * 0.032 * scale,
+                color: Colors.black87,
+              ),
+            ),
+            SizedBox(height: baseSize * 0.05 * scale),
+
+            // Progress card
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(baseSize * 0.04),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF16A34A), Color(0xFF22C55E)],
+                ),
+                borderRadius: BorderRadius.circular(baseSize * 0.04),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.green.withOpacity(0.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Stack(
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("2025 Progress",
+                        style: TextStyle(
+                            fontSize: baseSize * 0.035, color: Colors.white70),
+                      ),
+                      SizedBox(height: baseSize * 0.01),
+                      Text(
+                        "${earnedCredits.toStringAsFixed(1)} / ${safeTotal
+                            .toStringAsFixed(0)}",
+                        style: TextStyle(
+                          fontSize: baseSize * 0.05,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text("Credits Earned",
+                        style: TextStyle(
+                            fontSize: baseSize * 0.035, color: Colors.white70),
+                      ),
+                      SizedBox(height: baseSize * 0.025),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: percentComplete,
+                          minHeight: 8,
+                          backgroundColor: Colors.white24,
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                              Colors.white),
+                        ),
+                      ),
+                      SizedBox(height: baseSize * 0.01),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          "${(percentComplete * 100).toStringAsFixed(
+                              1)}% Complete",
+                          style: TextStyle(fontSize: baseSize * 0.035,
+                              color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Positioned(
+                    top: baseSize * 0.02,
+                    right: baseSize * 0.02,
+                    child: Container(
+                      width: baseSize * 0.12,
+                      height: baseSize * 0.12,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withOpacity(0.15),
+                      ),
+                      child: Icon(
+                        Icons.emoji_events,
+                        size: baseSize * 0.06,
+                        color: (earnedCredits >= safeTotal)
+                            ? Colors.amberAccent
+                            : Colors.white,
+                      ),
                     ),
+                  ),
+                ],
+              ),
+            ),
+
+            SizedBox(height: baseSize * 0.04 * scale),
+            Center(
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => CreditsHistory()),
+                  );
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF16A34A),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: baseSize * 0.1 * scale,
+                    vertical: baseSize * 0.025 * scale,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                icon: const Icon(Icons.history, color: Colors.white),
+                label: Text(
+                  "View Complete CME History",
+                  style: TextStyle(
+                    fontSize: baseSize * 0.035 * scale,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+
+            SizedBox(height: baseSize * 0.05 * scale),
+            // Recent credits
+            Text(
+              "Recent Credits",
+              style: TextStyle(
+                fontSize: baseSize * 0.045 * scale,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+            SizedBox(height: baseSize * 0.02 * scale),
+            Column(
+              children: recentCredits
+                  .map((credit) => _buildCreditCard(baseSize, credit, scale))
+                  .toList(),
+            ),
+            SizedBox(height: baseSize * 0.04 * scale),
+
+            // Reminder
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(baseSize * 0.03 * scale),
+              decoration: BoxDecoration(
+                color: const Color(0xFFD1FAE5),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                "Reminder: You need ${remainingCredits.toStringAsFixed(
+                    1)} more credits to meet your 2025 requirement.",
+                style: TextStyle(
+                  color: const Color(0xFF047857),
+                  fontSize: baseSize * 0.035 * scale,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+// =====================================================
+// 💻 Landscape Layout
+// =====================================================
+  Widget _buildLandscapeLayout(BuildContext context,
+      double screenWidth,
+      double screenHeight,
+      double baseSize,
+      double scale,
+      double earnedCredits,
+      double totalCredits,
+      List<Map<String, dynamic>> recentCredits,) {
+    double percentComplete = (earnedCredits / totalCredits).clamp(0.0, 1.0);
+    double remainingCredits =
+    (totalCredits - earnedCredits).clamp(0.0, totalCredits);
+
+    return Padding(
+      padding: EdgeInsets.symmetric(
+        horizontal: baseSize * (isTablet(context) ? 0.04 : 0.06),
+        vertical: baseSize * (isTablet(context) ? 0.04 : 0.02),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 🟩 Left Column — Info + Progress
+          Expanded(
+            flex: 4,
+            child: Padding(
+              padding: EdgeInsets.only(right: baseSize * 0.04),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "CME Credits",
+                    style: TextStyle(
+                      fontSize: baseSize * (isTablet(context) ? 0.045 : 0.055),
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  SizedBox(height: baseSize * 0.01),
+                  Text(
+                    "Track your Continuing Medical Education progress",
+                    style: TextStyle(
+                      fontSize: baseSize * 0.032,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  SizedBox(height: baseSize * 0.05),
+
+                  // 🟢 Progress Card
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(baseSize * 0.04),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          Color(0xFF16A34A),
+                          Color(0xFF22C55E),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(baseSize * 0.04),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.green.withOpacity(0.25),
+                          blurRadius: 8,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Stack(
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "2025 Progress",
+                              style: TextStyle(
+                                fontSize: baseSize * 0.035,
+                                color: Colors.white70,
+                              ),
+                            ),
+                            SizedBox(height: baseSize * 0.01),
+                            Text(
+                              "${earnedCredits.toStringAsFixed(
+                                  1)} / ${totalCredits.toStringAsFixed(0)}",
+                              style: TextStyle(
+                                fontSize: baseSize * 0.05,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            Text(
+                              "Credits Earned",
+                              style: TextStyle(
+                                fontSize: baseSize * 0.035,
+                                color: Colors.white70,
+                              ),
+                            ),
+                            SizedBox(height: baseSize * 0.025),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: percentComplete,
+                                minHeight: 8,
+                                backgroundColor: Colors.white24,
+                                valueColor: const AlwaysStoppedAnimation<Color>(
+                                    Colors.white),
+                              ),
+                            ),
+                            SizedBox(height: baseSize * 0.01),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: Text(
+                                "${(percentComplete * 100).toStringAsFixed(
+                                    1)}% Complete",
+                                style: TextStyle(
+                                  fontSize: baseSize * 0.035,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        Positioned(
+                          top: baseSize * 0.02,
+                          right: baseSize * 0.02,
+                          child: Container(
+                            width: baseSize * 0.12,
+                            height: baseSize * 0.12,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white.withOpacity(0.15),
+                            ),
+                            child: Icon(
+                              Icons.emoji_events,
+                              size: baseSize * 0.06,
+                              color: (earnedCredits >= totalCredits)
+                                  ? Colors.amberAccent
+                                  : Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  SizedBox(height: baseSize * 0.03),
+
+                  // 🕓 History Button
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => CreditsHistory()));
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF16A34A),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: baseSize * 0.08,
+                        vertical: baseSize * 0.02,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    icon: const Icon(Icons.history, color: Colors.white),
+                    label: Text(
+                      "View CME History",
+                      style: TextStyle(
+                        fontSize: baseSize * 0.035,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // 📋 Right Column — Scrollable Recent Credits
+          Expanded(
+            flex: 6,
+            child: RefreshIndicator(
+              onRefresh: () async {
+                await refreshData();
+
+                // ✅ Show confirmation when refresh completes
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('✅ Updated! Your credits are refreshed.'),
+                      backgroundColor: Color(0xFF16A34A),
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  children: [
+                    // 🧾 List of recent credits
+                    ...recentCredits
+                        .map((credit) =>
+                        _buildCreditCard(baseSize, credit, scale))
+                        .toList(),
+
+                    SizedBox(height: baseSize * 0.04),
+
+                    // 🟢 Reminder Card
+                    Container(
+                      width: double.infinity,
+                      padding: EdgeInsets.all(baseSize * 0.03 * scale),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFD1FAE5),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        "Reminder: You need ${remainingCredits.toStringAsFixed(
+                            1)} more credits to meet your 2025 requirement.",
+                        style: TextStyle(
+                          color: const Color(0xFF047857),
+                          fontSize: baseSize * 0.035 * scale,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+
+                    SizedBox(height: baseSize * 0.04),
                   ],
                 ),
-              ],
-            );
-          },
-        ),
-      ),
-    );
-  }
-
-// Navigation Helper
-  void _navigateTo(BuildContext context, Widget page) {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => page));
-  }
-
-  Widget _buildPortraitLayout(BuildContext context, scalingFactor,
-      authProvider, firstName, dateJoined, quizScores, int creditsEarned) {
-    // Get the current year
-    final int currentYear = DateTime.now().year;
-
-    final int maxCredits = getMaxCredits(creditsEarned);
-    final int creditsRemaining = creditsEarned >= maxCredits ? 0 : maxCredits - creditsEarned;
-
-    return SingleChildScrollView(
-      child: Column(
-        children: <Widget>[
-          Text(
-            "CME Credits Tracker",
-            style: TextStyle(
-              fontSize: scalingFactor * (isTablet(context) ? 24 : 32),
-              fontWeight: FontWeight.w400,
-              color: Color(0xFF325BFF),
-            ),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: scalingFactor * (isTablet(context) ? 25 : 15)),
-          Padding(
-            padding: EdgeInsets.symmetric(
-                horizontal: scalingFactor * (isTablet(context) ? 25 : 25)),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  "CREDITS",
-                  style: TextStyle(
-                    fontSize: scalingFactor * (isTablet(context) ? 12 : 16),
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black,
-                  ),
-                ),
-                //SizedBox(width: scalingFactor * (isTablet(context) ? 0.05 : 15)),
-                RichText(
-                  //textAlign: TextAlign.right,
-                  text: TextSpan(
-                    children: [
-                      TextSpan(
-                        text: "$creditsEarned",
-                        style: TextStyle(
-                          fontSize: scalingFactor *
-                              (isTablet(context) ? 12 : 16),
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFFBD34FD), // Purple for earned credits
-                        ),
-                      ),
-                      TextSpan(
-                        text: "/$maxCredits",
-                        style: TextStyle(
-                          fontSize: scalingFactor *
-                              (isTablet(context) ? 12 : 16),
-                          fontWeight: FontWeight.w500,
-                          color: Colors.black, // Black for max credits
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              ],
+              ),
             ),
           ),
-          SizedBox(height: scalingFactor * (isTablet(context) ? 5 : 5)),
-          Padding(
-            padding: EdgeInsets.symmetric(
-                horizontal: scalingFactor * (isTablet(context) ? 20 : 20)
-            ),
-            child: LinearProgressIndicator(
-              value: creditsEarned / maxCredits,
-              backgroundColor: Colors.white,
-              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFBD34FD)),
-              minHeight: scalingFactor * (isTablet(context) ? 8 : 10),
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-          SizedBox(height: scalingFactor * (isTablet(context) ? 25 : 25)),
-          Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: scalingFactor * (isTablet(context) ? 40 : 20),
-            ),
-            child: CreditText(
-              creditsEarned: creditsEarned,
-              creditsRemaining: creditsRemaining,
-              scalingFactor: scalingFactor,
-              context: context,
-            ),
-          ),
-          SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 30)),
-
-          // Credits History Button with New Style
-          _buildButton(
-            label: "Credits History",
-            gradientColors: [
-              Color(0xFF6B72FF),
-              Color(0xFF325BFF),
-              Color(0xFF6B72FF),
-            ],
-            onTap: () async {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AuthGuard(child: CreditsHistory()),
-                ),
-              );
-            },
-            scalingFactor: scalingFactor,
-          ),
-          SizedBox(height: scalingFactor * (isTablet(context) ? 20 : 25)),
-
-          // Submit New Credits Button with New Style
-          _buildButton(
-            label: "Submit Credits",
-            gradientColors: [
-              Color(0xFF6B72FF),
-              Color(0xFF325BFF),
-              Color(0xFF6B72FF),
-            ],
-            onTap: () async {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AuthGuard(child: SubmitCredits()),
-                ),
-              );
-            },
-            scalingFactor: scalingFactor,
-          ),
-          SizedBox(height: scalingFactor * (isTablet(context) ? 70 : 70)),
         ],
       ),
     );
   }
 
 
-  Widget _buildButton({
-    required String label,
-    required List<Color> gradientColors,
-    required VoidCallback onTap,
-    required double scalingFactor,
-  }) {
-    return Semantics(
-      label: '$label Button',
-      hint: 'Tap to access $label',
-      child: FractionallySizedBox(
-        widthFactor: isTablet(context) ? 0.38 : 0.5,
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(30),
-          child: GestureDetector(
-            onTapDown: (_) => _onTapDown(label),
-            onTapUp: (_) => _onTapUp(label, onTap),
-            onTapCancel: () {
-              setState(() {
-                _buttonScales[label] = 1.0;
-                _buttonColors[label] = [
-                  _buttonColors[label]![0].withValues(alpha: 1.0), // Restore original
-                  _buttonColors[label]![1].withValues(alpha: 1.0),
-                  _buttonColors[label]![2].withValues(alpha: 1.0),
-                ];
-              });
-            },
-            child: AnimatedContainer(
-              duration: Duration(milliseconds: 100),
-              curve: Curves.easeOut,
-              transform: Matrix4.diagonal3Values(
-                  _buttonScales[label] ?? 1.0, _buttonScales[label] ?? 1.0, 1.0),
-              child: InkWell(
-                onTap: onTap,
-                borderRadius: BorderRadius.circular(30),
-                splashColor: Colors.white.withValues(alpha: 0.3),
-                child: Container(
-                  height: scalingFactor * (isTablet(context) ? 32 : 38),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: _buttonColors[label] ?? gradientColors,
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                    ),
-                    borderRadius: BorderRadius.circular(30),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.5),
-                        spreadRadius: 1,
-                        blurRadius: 5,
-                        offset: Offset(1, 3),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: scalingFactor * (isTablet(context) ? 14 : 18),
-                        fontWeight: FontWeight.w500,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
+  // =====================================================
+  // 🧾 Reusable Credit Card
+  // =====================================================
+  Widget _buildCreditCard(
+    double baseSize, Map<String, dynamic> credit, double scale) {
+    final double score = (credit['score'] ?? 0).toDouble();
+    final bool passed = score >= 80.0;
+    final String? rawDate = credit['date_taken'];
+    String formattedDate = '--';
+
+    // ✅ Handle UTC → Local conversion safely before building widgets
+    if (rawDate != null) {
+      try {
+        final parsedDate = DateTime.parse(rawDate).toLocal();
+        formattedDate = DateFormat('yyyy-MM-dd').format(parsedDate);
+      } catch (e) {
+        debugPrint('⚠️ Invalid date format for ${credit['module_name']}: $rawDate');
+      }
+    }
+
+    return Container(
+      margin: EdgeInsets.only(bottom: baseSize * 0.025),
+      padding: EdgeInsets.all(baseSize * 0.03),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            blurRadius: 6,
+            offset: const Offset(0, 4),
           ),
-        ),
+        ],
       ),
-    );
-  }
-
-  Widget _buildLandscapeLayout(BuildContext context, scalingFactor,
-      authProvider, firstName, dateJoined, quizScores, int creditsEarned) {
-    final int currentYear = DateTime.now().year;
-
-    final int maxCredits = getMaxCredits(creditsEarned);
-    final int creditsRemaining = creditsEarned >= maxCredits ? 0 : maxCredits - creditsEarned;
-
-    return SingleChildScrollView(
-      child: Column(
-        children: <Widget>[
-          Text(
-            "CME Credits Tracker",
-            style: TextStyle(
-              fontSize: scalingFactor * (isTablet(context) ? 22 : 28),
-              fontWeight: FontWeight.w400,
-              color: Color(0xFF325BFF),
-            ),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: scalingFactor * (isTablet(context) ? 15 : 15)),
-          Padding(
-            padding: EdgeInsets.symmetric(
-                horizontal: scalingFactor * (isTablet(context) ? 55 : 65)),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // 📝 Left section — module info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  "CREDITS",
+                  credit['module_name'] ?? 'Unknown Module',
                   style: TextStyle(
-                    fontSize: scalingFactor * (isTablet(context) ? 12 : 15),
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black,
+                    fontSize: baseSize * 0.04 * scale,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
                   ),
                 ),
-                //SizedBox(width: scalingFactor * (isTablet(context) ? 0.05 : 15)),
-                RichText(
-                  //textAlign: TextAlign.right,
-                  text: TextSpan(
-                    children: [
-                      TextSpan(
-                        text: "$creditsEarned",
-                        style: TextStyle(
-                          fontSize: scalingFactor *
-                              (isTablet(context) ? 12 : 15),
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFFBD34FD), // Purple for earned credits
-                        ),
-                      ),
-                      TextSpan(
-                        text: "/$maxCredits",
-                        style: TextStyle(
-                          fontSize: scalingFactor * (isTablet(context) ? 12 : 15),
-                          fontWeight: FontWeight.w500,
-                          color: Colors.black, // Black for max credits
-                        ),
-                      ),
-                    ],
+                SizedBox(height: baseSize * 0.006),
+                Text(
+                  "Score: ${credit['score'] ?? '--'}%",
+                  style: TextStyle(
+                    fontSize: baseSize * 0.03 * scale,
+                    color: Colors.grey[700],
                   ),
-                )
+                ),
+                Text(
+                  "Date: $formattedDate",
+                  style: TextStyle(
+                    fontSize: baseSize * 0.03 * scale,
+                    color: Colors.grey[700],
+                  ),
+                ),
               ],
             ),
           ),
-          SizedBox(height: scalingFactor * (isTablet(context) ? 5 : 5)),
-          Padding(
-            padding: EdgeInsets.symmetric(
-                horizontal: scalingFactor * (isTablet(context) ? 65 : 70)
-            ),
-            child: LinearProgressIndicator(
-              value: creditsEarned / maxCredits,
-              backgroundColor: Colors.white,
-              valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFBD34FD)),
-              minHeight: scalingFactor * (isTablet(context) ? 8 : 10),
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-          SizedBox(height: scalingFactor * (isTablet(context) ? 25 : 25)),
-          Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: scalingFactor * (isTablet(context) ? 70 : 50),
-            ),
-            child: CreditText(
-              creditsEarned: creditsEarned,
-              creditsRemaining: creditsRemaining,
-              scalingFactor: scalingFactor,
-              context: context,
-            ),
-          ),
 
-          SizedBox(height: scalingFactor * (isTablet(context) ? 25 : 25)),
-          _buildButtonLandscape(
-            label: "Credits History",
-            gradientColors: [
-              Color(0xFF6B72FF),
-              Color(0xFF325BFF),
-              Color(0xFF6B72FF),
-            ],
-            onTap: () async {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AuthGuard(child: CreditsHistory()),
-                ),
-              );
-            },
-            scalingFactor: scalingFactor,
-          ),
-          SizedBox(height: scalingFactor * (isTablet(context) ? 25 : 25)),
-          // Submit New Credits Button with New Style
-          _buildButtonLandscape(
-            label: "Submit Credits",
-            gradientColors: [
-              Color(0xFF6B72FF),
-              Color(0xFF325BFF),
-              Color(0xFF6B72FF),
-            ],
-            onTap: () async {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AuthGuard(child: SubmitCredits()),
-                ),
-              );
-            },
-            scalingFactor: scalingFactor,
-          ),
-          SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 10)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildButtonLandscape({
-    required String label,
-    required List<Color> gradientColors,
-    required VoidCallback onTap,
-    required double scalingFactor,
-  }) {
-    return Semantics(
-      label: '$label Button',
-      hint: 'Tap to access $label',
-      child: FractionallySizedBox(
-        widthFactor: isTablet(context) ? 0.3 : 0.4, // Adjust width for landscape
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(25),
-          child: GestureDetector(
-            onTapDown: (_) => _onTapDown(label),
-            onTapUp: (_) => _onTapUp(label, onTap),
-            onTapCancel: () {
-              setState(() {
-                _buttonScales[label] = 1.0;
-                _buttonColors[label] = [
-                  _buttonColors[label]![0].withValues(alpha: 1.0),
-                  _buttonColors[label]![1].withValues(alpha: 1.0),
-                  _buttonColors[label]![2].withValues(alpha: 1.0),
-                ];
-              });
-            },
-            child: AnimatedContainer(
-              duration: Duration(milliseconds: 100),
-              curve: Curves.easeOut,
-              transform: Matrix4.diagonal3Values(
-                  _buttonScales[label] ?? 1.0, _buttonScales[label] ?? 1.0, 1.0),
-              child: InkWell(
-                onTap: onTap,
-                borderRadius: BorderRadius.circular(25),
-                splashColor: Colors.white.withValues(alpha: 0.3),
-                child: Container(
-                  height: scalingFactor * (isTablet(context) ? 30 : 35), // Reduced height for landscape
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: _buttonColors[label] ?? gradientColors,
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                    ),
-                    borderRadius: BorderRadius.circular(25),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.5),
-                        spreadRadius: 1,
-                        blurRadius: 5,
-                        offset: Offset(1, 3),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: scalingFactor * (isTablet(context) ? 14 : 18), // Slightly smaller font size
-                        fontWeight: FontWeight.w500,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
+          // 🎯 Right section — Credits badge
+          Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: baseSize * 0.03,
+              vertical: baseSize * 0.012,
+            ),
+            decoration: BoxDecoration(
+              color: passed
+                  ? const Color(0xFFDCFCE7) // light green background
+                  : const Color(0xFFFEE2E2), // light red background
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              passed ? "5 credits" : "No Credits",
+              style: TextStyle(
+                fontSize: baseSize * 0.032 * scale,
+                fontWeight: FontWeight.w600,
+                color: passed
+                    ? const Color(0xFF16A34A) // green text
+                    : const Color(0xFFDC2626), // red text
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

@@ -9,6 +9,7 @@ import 'byAlphabet/by_alphabet.dart';
 import 'byPackage/by_packages.dart';
 import 'byTopic/by_topic.dart';
 import 'cme/cme_tracker.dart';
+import 'creditsTracker/credits_tracker.dart';
 import 'menu/guestMenu.dart';
 import 'menu/menu.dart';
 import 'module_library.dart';
@@ -136,7 +137,7 @@ class _SearchState extends State<Search> {
                               MaterialPageRoute(
                                 builder: (context) =>
                                     AuthGuard(
-                                      child: CMETracker(),
+                                      child: CreditsTracker(),
                                     ),
                               ),
                             );
@@ -186,7 +187,7 @@ class _SearchState extends State<Search> {
                         MaterialPageRoute(
                           builder: (context) =>
                               AuthGuard(
-                                child: CMETracker(),
+                                child: CreditsTracker(),
                               ),
                         ),
                       );

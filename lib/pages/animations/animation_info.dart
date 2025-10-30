@@ -17,6 +17,7 @@ import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
 import '../../utils/side_nav_bar.dart';
 import '../cme/cme_tracker.dart';
+import '../creditsTracker/credits_tracker.dart';
 import '../download_confirm.dart';
 import '../home_page.dart';
 import '../menu/guestMenu.dart';
@@ -291,7 +292,7 @@ class _AnimationInfoState extends State<AnimationInfo> {
                               context,
                               MaterialPageRoute(
                                 builder: (context) => AuthGuard(
-                                  child: CMETracker(),
+                                  child: CreditsTracker(),
                                 ),
                               ),
                             );
@@ -341,7 +342,7 @@ class _AnimationInfoState extends State<AnimationInfo> {
                         context,
                         MaterialPageRoute(
                           builder: (context) => AuthGuard(
-                            child: CMETracker(),
+                            child: CreditsTracker(),
                           ),
                         ),
                       );

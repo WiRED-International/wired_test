@@ -4,6 +4,7 @@ import 'package:wired_test/utils/functions.dart';
 import 'package:wired_test/utils/side_nav_bar.dart';
 import 'package:wired_test/utils/custom_nav_bar.dart';
 import '../../providers/auth_guard.dart';
+import '../creditsTracker/credits_tracker.dart';
 import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
 import '../module_library.dart';
@@ -70,7 +71,7 @@ class _RegistrationConfirmState extends State<RegistrationConfirm> {
                               context,
                               MaterialPageRoute(
                                 builder: (context) => AuthGuard(
-                                  child: CMETracker(),
+                                  child: CreditsTracker(),
                                 ),
                               ),
                             );
@@ -122,7 +123,7 @@ class _RegistrationConfirmState extends State<RegistrationConfirm> {
                         context,
                         MaterialPageRoute(
                           builder: (context) => AuthGuard(
-                            child: CMETracker(),
+                            child: CreditsTracker(),
                           ),
                         ),
                       );
