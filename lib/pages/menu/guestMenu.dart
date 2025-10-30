@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import '../cme/cme_tracker.dart';
 import '../cme/login.dart';
 import '../cme/register.dart';
+import '../creditsTracker/credits_tracker.dart';
 import '../home_page.dart';
 import '../module_library.dart';
 import 'about_wired.dart';
@@ -85,7 +86,7 @@ class _GuestMenuState extends State<GuestMenu> {
                               MaterialPageRoute(
                                 builder: (context) =>
                                     AuthGuard(
-                                      child: CMETracker(),
+                                      child: CreditsTracker(),
                                     ),
                               ),
                             );
@@ -129,7 +130,7 @@ class _GuestMenuState extends State<GuestMenu> {
                         MaterialPageRoute(
                           builder: (context) =>
                               AuthGuard(
-                                child: CMETracker(),
+                                child: CreditsTracker(),
                               ),
                         ),
                       );

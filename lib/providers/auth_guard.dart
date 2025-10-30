@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../pages/cme/cme_info.dart';
+import '../pages/cme/credits_tracker_info.dart';
 import '../providers/auth_provider.dart';
 
 class AuthGuard extends StatelessWidget {
@@ -26,7 +26,7 @@ class AuthGuard extends StatelessWidget {
       if (context.mounted) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => CmeInfo()),
+          MaterialPageRoute(builder: (context) => CreditsTrackerInfo()),
         );
       }
     });

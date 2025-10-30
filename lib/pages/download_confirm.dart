@@ -6,6 +6,7 @@ import '../utils/custom_nav_bar.dart';
 import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
 import 'cme/cme_tracker.dart';
+import 'creditsTracker/credits_tracker.dart';
 import 'menu/guestMenu.dart';
 import 'menu/menu.dart';
 import 'module_library.dart';
@@ -85,7 +86,7 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                               context,
                               MaterialPageRoute(
                                 builder: (context) => AuthGuard(
-                                  child: CMETracker(),
+                                  child: CreditsTracker(),
                                 ),
                               ),
                             );
@@ -134,7 +135,7 @@ class _DownloadConfirmState extends State<DownloadConfirm> {
                         context,
                         MaterialPageRoute(
                           builder: (context) => AuthGuard(
-                            child: CMETracker(),
+                            child: CreditsTracker(),
                           ),
                         ),
                       );

@@ -71,7 +71,7 @@ class CustomSideNavBar extends StatelessWidget {
             _buildSvgNavItem(
               context,
               label: "Tracker",
-              svgPath: 'assets/icons/cme1.svg',
+              svgPath: 'assets/icons/credits.svg',
               onTap: onTrackerTap,
               iconSize: iconSize,
               fontSize: fontSize,
@@ -146,6 +146,8 @@ class CustomSideNavBar extends StatelessWidget {
         required double fontSize,
         required double verticalPadding,
       }) {
+    final bool isCreditsIcon = svgPath.contains('credits');
+
     return Semantics(
       label: '$label button',
       button: true,
@@ -159,7 +161,7 @@ class CustomSideNavBar extends StatelessWidget {
               SvgPicture.asset(
                 svgPath,
                 height: iconSize,
-                color: Colors.black,
+                color: isCreditsIcon ? null : Colors.black,
               ),
               Text(
                 label,

@@ -280,31 +280,54 @@ class _WebViewScreenState extends State<WebViewScreen> {
   }
 
   // Function to store quiz scores in secure storage
-  Future<void> _storeScoreInSecureStorage(Map<String, dynamic> data) async {
+  Future<void> _storeScoreInSecureStorage(dynamic data) async {
     try {
-      String moduleId = data["module_id"].toString();
-      String moduleName = data["module_name"] ?? "Unknown Module";
-      double score = double.tryParse(data["quiz_score"].toString()) ?? 0.0;
+      // Normalize input (list or map)
+      if (data is List && data.isNotEmpty && data.first is Map) {
+        data = data.first;
+      } else if (data is! Map<String, dynamic>) {
+        print("⚠️ Unexpected data format: $data");
+        return;
+      }
 
-      // Retrieve existing stored scores
-      String? storedScoresJson = await secureStorage.read(key: "quiz_scores");
-      Map<String, dynamic> storedScores = storedScoresJson != null ? jsonDecode(
-          storedScoresJson) : {};
+      final String moduleId = data["module_id"]?.toString() ?? "unknown";
+      final String moduleName = data["module_name"]?.toString() ?? "Unknown Module";
+      final double score = double.tryParse(data["quiz_score"]?.toString() ?? "0") ?? 0.0;
 
-      // Update the score and module name for the current module
+      // 1️⃣ Load any existing scores
+      String? existing = await secureStorage.read(key: "pending_quiz_scores");
+      Map<String, dynamic> storedScores = {};
+      if (existing != null && existing.isNotEmpty) {
+        final decoded = jsonDecode(existing);
+        if (decoded is Map<String, dynamic>) storedScores = decoded;
+      }
+
+      // 2️⃣ Update the map
       storedScores[moduleId] = {
+        "module_name": moduleName,
         "score": score,
-        "module_name": moduleName
+        "date_saved": DateTime.now().toIso8601String(),
       };
 
-      // Save updated scores back to Secure Storage
+      // 3️⃣ Write & confirm
       await secureStorage.write(
-          key: "quiz_scores", value: jsonEncode(storedScores));
+        key: "pending_quiz_scores",
+        value: jsonEncode(storedScores),
+      );
 
-      print(
-          "✅ Successfully stored quiz score: Module ID: $moduleId, Score: $score");
-    } catch (e) {
-      print("❌ Error storing quiz score: $e");
+      // ✅ Force the OS to finish the write before continuing
+      await Future.delayed(const Duration(milliseconds: 250));
+
+      // 4️⃣ Read back once to confirm flush
+      final verify = await secureStorage.read(key: "pending_quiz_scores");
+      if (verify != null && verify.contains(moduleId)) {
+        print("✅ Pending quiz score safely flushed for module $moduleId");
+      } else {
+        print("⚠️ Flush verification failed for module $moduleId");
+      }
+    } catch (e, st) {
+      print("❌ Error storing offline quiz score: $e");
+      print(st);
     }
   }
 

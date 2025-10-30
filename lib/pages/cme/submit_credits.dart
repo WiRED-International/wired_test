@@ -58,6 +58,12 @@ class _SubmitCreditsState extends State<SubmitCredits> {
     futureModules = _fetchModulesFromSecureStorage();
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _refreshModules(); // Re-read SecureStorage each time page becomes active
+  }
+
   Future<List<ModuleFile>> _fetchModulesFromSecureStorage() async {
     final FlutterSecureStorage secureStorage = const FlutterSecureStorage();
     try {
@@ -146,6 +152,12 @@ class _SubmitCreditsState extends State<SubmitCredits> {
         await deleteStoredScore(moduleFile.moduleId!);
         print("✅ Successfully submitted and removed ${moduleFile.moduleName} from local storage.");
 
+        // Refresh the module list after deletion
+        final updatedModules = await _fetchModulesFromSecureStorage();
+        if (mounted) setState(() => modules = updatedModules);
+
+        print("✅ Successfully submitted and removed ${moduleFile.moduleName} from local storage.");
+
         showDialog(
           context: context,
           barrierDismissible: false,
@@ -205,11 +217,13 @@ class _SubmitCreditsState extends State<SubmitCredits> {
             TextButton(
               onPressed: () async {
                 Navigator.of(context).pop(); // Close the modal
-                setState(() {
-                  modules.removeWhere((module) => module.moduleId == moduleId);
-                });
+
                 await deleteStoredScore(moduleId);
-                _refreshModules();
+
+                // 🔁 Force FutureBuilder + UI to rebuild
+                setState(() {
+                  futureModules = _fetchModulesFromSecureStorage();
+                });
               },
               child: Text("Yes, delete"),
             ),
@@ -373,7 +387,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                         context,
                         MaterialPageRoute(
                           builder: (context) => AuthGuard(
-                            child: CMETracker(),
+                            child: CreditsTracker(),
                           ),
                         ),
                       );

@@ -185,7 +185,7 @@ class _BasicTrainingListState extends State<BasicTrainingList> {
                               context,
                               MaterialPageRoute(
                                 builder: (context) => AuthGuard(
-                                  child: CMETracker(),
+                                  child: CreditsTracker(),
                                 ),
                               ),
                             );
@@ -382,31 +382,6 @@ class _BasicTrainingListState extends State<BasicTrainingList> {
                 ],
               ),
             ),
-            // Positioned(
-            //   bottom: 0,
-            //   left: 0,
-            //   right: 0,
-            //   child: IgnorePointer(
-            //     child: Container(
-            //       //height: 150,
-            //         height: screenHeight * 0.2,
-            //         decoration: BoxDecoration(
-            //           gradient: LinearGradient(
-            //             begin: Alignment.topCenter,
-            //             end: Alignment.bottomCenter,
-            //             stops: [0.0, 1.0],
-            //             colors: [
-            //               // Colors.transparent,
-            //               // Color(0xFFFFF0DC),
-            //               //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-            //               Color(0xFFFED09A).withOpacity(0.0),
-            //               Color(0xFFFED09A),
-            //             ],
-            //           ),
-            //         )
-            //     ),
-            //   ),
-            // ),
           ],
         );
       },
@@ -550,142 +525,6 @@ class _BasicTrainingListState extends State<BasicTrainingList> {
     );
   }
 
-
-  // =====================================================
-  // 🧩 Module Card
-  // =====================================================
-  // Widget _buildModuleCard(double baseSize, Map<String, dynamic> module, BuildContext context) {
-  //   final quizProvider = Provider.of<QuizScoreProvider>(context);
-  //   final quizScores = quizProvider.quizScores;
-  //
-  //   final moduleId = module['id']?.toString();
-  //   final moduleCustomId = module['module_id']?.toString();
-  //
-  //   final matchedScore = quizScores.firstWhere(
-  //     (s) {
-  //       final flatId = s['module_id']?.toString();
-  //       final nestedId = s['module']?['id']?.toString();
-  //       final nestedCustomId = s['module']?['module_id']?.toString();
-  //       return flatId == moduleId || nestedId == moduleId || nestedCustomId == moduleCustomId;
-  //     },
-  //     orElse: () => {},
-  //   );
-  //
-  //   final score = matchedScore.isNotEmpty && matchedScore['score'] is num
-  //       ? matchedScore['score']
-  //       : null;
-  //
-  //   final passing = module['passingScore'] ?? 80;
-  //   final attempted = score != null;
-  //   final passed = attempted && score >= passing;
-  //
-  //   Color borderColor = passed
-  //       ? const Color(0xFF22C55E)
-  //       : (!attempted ? Colors.grey.shade300 : const Color(0xFFE11D48));
-  //
-  //   return Container(
-  //     margin: EdgeInsets.only(bottom: baseSize * 0.03),
-  //     padding: EdgeInsets.symmetric(
-  //       horizontal: baseSize * 0.04,
-  //       vertical: baseSize * 0.03,
-  //     ),
-  //     decoration: BoxDecoration(
-  //       color: Colors.white,
-  //       borderRadius: BorderRadius.circular(baseSize * 0.03),
-  //       border: Border.all(color: borderColor, width: 1.2),
-  //       boxShadow: [
-  //         BoxShadow(
-  //           color: Colors.black12,
-  //           blurRadius: 4,
-  //           offset: const Offset(0, 2),
-  //         ),
-  //       ],
-  //     ),
-  //     child: Row(
-  //       children: [
-  //         Icon(
-  //           passed
-  //               ? Icons.check_circle_rounded
-  //               : (!attempted ? Icons.radio_button_unchecked : Icons.cancel_rounded),
-  //           color: passed
-  //               ? const Color(0xFF22C55E)
-  //               : (!attempted ? Colors.grey : const Color(0xFFE11D48)),
-  //           size: baseSize * 0.06,
-  //         ),
-  //         SizedBox(width: baseSize * 0.04),
-  //         Expanded(
-  //           child: Column(
-  //             crossAxisAlignment: CrossAxisAlignment.start,
-  //             children: [
-  //               Text(
-  //                 module['name'] ?? 'Untitled Module',
-  //                 style: TextStyle(
-  //                   fontSize: baseSize * 0.038,
-  //                   fontWeight: FontWeight.w600,
-  //                   color: Colors.black87,
-  //                 ),
-  //               ),
-  //               SizedBox(height: baseSize * 0.01),
-  //               Row(
-  //                 children: [
-  //                   Container(
-  //                     padding: EdgeInsets.symmetric(
-  //                       horizontal: baseSize * 0.025,
-  //                       vertical: baseSize * 0.005,
-  //                     ),
-  //                     decoration: BoxDecoration(
-  //                       color: passed
-  //                           ? const Color(0xFFD1FAE5)
-  //                           : (!attempted
-  //                           ? const Color(0xFFF3F4F6)
-  //                           : const Color(0xFFFEE2E2)),
-  //                       borderRadius: BorderRadius.circular(baseSize * 0.02),
-  //                     ),
-  //                     child: Text(
-  //                       passed
-  //                           ? "Passed"
-  //                           : (!attempted ? "Not Attempted" : "No Pass"),
-  //                       style: TextStyle(
-  //                         color: passed
-  //                             ? const Color(0xFF065F46)
-  //                             : (!attempted
-  //                             ? Colors.black54
-  //                             : const Color(0xFF991B1B)),
-  //                         fontSize: baseSize * 0.028,
-  //                         fontWeight: FontWeight.w500,
-  //                       ),
-  //                     ),
-  //                   ),
-  //                   SizedBox(width: baseSize * 0.03),
-  //                   Text(
-  //                     "Passing: ${passing.toString()}%",
-  //                     style: TextStyle(
-  //                       fontSize: baseSize * 0.028,
-  //                       color: Colors.black54,
-  //                     ),
-  //                   ),
-  //                 ],
-  //               ),
-  //             ],
-  //           ),
-  //         ),
-  //         SizedBox(width: baseSize * 0.03),
-  //         Text(
-  //           attempted ? "${score.toString()} / 100" : "--",
-  //           style: TextStyle(
-  //             fontSize: baseSize * 0.035,
-  //             fontWeight: FontWeight.bold,
-  //             color: attempted
-  //                 ? (passed
-  //                 ? const Color(0xFF22C55E)
-  //                 : const Color(0xFFE11D48))
-  //                 : Colors.black38,
-  //           ),
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
   Widget _buildModuleCard(
       double baseSize,
       Map<String, dynamic> module,

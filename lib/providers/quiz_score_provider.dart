@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class QuizScoreProvider with ChangeNotifier {
   final _storage = const FlutterSecureStorage();
+  bool isLoading = false;
   List<Map<String, dynamic>> _quizScores = [];
 
   List<Map<String, dynamic>> get quizScores => _quizScores;
@@ -17,41 +18,63 @@ class QuizScoreProvider with ChangeNotifier {
     final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
     final url = Uri.parse('$apiBaseUrl/quiz-scores');
 
-    final response = await http.get(
-      url,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
+    isLoading = true;
+    notifyListeners();
 
-    if (response.statusCode == 200) {
-      final jsonList = jsonDecode(response.body) as List<dynamic>;
-      _quizScores = jsonList.map<Map<String, dynamic>>((item) {
-        final module = item['module'] ?? {};
-        return {
-          'id': item['id'],
-          'user_id': item['user_id'],
-          'module_id': item['module_id'],
-          'score': item['score'],
-          'date_taken': item['date_taken'],
-          'module_name': module['name'] ?? 'Unknown Module',
-          'credit_type': module['credit_type'] ?? 'none',
-          'categories': module['categories'] ?? [],
-        };
-      }).toList();
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      );
 
-      // 🧩 Save latest version of quiz_scores to SecureStorage
-      await _storage.write(key: 'quiz_scores', value: jsonEncode(_quizScores));
+      if (response.statusCode == 200) {
+        final jsonList = jsonDecode(response.body) as List<dynamic>;
+        debugPrint('📡 Raw quizScores response: ${response.body}');
 
-      debugPrint('📥 Loaded ${quizScores.length} quiz scores from backend');
-      for (final s in quizScores.take(10)) {
-        debugPrint('→ id=${s['id']} module_id=${s['module_id']} score=${s['score']}');
+        _quizScores = jsonList.map<Map<String, dynamic>>((item) {
+          final module = item['module'] ?? {};
+
+          final rawCreditType = module['credit_type'];
+          final creditType = rawCreditType != null
+              ? rawCreditType.toString().toLowerCase()
+              : 'none';
+
+          debugPrint('🧩 Mapping quiz id=${item['id']} '
+              'module=${module['name']} '
+              'rawCreditType=$rawCreditType → stored=$creditType');
+
+          return {
+            'id': item['id'],
+            'user_id': item['user_id'],
+            'module_id': item['module_id'],
+            'score': item['score'],
+            'date_taken': item['date_taken'],
+            'module': module,
+            'module_name': module['name'] ?? 'Unknown Module',
+            'credit_type': creditType,
+            'categories': module['categories'] ?? [],
+          };
+        }).toList();
+
+        await _storage.delete(key: 'quiz_scores');
+        await _storage.write(key: 'quiz_scores', value: jsonEncode(_quizScores));
+
+        debugPrint('📥 Loaded ${quizScores.length} quiz scores from backend');
+        for (final s in quizScores.take(10)) {
+          debugPrint('→ id=${s['id']} module_id=${s['module_id']} score=${s['score']}');
+        }
+      } else {
+        throw Exception('Failed to fetch quiz scores: ${response.statusCode}');
       }
-
-      notifyListeners(); // 🔥 updates all dependent widgets
-    } else {
-      throw Exception('Failed to fetch quiz scores: ${response.statusCode}');
+    } catch (e) {
+      debugPrint('❌ Error fetching quiz scores: $e');
+    } finally {
+      // ✅ End loading
+      isLoading = false;
+      notifyListeners();
     }
   }
 
