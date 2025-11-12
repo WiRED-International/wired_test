@@ -42,16 +42,42 @@ class ExamAttempt extends HiveObject {
 class AnswerRecord extends HiveObject {
   @HiveField(0)
   int questionId;
+
+  // Backward compatible — single choice still uses this
   @HiveField(1)
-  String? selectedOptionId; // null if unanswered
+  String? selectedOptionId; // old field for single answers
+
+  // multiple-choice support
   @HiveField(2)
+  List<String>? selectedOptionIds; // new field for multiple-choice answers
+
+  @HiveField(3)
   DateTime updatedAt;
 
   AnswerRecord({
     required this.questionId,
-    required this.selectedOptionId,
+    this.selectedOptionId,
+    List<String>? selectedOptionIds,
     required this.updatedAt,
-  });
+  }) : selectedOptionIds = selectedOptionIds ?? [];
+
+  /// Utility: always returns a list (for backend consistency)
+  List<String> get normalizedOptions {
+    final ids = selectedOptionIds ?? [];
+    if (ids.isNotEmpty) {
+      return ids;
+    } else if (selectedOptionId != null) {
+      return [selectedOptionId!];
+    } else {
+      return <String>[];
+    }
+  }
+
+  /// Converts this record into JSON ready for POST
+  Map<String, dynamic> toJson() => {
+    'question_id': questionId,
+    'selected_option_ids': normalizedOptions,
+  };
 }
 
 @HiveType(typeId: 3)

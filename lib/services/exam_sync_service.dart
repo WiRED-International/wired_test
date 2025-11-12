@@ -185,4 +185,16 @@ class ExamSyncService {
       }
     }
   }
+
+  Future<List<Map<String, dynamic>>> fetchAssignedExams() async {
+    try {
+      final res = await _dio.get('/exams/assigned');
+      if (res.statusCode == 200 && res.data is List) {
+        return List<Map<String, dynamic>>.from(res.data);
+      }
+    } catch (e) {
+      print('Error fetching assigned exams: $e');
+    }
+    return [];
+  }
 }

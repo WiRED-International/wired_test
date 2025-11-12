@@ -1,13 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../models/exam_models.dart';
 import '../../state/exam_controller.dart';
 import '../../services/exam_sync_service.dart';
 import '../../services/retry_queue_service.dart';
 
-class ReviewAnswersPage extends StatelessWidget {
+class ReviewAnswersPage extends StatefulWidget {
   final List<Map<String, dynamic>> questions;
-
   const ReviewAnswersPage({super.key, required this.questions});
+
+  @override
+  State<ReviewAnswersPage> createState() => _ReviewAnswersPageState();
+}
+
+class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
+  bool _isSubmitting = false; // 🟢 disable Submit button during submission
 
   @override
   Widget build(BuildContext context) {
@@ -15,10 +22,10 @@ class ReviewAnswersPage extends StatelessWidget {
     final remaining = controller.remainingSeconds;
     final formattedTime = _formatTime(remaining);
 
-    final total = questions.length;
+    final total = widget.questions.length;
     final answered = controller.active?.answers.length ?? 0;
     final unanswered = total - answered;
-    final flagged = controller.flaggedQuestionsCount; // optional future flag feature
+    final flagged = controller.flaggedQuestionsCount;
 
     return Scaffold(
       appBar: AppBar(
@@ -60,8 +67,24 @@ class ReviewAnswersPage extends StatelessWidget {
                 ),
                 child: Text(
                   '⚠ You have $unanswered unanswered question${unanswered == 1 ? '' : 's'}.\n'
-                      'You can still submit, but consider reviewing them first.',
+                      'You can still submit, but consider reviewing them first.\n'
+                      'Tap on a question to review it.',
                   style: const TextStyle(color: Colors.redAccent, fontSize: 14),
+                ),
+              )
+            else
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  border: Border.all(color: Colors.green),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Text(
+                  '✅ All questions are answered.\n'
+                      'You can tap on a question to review or make changes before submitting.',
+                  style: TextStyle(color: Colors.green, fontSize: 14),
                 ),
               ),
 
@@ -72,23 +95,33 @@ class ReviewAnswersPage extends StatelessWidget {
             ),
             const SizedBox(height: 10),
 
-            // 🔢 Question buttons grid
+            // 📝 Question + Answer list
             Expanded(
-              child: GridView.builder(
-                itemCount: questions.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 5,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 1,
-                ),
+              child: ListView.builder(
+                itemCount: widget.questions.length,
                 itemBuilder: (context, index) {
-                  final q = questions[index];
-                  final isAnswered =
-                      controller.active?.answers.any((a) => a.questionId == q['id']) ?? false;
+                  final q = widget.questions[index];
                   final isFlagged = controller.isFlagged(q['id']);
 
-                  final borderColor = isAnswered ? Colors.green : Colors.redAccent;
+                  AnswerRecord? answerRecord;
+                  final attempt = controller.active;
+                  if (attempt != null) {
+                    for (final a in attempt.answers) {
+                      if (a.questionId == q['id']) {
+                        answerRecord = a;
+                        break;
+                      }
+                    }
+                  }
+
+                  final selected = answerRecord?.normalizedOptions ?? [];
+                  final hasAnswer = selected.isNotEmpty;
+
+                  final selectedText = hasAnswer
+                      ? selected
+                      .map((key) => q['options'][key] ?? key.toUpperCase())
+                      .join(', ')
+                      : 'No answer';
 
                   return GestureDetector(
                     onTap: () {
@@ -97,32 +130,64 @@ class ReviewAnswersPage extends StatelessWidget {
                     child: Stack(
                       children: [
                         Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
                             color: Colors.white,
-                            border: Border.all(color: borderColor, width: 2),
+                            border: Border.all(
+                              color: hasAnswer ? Colors.green : Colors.redAccent,
+                              width: 1.5,
+                            ),
                             borderRadius: BorderRadius.circular(8),
                           ),
-                          child: Center(
-                            child: Text(
-                              '${index + 1}',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: borderColor,
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${index + 1}. ',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
                               ),
-                            ),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      q['question_text'] ??
+                                          q['text'] ??
+                                          'Untitled question',
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        color: Colors.black87,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Selected: $selectedText',
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: hasAnswer
+                                            ? Colors.green[700]
+                                            : Colors.redAccent,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-
-                        // 🏳 Flag overlay
                         if (isFlagged)
                           const Positioned(
-                            top: 4,
-                            right: 4,
+                            top: 6,
+                            right: 6,
                             child: Icon(
                               Icons.flag,
                               color: Colors.orangeAccent,
-                              size: 18,
+                              size: 20,
                             ),
                           ),
                       ],
@@ -131,13 +196,11 @@ class ReviewAnswersPage extends StatelessWidget {
                 },
               ),
             ),
-
-            const SizedBox(height: 10),
           ],
         ),
       ),
 
-      // 🟢 Bottom bar
+      // ✅ Bottom buttons
       bottomNavigationBar: SafeArea(
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -156,27 +219,37 @@ class ReviewAnswersPage extends StatelessWidget {
                 },
               ),
               ElevatedButton.icon(
-                icon: const Icon(Icons.check_circle_outline, color: Colors.white),
-                label: const Text(
-                  'Submit Exam',
-                  style: TextStyle(color: Colors.white),
+                icon: _isSubmitting
+                    ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+                    : const Icon(Icons.check_circle_outline, color: Colors.white),
+                label: Text(
+                  _isSubmitting ? 'Submitting...' : 'Submit Exam',
+                  style: const TextStyle(color: Colors.white),
                 ),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 32, vertical: 14),
+                  padding:
+                  const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: answered == 0 ? null : () => _confirmSubmission(context),
+                onPressed: (answered == 0 || _isSubmitting)
+                    ? null
+                    : () => _confirmSubmission(context),
               ),
             ],
           ),
         ),
       ),
 
-      // ⏱️ Footer timer
       persistentFooterButtons: [
         Center(
           child: Text(
@@ -188,7 +261,7 @@ class ReviewAnswersPage extends StatelessWidget {
     );
   }
 
-  // 🧾 Confirmation dialog before final submit
+  // 🧾 Confirm before final submit
   Future<void> _confirmSubmission(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -212,30 +285,100 @@ class ReviewAnswersPage extends StatelessWidget {
     );
 
     if (confirmed == true && context.mounted) {
+      setState(() => _isSubmitting = true); // lock immediately
       await _handleSubmit(context);
     }
   }
 
+  // 🟢 Submit handler with disable + dialog
   Future<void> _handleSubmit(BuildContext context) async {
+    setState(() => _isSubmitting = true);
+
     final controller = context.read<ExamController>();
     final sync = context.read<ExamSyncService>();
     final retry = context.read<RetryQueueService>();
 
-    await controller.submitNow(
-      onSubmit: (payload) => sync.submitPayload(payload),
+    // ✅ use the correct submit function name
+    final success = await controller.submitNow(
+      onSubmit: (payload) => sync.submitExam(payload),
       onEnqueue: (payload) => retry.enqueue(payload),
     );
 
-    if (controller.active?.submitted == true && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('✅ Exam submitted successfully!')),
+    if (!context.mounted) return;
+    setState(() => _isSubmitting = false);
+
+    if (success) {
+      // ✅ submitted successfully
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: const Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.green),
+              SizedBox(width: 8),
+              Text('Exam Submitted'),
+            ],
+          ),
+          content: const Text(
+            'Your exam was successfully submitted.\n\nTap "Go to Home" to return to the main page.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // close dialog
+                Future.delayed(const Duration(milliseconds: 100), () {
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                });
+              },
+              child: const Text(
+                'Go to Home',
+                style: TextStyle(
+                  color: Colors.green,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
       );
-      Navigator.pop(context, 'submitted');
-    } else if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('📡 Offline: submission queued for retry')),
+    } else {
+      // 🟠 queued offline
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: const Row(
+            children: [
+              Icon(Icons.wifi_off, color: Colors.orangeAccent),
+              SizedBox(width: 8),
+              Text('Offline Mode'),
+            ],
+          ),
+          content: const Text(
+            'You appear to be offline.\nYour submission has been queued and will retry automatically when you’re back online.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Future.delayed(const Duration(milliseconds: 100), () {
+                  Navigator.of(context).popUntil((route) => route.isFirst);
+                });
+              },
+              child: const Text(
+                'Go to Home',
+                style: TextStyle(
+                  color: Colors.orangeAccent,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
       );
-      Navigator.pop(context, 'submitted');
     }
   }
 
@@ -251,12 +394,14 @@ class ReviewAnswersPage extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text('$count',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: color,
-              )),
+          Text(
+            '$count',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
           const SizedBox(height: 4),
           Text(label,
               style: const TextStyle(fontSize: 14, color: Colors.black54)),

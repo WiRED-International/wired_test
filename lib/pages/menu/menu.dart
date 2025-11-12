@@ -321,14 +321,14 @@ class _MenuState extends State<Menu> {
                     );
                   }
                 }),
-                // _buildInkWellButton(context, 'Exams', scalingFactor, () {
-                //   Navigator.push(
-                //     context,
-                //     MaterialPageRoute(
-                //       builder: (context) => ExamStart(user: user),
-                //     ),
-                //   );
-                // }),
+                _buildInkWellButton(context, 'Exams', scalingFactor, () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ExamStart(user: user),
+                    ),
+                  );
+                }),
               ],
             ),
             SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 70)),
