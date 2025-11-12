@@ -32,19 +32,13 @@ class QuizScoreProvider with ChangeNotifier {
 
       if (response.statusCode == 200) {
         final jsonList = jsonDecode(response.body) as List<dynamic>;
-        debugPrint('📡 Raw quizScores response: ${response.body}');
 
         _quizScores = jsonList.map<Map<String, dynamic>>((item) {
           final module = item['module'] ?? {};
-
           final rawCreditType = module['credit_type'];
           final creditType = rawCreditType != null
               ? rawCreditType.toString().toLowerCase()
               : 'none';
-
-          debugPrint('🧩 Mapping quiz id=${item['id']} '
-              'module=${module['name']} '
-              'rawCreditType=$rawCreditType → stored=$creditType');
 
           return {
             'id': item['id'],
@@ -59,13 +53,10 @@ class QuizScoreProvider with ChangeNotifier {
           };
         }).toList();
 
-        await _storage.delete(key: 'quiz_scores');
-        await _storage.write(key: 'quiz_scores', value: jsonEncode(_quizScores));
-
-        debugPrint('📥 Loaded ${quizScores.length} quiz scores from backend');
-        for (final s in quizScores.take(10)) {
-          debugPrint('→ id=${s['id']} module_id=${s['module_id']} score=${s['score']}');
-        }
+        await _storage.write(
+            key: 'quiz_scores',
+            value: jsonEncode(_quizScores)
+        );
       } else {
         throw Exception('Failed to fetch quiz scores: ${response.statusCode}');
       }

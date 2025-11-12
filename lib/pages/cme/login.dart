@@ -33,6 +33,8 @@ class _LoginState extends State<Login> {
   final _passwordController = TextEditingController();
   bool _isLoggingIn = false;
 
+  final _storage = const FlutterSecureStorage();
+
   Future<bool> hasNetworkConnection() async {
     final connectivityResult = await Connectivity().checkConnectivity();
     if (connectivityResult == ConnectivityResult.none) {
@@ -42,14 +44,10 @@ class _LoginState extends State<Login> {
     return true;
   }
 
-  final _storage = const FlutterSecureStorage();
-
   Future<http.Response?> _submitForm() async {
     final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
-
     final apiEndpoint = '/auth/login';
-
-   print("Submitting form");
+    final url = Uri.parse("$apiBaseUrl$apiEndpoint");
 
     if (_formKey.currentState!.validate()) {
       // Validate the email and password fields
@@ -65,7 +63,6 @@ class _LoginState extends State<Login> {
       // Collect form data
       final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
-      final url = Uri.parse("$apiBaseUrl$apiEndpoint");
 
       try {
         final response = await http.post(
@@ -86,23 +83,24 @@ class _LoginState extends State<Login> {
           final userId = responseData['user']['id'];
 
           if (authToken is String && authToken.isNotEmpty && userId != null) {
-            try {
               await _storage.write(key: 'authToken', value: authToken);
               await _storage.write(key: 'user_id', value: userId.toString());
-              print("Auth token and user_id successfully saved!");
-            } catch (e) {
-              print('SecureStorage Error: $e');
-              if (mounted) _showErrorAlert("Failed to save login data securely.");
-              return null;
-            }
           }
 
           return response;
         } else {
-          if (mounted) _showErrorAlert("Unable to connect to the server. Please check your connection.");
+          if (mounted) {
+            _showErrorAlert(
+              "Unable to connect to the server. Please check your connection.",
+            );
+          }
         }
       } catch (error) {
-        if (mounted) _showErrorAlert("An unexpected error occurred. Please try again.");
+        if (mounted) {
+          _showErrorAlert(
+            "An unexpected error occurred. Please try again.",
+          );
+        }
       }
     }
     return null;
@@ -149,17 +147,13 @@ class _LoginState extends State<Login> {
         final quizProvider = Provider.of<QuizScoreProvider>(context, listen: false);
         await quizProvider.fetchQuizScores();
 
-        debugPrint('User Data: '
-            'firstName=${user['firstName']}, '
-            'lastName=${user['lastName']}, '
-            'email=${user['email']}, '
-            'dateJoined=${user['createdAt']}');
-
-        // Navigate to CMETracker screen
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => CreditsTracker()),
-        );
+        // Navigate to credits tracker
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => CreditsTracker()),
+          );
+        }
       }
     }
 
@@ -352,7 +346,7 @@ class _LoginState extends State<Login> {
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: <Widget>[
               Text(
-                "Start Tracking your CME Credits",
+                "Start Tracking your Credits",
                 style: TextStyle(
                   fontSize: scalingFactor * (isTablet(context) ? 24 : 32),
                   fontWeight: FontWeight.w500,

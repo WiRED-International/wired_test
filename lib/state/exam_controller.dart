@@ -86,14 +86,31 @@ class ExamController extends ChangeNotifier {
       _remainingSeconds = durationSeconds;
 
       // ✅ Persist timer metadata in Hive
-      await _examBox.put('exam_start_time', DateTime.now().toIso8601String());
-      await _examBox.put('exam_duration', durationMinutes);
-      await _examBox.put('exam_id', examId);
-      await _examBox.put('user_id', userId);
-      await _examBox.put('session_id', sessionId);
-      await _examBox.put('current_index', 0);
-      await _examBox.put('cached_questions',
-          questions.map((q) => Map<String, dynamic>.from(q)).toList());
+      try {
+        debugPrint('🧠 Caching ${questions.length} questions for exam $examId...');
+        await _examBox.putAll({
+          'exam_start_time': DateTime.now().toIso8601String(),
+          'exam_duration': durationMinutes,
+          'exam_id': examId,
+          'user_id': userId,
+          'session_id': sessionId,
+          'current_index': 0,
+          'cached_questions': questions.map((q) {
+            final safeMap = Map<String, dynamic>.from(q);
+            // ensure options are Map<String, dynamic>
+            if (safeMap['options'] is! Map && safeMap['options'] != null) {
+              safeMap['options'] =
+              Map<String, dynamic>.from(safeMap['options'] ?? {});
+            }
+            return safeMap;
+          }).toList(),
+        });
+        await logExamBoxContents('after startExam');
+        debugPrint('✅ [ExamController] Cached questions successfully to Hive');
+      } catch (e, st) {
+        debugPrint('❌ [ExamController] Failed to cache questions: $e');
+        debugPrint(st.toString());
+      }
 
       _startTimer();
       notifyListeners();
@@ -134,67 +151,98 @@ class ExamController extends ChangeNotifier {
 
   // ⏱️ Restore timer and state if app reopened mid-exam
   Future<void> restoreExamIfExists() async {
-    final startTimeStr = _examBox.get('exam_start_time');
-    final duration = _examBox.get('exam_duration');
-    final examId = _examBox.get('exam_id');
-    final userId = _examBox.get('user_id');
-    final attemptId = _examBox.get('attempt_id');
-    final savedAnswers = _examBox.get('saved_answers');
-    final savedIndex = _examBox.get('current_index');
-    final remainingSeconds = _examBox.get('remaining_seconds');
-    final isPaused = _examBox.get('is_paused') ?? false;
+    try {
+      debugPrint('🕵️ [ExamController] Checking for saved exam...');
 
-    final isReviewed = _examBox.get('is_reviewed') ?? false;
-    restoreFlags();
-    if (startTimeStr == null || duration == null || examId == null) {
-      debugPrint('⚠️ [ExamController] No saved exam found.');
-      return;
-    }
+      final startTimeStr = _examBox.get('exam_start_time') as String?;
+      final duration = _examBox.get('exam_duration') as int?;
+      final examId = _examBox.get('exam_id') as int?;
+      final userId = _examBox.get('user_id') as int?;
+      final rawAttemptId = _examBox.get('attempt_id') ?? _examBox.get('session_id');
+      final savedAnswers = _examBox.get('saved_answers');
+      final savedIndex = _examBox.get('current_index') as int?;
+      final remainingSeconds = _examBox.get('remaining_seconds') as int?;
+      final isPaused = _examBox.get('is_paused') as bool? ?? false;
+      final isReviewed = _examBox.get('is_reviewed') as bool? ?? false;
 
-    // Restore or create active attempt
-    final attempt = _attempts.get(attemptId) ??
-        ExamAttempt(
-          attemptId: attemptId?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      // restore flagged question state
+      restoreFlags();
+
+      // 🔹 If we don't even have core metadata, nothing to restore
+      if (startTimeStr == null || duration == null || examId == null) {
+        debugPrint('⚠️ [ExamController] No saved exam metadata found.');
+        return;
+      }
+
+      // 🔹 No attempt/session id → don't touch Hive attempts (prevents Null key crash)
+      if (rawAttemptId == null) {
+        debugPrint('⚠️ [ExamController] No attempt_id/session_id found. Skipping restore.');
+        return;
+      }
+
+      final attemptId = rawAttemptId.toString();
+
+      // 🔍 Try to load existing attempt from Hive
+      var attempt = _attempts.get(attemptId);
+
+      // If missing, rebuild a minimal attempt from stored metadata
+      if (attempt == null) {
+        debugPrint('ℹ️ [ExamController] No attempt in box for $attemptId, reconstructing from cache.');
+        attempt = ExamAttempt(
+          attemptId: attemptId,
           examId: examId,
           userId: userId ?? 0,
-          startedAt: DateTime.parse(startTimeStr),
+          startedAt: DateTime.tryParse(startTimeStr) ?? DateTime.now(),
           durationSeconds: duration * 60,
           answers: [],
           submitted: false,
         );
+        await _attempts.put(attemptId, attempt);
+      }
 
-    // Restore answers
-    if (savedAnswers is List && savedAnswers.isNotEmpty) {
-      attempt.answers = savedAnswers.map((a) {
-        return AnswerRecord(
-          questionId: a['question_id'],
-          selectedOptionId: a['selected_option'],
-          updatedAt:
-          DateTime.tryParse(a['updated_at'] ?? '') ?? DateTime.now(),
-        );
-      }).toList();
+      // ✅ Restore answers if present
+      if (savedAnswers is List && savedAnswers.isNotEmpty) {
+        attempt.answers = savedAnswers.map<AnswerRecord>((a) {
+          return AnswerRecord(
+            questionId: a['question_id'] as int,
+            // keep this in sync with your model shape
+            selectedOptionId: a['selected_option'] as String? ?? '',
+            selectedOptionIds: (a['selected_options'] as List?)?.cast<String>() ?? [],
+            updatedAt: DateTime.tryParse(a['updated_at'] ?? '') ?? DateTime.now(),
+          );
+        }).toList();
+      }
+
+      // ✅ Restore review flag
+      attempt.isReviewed = isReviewed;
+
+      // ✅ Apply to controller state
+      _active = attempt;
+      _remainingSeconds = remainingSeconds ?? (duration * 60);
+      _isPaused = isPaused;
+
+      // Keep index if we had one
+      if (savedIndex != null) {
+        await _examBox.put('current_index', savedIndex);
+      }
+
+      // Restart timer if appropriate
+      if (!_isPaused && _remainingSeconds > 0) {
+        _startTimer();
+      }
+
+      notifyListeners();
+
+      debugPrint(
+        '✅ [ExamController] Restored attempt=$attemptId | exam=$examId | '
+            'qIndex=${savedIndex ?? 0} | remaining=${_remainingSeconds}s',
+      );
+    } catch (e, st) {
+      debugPrint('❌ [ExamController] Error restoring exam: $e');
+      debugPrint(st.toString());
+      // Optional: if things look corrupt often, you can clear:
+      // await clearExamPersistence();
     }
-
-    // ✅ Restore review flag
-    attempt.isReviewed = isReviewed;
-
-    _active = attempt;
-    _remainingSeconds = remainingSeconds ?? (duration * 60);
-    _isPaused = isPaused;
-
-    // Re-save to Hive if missing
-    await _attempts.put(_active!.attemptId, _active!);
-    await _examBox.put('current_index', savedIndex);
-
-    if (!_isPaused && _remainingSeconds > 0) {
-      _startTimer();
-    }
-
-    restoreFlags();
-
-    notifyListeners();
-
-    debugPrint('✅ [ExamController] Exam restored | Q$savedIndex | $_remainingSeconds s left');
   }
 
   // ✅ Timer logic
@@ -241,13 +289,12 @@ class ExamController extends ChangeNotifier {
     if (_active == null) return;
 
     // Store answers snapshot
-    final cachedAnswers = _active!.answers
-        .map((a) => {
+    final cachedAnswers = _active!.answers.map((a) => {
       'question_id': a.questionId,
       'selected_option': a.selectedOptionId,
+      'selected_options': a.selectedOptionIds,
       'updated_at': a.updatedAt.toIso8601String(),
-    })
-        .toList();
+    }).toList();
 
     await _examBox.putAll({
       'exam_id': _active!.examId,
@@ -265,37 +312,62 @@ class ExamController extends ChangeNotifier {
 
   int getCurrentQuestionIndex() => _examBox.get('current_index', defaultValue: 0);
 
-  // ✅ Select / update answer
-  void selectAnswer(int questionId, String selectedOptionId) async {
-    if (_active == null) return;
+  // Single-choice answer (existing)
+  void selectAnswer(int questionId, String optionId) {
+    final activeAttempt = _active;
+    if (activeAttempt == null) return;
 
-    final existingIndex = _active!.answers.indexWhere((a) => a.questionId == questionId);
+    final existing = activeAttempt.answers.firstWhere(
+          (a) => a.questionId == questionId,
+      orElse: () => AnswerRecord(
+        questionId: questionId,
+        selectedOptionId: null,
+        selectedOptionIds: [],
+        updatedAt: DateTime.now(),
+      ),
+    );
 
-    if (existingIndex != -1) {
-      _active!.answers[existingIndex].selectedOptionId = selectedOptionId;
-      _active!.answers[existingIndex].updatedAt = DateTime.now();
-    } else {
-      _active!.answers.add(
-        AnswerRecord(
-          questionId: questionId,
-          selectedOptionId: selectedOptionId,
-          updatedAt: DateTime.now(),
-        ),
-      );
+    existing
+      ..selectedOptionId = optionId
+      ..selectedOptionIds = [optionId]
+      ..updatedAt = DateTime.now();
+
+    debugPrint('🟢 selectAnswer → Q$questionId = ${existing.selectedOptionIds}');
+    // replace or add
+    if (!activeAttempt.answers.contains(existing)) {
+      activeAttempt.answers.add(existing);
     }
 
-    await _active!.save();
+    activeAttempt.save();
+    notifyListeners();
+  }
 
-    // 🧠 Persist answers in Hive for recovery
-    final cachedAnswers = _active!.answers
-        .map((a) => {
-      'question_id': a.questionId,
-      'selected_option': a.selectedOptionId,
-      'updated_at': a.updatedAt.toIso8601String(),
-    })
-        .toList();
-    await _examBox.put('saved_answers', cachedAnswers);
+  // Multiple-choice support
+  void selectMultipleAnswers(int questionId, List<String> selectedIds) {
+    final activeAttempt = _active;
+    if (activeAttempt == null) return;
 
+    final existing = activeAttempt.answers.firstWhere(
+          (a) => a.questionId == questionId,
+      orElse: () => AnswerRecord(
+        questionId: questionId,
+        selectedOptionId: null,
+        selectedOptionIds: [],
+        updatedAt: DateTime.now(),
+      ),
+    );
+
+    existing
+      ..selectedOptionIds = List<String>.from(selectedIds)
+      ..selectedOptionId = selectedIds.isNotEmpty ? selectedIds.first : null
+      ..updatedAt = DateTime.now();
+
+    debugPrint('🟢 selectMultipleAnswers → Q$questionId = ${existing.selectedOptionIds}');
+    if (!activeAttempt.answers.contains(existing)) {
+      activeAttempt.answers.add(existing);
+    }
+
+    activeAttempt.save();
     notifyListeners();
   }
 
@@ -318,28 +390,59 @@ class ExamController extends ChangeNotifier {
   Future<Map<String, dynamic>?> buildSubmissionPayload() async {
     if (_active == null) return null;
 
+    // Build clean answers array from current attempt state
+    final answerList = _active!.answers
+        .map((a) {
+      final hasMulti = a.selectedOptionIds != null && a.selectedOptionIds!.isNotEmpty;
+      final hasSingle = a.selectedOptionId != null && a.selectedOptionId!.isNotEmpty;
+
+      // Derive final array of selected ids
+      final List<String> selectedIds = hasMulti
+          ? List<String>.from(a.selectedOptionIds!)
+          : hasSingle
+          ? [a.selectedOptionId!]
+          : <String>[];
+
+      // Skip if no selection at all
+      if (selectedIds.isEmpty) return null;
+
+      return {
+        'question_id': a.questionId,
+        'selected_option_ids': selectedIds,              // ✅ canonical
+        'selected_option': selectedIds.first,            // ✅ optional (for debug/legacy)
+        'updated_at': a.updatedAt.toIso8601String(),
+      };
+    })
+        .whereType<Map<String, dynamic>>() // remove nulls
+        .toList();
+
+    if (answerList.isEmpty) {
+      debugPrint('⚠️ [buildSubmissionPayload] No answers selected.');
+      return null;
+    }
+
     final payload = {
       'attempt_id': _active!.attemptId,
       'exam_id': _active!.examId,
       'user_id': _active!.userId,
       'started_at': _active!.startedAt.toIso8601String(),
       'submitted_at': DateTime.now().toIso8601String(),
-      'answers': _active!.answers.map((a) => {
-        'question_id': a.questionId,
-        'selected_option': a.selectedOptionId,
-        'updated_at': a.updatedAt.toIso8601String(),
-      }).toList(),
+      'answers': answerList,
       'client_meta': {
         'app_version': '2.0.0',
         'device': 'android',
       }
     };
 
+    // 🔍 Debug: log exactly what we send
+    debugPrint('🔍 [buildSubmissionPayload] Payload:\n$payload');
+
     final errors = validateSubmission(payload);
     if (errors.isNotEmpty) {
-      debugPrint('Validation errors: $errors');
+      debugPrint('⚠️ [buildSubmissionPayload] Validation errors: $errors');
       return null;
     }
+
     return payload;
   }
 

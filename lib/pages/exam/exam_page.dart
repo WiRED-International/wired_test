@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:wired_test/pages/exam/review_answers_page.dart';
 import '../../models/exam_models.dart';
-import '../../services/exam_sync_service.dart';
-import '../../services/retry_queue_service.dart';
 import '../../state/exam_controller.dart';
+import '../../utils/time_utils.dart';
 
 class ExamPage extends StatefulWidget {
   final int examId;
@@ -31,6 +30,27 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
   bool _cameBackFromReview = false;
   bool _readyToSubmit = false;
 
+  // Track scroll state per question index
+  final Map<int, bool> _isListScrollable = {};
+  final Map<int, bool> _listAtBottom = {};
+  final Map<int, ScrollController> _scrollControllers = {};
+
+  void _ensureScrollHintVisible(int index) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final ctrl = _scrollControllers[index];
+      if (ctrl != null && ctrl.hasClients) {
+        final maxExtent = ctrl.position.maxScrollExtent;
+        if (maxExtent > 0) {
+          setState(() {
+            _isListScrollable[index] = true;
+            _listAtBottom[index] = false; // show hint right away
+          });
+        }
+      }
+    });
+  }
+
+
   @override
   void initState() {
     super.initState();
@@ -46,22 +66,57 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
       debugPrint('🧩 [ExamPage] Checking for saved exam...');
       await controller.restoreExamIfExists();
 
-      // Always ensure timer runs again after restore
+      // Resume timer after restore
       controller.resumeTimer();
 
-      // Always load questions from backend/sessionData
+      // Load questions (cached or new)
       await _loadQuestions();
 
-      // After load, sync index and UI
+      // If no questions loaded, bail safely
+      if (_questions.isEmpty) {
+        debugPrint('⚠️ [ExamPage] No questions found, skipping page jump.');
+        setState(() {
+          _loading = false;
+          _error = true;
+        });
+        return;
+      }
+
+      // After load, sync index
       final savedIndex = controller.getCurrentQuestionIndex();
+
+      // 🧩 Ensure scroll-hint state is initialized or reset properly
+      for (int i = 0; i < _questions.length; i++) {
+        // keep structure consistent
+        _isListScrollable[i] = _isListScrollable[i] ?? false;
+
+        // ✅ reset the “at bottom” flag only for the current question
+        if (i == savedIndex) {
+          _listAtBottom[i] = false;
+        } else {
+          // preserve others if you want them remembered, or reset all to false
+          _listAtBottom[i] = _listAtBottom[i] ?? false;
+        }
+      }
+
       setState(() {
         _currentIndex = savedIndex;
         _loading = false;
+        _error = false;
       });
 
+      // ✅ Delay jump until PageView is attached
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _pageController.jumpToPage(savedIndex);
-        debugPrint('⏩ [ExamPage] Jumped to saved question index $savedIndex');
+        if (_pageController.hasClients &&
+            savedIndex >= 0 &&
+            savedIndex < _questions.length) {
+          _pageController.jumpToPage(savedIndex);
+          debugPrint('⏩ [ExamPage] Jumped to saved question index $savedIndex');
+
+          _ensureScrollHintVisible(savedIndex);
+        } else {
+          debugPrint('⚠️ [ExamPage] Skipped jumpToPage — controller not attached or index=0');
+        }
       });
     } catch (e, st) {
       debugPrint('❌ [ExamPage] Error initializing exam: $e');
@@ -74,7 +129,11 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
-    // Don't access context here — rely on lifecycle saves instead
+
+    // Dispose all scroll controllers safely
+    for (final ctrl in _scrollControllers.values) {
+      ctrl.dispose();
+    }
     super.dispose();
   }
 
@@ -90,6 +149,14 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
       controller.saveProgress(_currentIndex);
     } else if (state == AppLifecycleState.resumed) {
       controller.resumeTimer();
+
+      // ✅ Safely reset scroll hint only for the current visible question
+      if (_isListScrollable[_currentIndex] == true) {
+        _listAtBottom[_currentIndex] = false;
+        // Rebuild only if mounted (avoid setState on disposed widget)
+        if (mounted) setState(() {});
+        debugPrint('🔁 [ExamPage] Scroll hint reset for question $_currentIndex');
+      }
     }
   }
 
@@ -128,9 +195,12 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
       // ✅ Use cached questions on resume (don’t create a new attempt)
       questions = controller.getCachedQuestions();
       if (questions == null || questions.isEmpty) {
-        // Fallback: if no cache (first time implementing), do a safe fetch-only call
-        // If you don’t have a separate “fetchQuestions” API, keep this as null and show error.
-        debugPrint('⚠️ No cached questions found during resume.');
+        debugPrint('⚠️ No cached questions found during resume — refetching from backend...');
+        questions = await controller.startExam(
+          examId: widget.examId,
+          userId: widget.userId,
+          sessionData: widget.sessionData,
+        );
       }
     } else {
       // ✅ Fresh start → start session and cache questions
@@ -169,7 +239,7 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final controller = context.watch<ExamController>();
     final remaining = controller.remainingSeconds;
-    final timeText = _formatTime(remaining);
+    final timeText = formatTime(remaining);
 
     if (_loading) {
       return const Scaffold(
@@ -203,7 +273,7 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
         backgroundColor: const Color(0xFFFFF7EB),
         appBar: AppBar(
           automaticallyImplyLeading: false,
-          title: Text('Time Left: ${_formatTime(context.watch<ExamController>().remainingSeconds)}'),
+          title: Text('Time Left: ${formatTime(context.watch<ExamController>().remainingSeconds)}'),
           centerTitle: true,
           backgroundColor: const Color(0xFF0070C0),
         ),
@@ -215,6 +285,7 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
             // keeps UI index and Hive in sync
             setState(() => _currentIndex = i);
             context.read<ExamController>().saveProgress(i);
+            _ensureScrollHintVisible(i);
           },
           itemBuilder: (context, index) {
             final q = _questions[index];
@@ -234,26 +305,37 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
       ) {
     final questionText = q['question_text'] ?? q['text'] ?? 'No question text';
     final optionsData = q['options'];
+    final isMultiple = q['question_type'] == 'multiple';
     List<dynamic> options = [];
 
-    // Handle both Map and List formats for options
+    // Handle both Map and List formats
     if (optionsData is Map<String, dynamic>) {
-      options = optionsData.entries.map((e) => {'key': e.key, 'value': e.value}).toList();
+      options = optionsData.entries
+          .map((e) => {'key': e.key, 'value': e.value})
+          .toList();
     } else if (optionsData is List) {
-      options = optionsData.asMap().entries.map((e) => {'key': '${e.key}', 'value': e.value}).toList();
+      options = optionsData.asMap().entries
+          .map((e) => {'key': '${e.key}', 'value': e.value})
+          .toList();
     }
 
     final totalQuestions = _questions.length;
-    final selectedOption = controller.active?.answers
-        .firstWhere(
+
+    final answerRecord = controller.active?.answers.firstWhere(
           (a) => a.questionId == q['id'],
       orElse: () => AnswerRecord(
         questionId: q['id'],
-        selectedOptionId: null,
+        selectedOptionIds: [],
         updatedAt: DateTime.now(),
       ),
-    )
-        .selectedOptionId;
+    );
+
+    final selectedOptions = (answerRecord?.selectedOptionIds ?? []).cast<String>();
+
+    // Ensure keys exist
+    _isListScrollable[index] = _isListScrollable[index] ?? false;
+    _listAtBottom[index] = _listAtBottom[index] ?? false;
+    _scrollControllers[index] ??= ScrollController();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF9FAFB),
@@ -261,7 +343,7 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // 📘 Header
+            // 📘 Header (kept)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
@@ -269,17 +351,14 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                 children: [
                   const Text(
                     'Practice Exam',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
                   ),
                   Row(
                     children: [
                       const Icon(Icons.access_time, color: Color(0xFF22C55E)),
                       const SizedBox(width: 6),
                       Text(
-                        "${_formatTime(controller.remainingSeconds)}  ${index + 1}/$totalQuestions",
+                        "${formatTime(controller.remainingSeconds)}  ${index + 1}/$totalQuestions",
                         style: const TextStyle(fontSize: 16, color: Colors.black54),
                       ),
                     ],
@@ -288,7 +367,7 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
               ),
             ),
 
-            // 🔘 Progress bar
+            // 🔘 Progress bar (kept)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: ClipRRect(
@@ -302,9 +381,9 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
               ),
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
 
-            // Question info
+            // Row with "Question x of y" + Flag (kept)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
@@ -327,9 +406,7 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                           ? Colors.orange
                           : Colors.grey,
                     ),
-                    onPressed: () {
-                      controller.toggleFlag(q['id']);
-                    },
+                    onPressed: () => controller.toggleFlag(q['id']),
                     tooltip: controller.isFlagged(q['id'])
                         ? 'Unflag this question'
                         : 'Flag for review',
@@ -337,6 +414,8 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                 ],
               ),
             ),
+
+            // Question text (kept)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
               child: Text(
@@ -349,63 +428,158 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
               ),
             ),
 
-            // 🧩 Answer options
+            // 🧩 Answer options with scroll hint + fade (new)
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: options.length,
-                itemBuilder: (context, i) {
-                  final opt = options[i];
-                  final isSelected = selectedOption == opt['key'];
+              child: Stack(
+                children: [
+                  NotificationListener<ScrollNotification>(
+                    onNotification: (sn) {
+                      final max = sn.metrics.maxScrollExtent;
+                      final pixels = sn.metrics.pixels;
 
-                  return GestureDetector(
-                    onTap: () {
-                      controller.selectAnswer(q['id'], opt['key']);
-                      setState(() {});
+                      final scrollable = max > 0;
+                      final atBottom = pixels >= max - 10;
+
+                      if (_isListScrollable[index] != scrollable ||
+                          _listAtBottom[index] != atBottom) {
+                        setState(() {
+                          _isListScrollable[index] = scrollable;
+                          _listAtBottom[index] = atBottom;
+                        });
+                      }
+                      return false;
                     },
-                    child: Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                      decoration: BoxDecoration(
-                        color: isSelected ? const Color(0xFFE6F4EA) : Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isSelected
-                              ? const Color(0xFF22C55E)
-                              : Colors.grey.shade300,
-                          width: 1.8,
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            isSelected
-                                ? Icons.radio_button_checked
-                                : Icons.radio_button_off,
-                            color: isSelected
-                                ? const Color(0xFF22C55E)
-                                : Colors.grey,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              opt['value'].toString(),
-                              style: TextStyle(
-                                fontSize: 17,
+                    child: ListView.builder(
+                      controller: _scrollControllers[index],
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      itemCount: options.length,
+                      itemBuilder: (context, i) {
+                        final opt = options[i];
+                        final isSelected = selectedOptions.contains(opt['key']);
+
+                        return GestureDetector(
+                          onTap: () {
+                            if (isMultiple) {
+                              if (selectedOptions.contains(opt['key'])) {
+                                selectedOptions.remove(opt['key']);
+                              } else {
+                                selectedOptions.add(opt['key']);
+                              }
+                              controller.selectMultipleAnswers(
+                                q['id'],
+                                List<String>.from(selectedOptions),
+                              );
+                            } else {
+                              controller.selectAnswer(q['id'], opt['key']);
+                            }
+                            setState(() {});
+                          },
+                          child: Container(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 16, horizontal: 16),
+                            decoration: BoxDecoration(
+                              color: isSelected
+                                  ? const Color(0xFFE6F4EA)
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
                                 color: isSelected
                                     ? const Color(0xFF22C55E)
-                                    : Colors.black87,
-                                fontWeight: isSelected
-                                    ? FontWeight.w600
-                                    : FontWeight.normal,
+                                    : Colors.grey.shade300,
+                                width: 1.8,
                               ),
                             ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  isMultiple
+                                      ? (isSelected
+                                      ? Icons.check_box
+                                      : Icons.check_box_outline_blank)
+                                      : (isSelected
+                                      ? Icons.radio_button_checked
+                                      : Icons.radio_button_off),
+                                  color: isSelected
+                                      ? const Color(0xFF22C55E)
+                                      : Colors.grey,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    opt['value'].toString(),
+                                    style: TextStyle(
+                                      fontSize: 17,
+                                      color: isSelected
+                                          ? const Color(0xFF22C55E)
+                                          : Colors.black87,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
-                        ],
+                        );
+                      },
+                    ),
+                  ),
+
+                  // ✨ Fading overlay with "Scroll for more" (new)
+                  if ((_isListScrollable[index] ?? false) && !(_listAtBottom[index] ?? false))
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: IgnorePointer(
+                        child: AnimatedOpacity(
+                          opacity: 1.0,
+                          duration: const Duration(milliseconds: 400),
+                          child: LayoutBuilder(
+                            builder: (context, constraints) {
+                              // Calculate horizontal shift dynamically — about 25% of screen width
+                              final double horizontalShift = constraints.maxWidth * 0.35;
+
+                              return Transform.translate(
+                                offset: Offset(horizontalShift, 0), // ✅ pushes it slightly right
+                                child: Container(
+                                  height: 60,
+                                  decoration: const BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Colors.transparent,
+                                        Color(0xFFF9FAFB), // match your background color
+                                      ],
+                                    ),
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: const [
+                                      Icon(
+                                        Icons.keyboard_arrow_down_rounded,
+                                        color: Color(0xFF515151),
+                                        size: 18,
+                                      ),
+                                      Text(
+                                        'Scroll for more',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Color(0xFF515151),
+                                        ),
+                                      ),
+                                      SizedBox(height: 8),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
                       ),
                     ),
-                  );
-                },
+                ],
               ),
             ),
 
@@ -462,6 +636,48 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                         padding: const EdgeInsets.symmetric(vertical: 14),
                       ),
                       onPressed: () async {
+                        // 🟣 NEW: Allow user to reopen ReviewAnswersPage once they’ve reached it
+                        if (_cameBackFromReview && !_readyToSubmit) {
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ReviewAnswersPage(questions: _questions),
+                            ),
+                          );
+
+                          // 🔁 Handle returned result
+                          if (result == 'submitted') {
+                            setState(() {
+                              _readyToSubmit = true;
+                              _cameBackFromReview = false;
+                            });
+                            return;
+                          }
+
+                          if (result is int && result >= 0 && result < _questions.length) {
+                            setState(() {
+                              _currentIndex = result;
+                              _cameBackFromReview = true;
+
+                              // Reset scroll hint for the returned question
+                              if (_isListScrollable[result] == true) {
+                                _listAtBottom[result] = false;
+                              }
+                            });
+                            _pageController.jumpToPage(result);
+                            return;
+                          }
+
+                          if (result == 'back_to_questions') {
+                            // Re-show scroll hint for the current question when returning
+                            if (_isListScrollable[_currentIndex] == true) {
+                              _listAtBottom[_currentIndex] = false;
+                              setState(() {});
+                            }
+                            return;
+                          }
+                        }
+
                         final nextIndex = _currentIndex + 1;
                         controller.saveProgress(nextIndex);
 
@@ -493,84 +709,79 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                               _cameBackFromReview = true;
                               _readyToSubmit = false;
                             });
+                            return;
                           }
 
                           // 🟣 Case 2: User submitted exam from review page
-                          else if (result == 'submitted') {
+                          if (result == 'submitted') {
                             setState(() {
                               _readyToSubmit = true;
                               _cameBackFromReview = false;
                             });
+                            return;
                           }
 
-                          return; // stop further execution
-                        }
+                          // 🟠 Case 3: User tapped on a question card → jump directly to it
+                          if (result is int && result >= 0 && result < _questions.length) {
+                            setState(() {
+                              _cameBackFromReview = true;
+                              _readyToSubmit = false;
+                              _currentIndex = result;
+                            });
+
+                            // ✨ Smooth transition animation
+                            await _pageController.animateToPage(
+                              result,
+                              duration: const Duration(milliseconds: 500),
+                              curve: Curves.easeInOut,
+                            );
+                            return;
+                          }
+                        } // ✅ properly closes the ReviewAnswersPage block here
 
                         // 🔵 CASE 3: User ready to submit (final)
                         if (_readyToSubmit) {
-                          final ok = await controller.submitNow(
-                            onSubmit: (payload) async {
-                              final sync = context.read<ExamSyncService>();
-                              return await sync.submitExam(payload);
-                            },
-                            onEnqueue: (payload) async {
-                              final retry = context.read<RetryQueueService>();
-                              await retry.enqueueExamSubmission(payload);
-                            },
+                          // Navigate to review page again so the user can confirm submission there
+                          final result = await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ReviewAnswersPage(questions: _questions),
+                            ),
                           );
 
-                          debugPrint('🟣 [ExamPage] submitNow() returned: $ok');
-
-                          if (!context.mounted) return;
-
-                          if (ok) {
-                            // ✅ Show simple alert dialog
-                            await showDialog(
-                              context: context,
-                              barrierDismissible: false,
-                              builder: (context) => AlertDialog(
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                title: const Row(
-                                  children: [
-                                    Icon(Icons.check_circle, color: Colors.green),
-                                    SizedBox(width: 8),
-                                    Text('Exam Completed'),
-                                  ],
-                                ),
-                                content: const Text(
-                                  'Your exam was submitted successfully.\n\nTap Close to return to the Home page.',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () {
-                                      Navigator.of(context).pop(); // Close dialog
-                                      Navigator.of(context).popUntil((route) => route.isFirst); // Go home
-                                    },
-                                    child: const Text('Close'),
-                                  ),
-                                ],
-                              ),
-                            );
-                          } else {
-                            // 🟡 Fallback if submission failed (offline mode)
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('📡 You are offline. Submission queued for retry.'),
-                                duration: Duration(seconds: 3),
-                              ),
-                            );
-                            Navigator.of(context).popUntil((route) => route.isFirst);
+                          // Handle result returned from review
+                          if (result == 'submitted') {
+                            // Exam was submitted successfully → go home (review page handles alerts)
+                            Future.delayed(const Duration(milliseconds: 100), () {
+                              Navigator.of(context).popUntil((route) => route.isFirst);
+                            });
+                          } else if (result == 'back_to_questions') {
+                            setState(() {
+                              _cameBackFromReview = true;
+                              _readyToSubmit = false;
+                            });
+                          } else if (result is int && result >= 0 && result < _questions.length) {
+                            setState(() {
+                              _currentIndex = result;
+                              _cameBackFromReview = true;
+                              _readyToSubmit = false;
+                            });
+                            _pageController.jumpToPage(result);
                           }
+
+                          return;
                         }
                       },
 
                       // 🧠 Button text logic
                       child: Text(
-                        _currentIndex < _questions.length - 1
-                            ? 'Next Question'
-                            : _readyToSubmit
-                            ? 'Submit Exam'
-                            : 'Review Answers',
+                        _cameBackFromReview
+                            ? 'Review Answers' // After first visit to review page
+                            : _currentIndex < _questions.length - 1
+                              ? 'Next Question'
+                              : _readyToSubmit
+                                ? 'Submit Exam'
+                                : 'Review Answers',
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -586,11 +797,5 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
         ),
       ),
     );
-  }
-
-  String _formatTime(int seconds) {
-    final m = (seconds ~/ 60).toString().padLeft(2, '0');
-    final s = (seconds % 60).toString().padLeft(2, '0');
-    return "$m:$s";
   }
 }

@@ -9,7 +9,6 @@ const List<String> basicTrainingTitles = [
   'Vector-borne Diseases',
   'Waterborne Diseases',
   'Food-borne Diseases',
-  'CME Basic Training',
   'Emerging Infectious Diseases',
   'Understanding Non-Communicable Diseases',
   'Health Promotion and Disease Prevention',

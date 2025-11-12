@@ -50,14 +50,7 @@ Future<void> main() async {
   final retryBox = await Hive.openBox<PendingSubmission>('retry_queue');
   final examBox = await Hive.openBox('examBox');
 
-  // // 🧹 TEMP FIX: clear corrupted quiz_scores from FlutterSecureStorage
-  // // ----------------------------------------------------------
-  // final secureStorage = const FlutterSecureStorage();
-  // await secureStorage.delete(key: "pending_quiz_scores");
-  // debugPrint('🧹 Cleared malformed quiz_scores key from secure storage');
-  // // ----------------------------------------------------------
-
-  // Initialize AuthProvider before runApp
+  // Load stored auth data
   final authProvider = AuthProvider();
   await authProvider.loadStoredAuthData();
   runApp(

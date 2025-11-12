@@ -80,19 +80,22 @@ class AnswerRecordAdapter extends TypeAdapter<AnswerRecord> {
     return AnswerRecord(
       questionId: fields[0] as int,
       selectedOptionId: fields[1] as String?,
-      updatedAt: fields[2] as DateTime,
+      selectedOptionIds: (fields[2] as List?)?.cast<String>(),
+      updatedAt: fields[3] as DateTime,
     );
   }
 
   @override
   void write(BinaryWriter writer, AnswerRecord obj) {
     writer
-      ..writeByte(3)
+      ..writeByte(4)
       ..writeByte(0)
       ..write(obj.questionId)
       ..writeByte(1)
       ..write(obj.selectedOptionId)
       ..writeByte(2)
+      ..write(obj.selectedOptionIds)
+      ..writeByte(3)
       ..write(obj.updatedAt);
   }
 
