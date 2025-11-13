@@ -35,6 +35,37 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
   final Map<int, bool> _listAtBottom = {};
   final Map<int, ScrollController> _scrollControllers = {};
 
+  // Determine if device is tablet-sized
+  bool get isTablet {
+    final shortestSide = MediaQuery.of(context).size.shortestSide;
+    return shortestSide >= 600; // standard Flutter rule of thumb
+  }
+
+// Hybrid font scaling: adjusts gently for small phones + tablets
+  double scaleFont(double baseSize) {
+    final size = MediaQuery.of(context).size;
+    final shortest = size.shortestSide;
+
+    // Avoid extremely tiny screens (e.g., 4.7" phones)
+    if (shortest < 360) {
+      return baseSize * 0.85;
+    }
+
+    // Tablets get slightly larger text
+    if (isTablet) {
+      return baseSize * 1.15;
+    }
+
+    // Normal phones: mild inflation
+    return baseSize * 0.98;
+  }
+
+// Hybrid horizontal spacing
+  double get hPad {
+    final width = MediaQuery.of(context).size.width;
+    return width * 0.04; // 4% of screen width = compact & responsive
+  }
+
   void _ensureScrollHintVisible(int index) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ctrl = _scrollControllers[index];
@@ -199,7 +230,6 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
         questions = await controller.startExam(
           examId: widget.examId,
           userId: widget.userId,
-          sessionData: widget.sessionData,
         );
       }
     } else {
@@ -207,7 +237,6 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
       questions = await controller.startExam(
         examId: widget.examId,
         userId: widget.userId,
-        sessionData: widget.sessionData,
       );
     }
 
@@ -271,12 +300,48 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
         },
         child: Scaffold(
         backgroundColor: const Color(0xFFFFF7EB),
-        appBar: AppBar(
-          automaticallyImplyLeading: false,
-          title: Text('Time Left: ${formatTime(context.watch<ExamController>().remainingSeconds)}'),
-          centerTitle: true,
-          backgroundColor: const Color(0xFF0070C0),
-        ),
+          appBar: AppBar(
+            automaticallyImplyLeading: false,
+            backgroundColor: const Color(0xFF0070C0),
+            elevation: 0,
+            title: Row(
+              children: [
+                // 📘 Exam Title (responsive)
+                Expanded(
+                  child: Text(
+                    widget.sessionData?['examTitle'] ?? 'Exam',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: scaleFont(18),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 12),
+
+                // ⏱ Timer Cluster (responsive)
+                Row(
+                  children: [
+                    Icon(
+                      Icons.access_time,
+                      color: Colors.white,
+                      size: scaleFont(16),
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      formatTime(context.watch<ExamController>().remainingSeconds),
+                      style: TextStyle(
+                        fontSize: scaleFont(16),
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         body: PageView.builder(
           controller: _pageController,
           physics: const NeverScrollableScrollPhysics(),
@@ -345,56 +410,16 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
           children: [
             // 📘 Header (kept)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'Practice Exam',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                  ),
-                  Row(
-                    children: [
-                      const Icon(Icons.access_time, color: Color(0xFF22C55E)),
-                      const SizedBox(width: 6),
-                      Text(
-                        "${formatTime(controller.remainingSeconds)}  ${index + 1}/$totalQuestions",
-                        style: const TextStyle(fontSize: 16, color: Colors.black54),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            // 🔘 Progress bar (kept)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: LinearProgressIndicator(
-                  value: (index + 1) / totalQuestions,
-                  minHeight: 8,
-                  backgroundColor: Colors.grey.shade300,
-                  color: const Color(0xFF22C55E),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Row with "Question x of y" + Flag (kept)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
                     'Question ${index + 1} of $totalQuestions',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.black54,
+                    style: TextStyle(
+                      fontSize: scaleFont(15),
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
                     ),
                   ),
                   IconButton(
@@ -407,23 +432,37 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                           : Colors.grey,
                     ),
                     onPressed: () => controller.toggleFlag(q['id']),
-                    tooltip: controller.isFlagged(q['id'])
-                        ? 'Unflag this question'
-                        : 'Flag for review',
                   ),
                 ],
               ),
             ),
 
+            // 🔘 Progress bar (kept)
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: hPad),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: LinearProgressIndicator(
+                  value: (index + 1) / totalQuestions,
+                  minHeight: 7,
+                  backgroundColor: Colors.grey.shade300,
+                  color: const Color(0xFF22C55E),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
             // Question text (kept)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 8),
               child: Text(
                 questionText,
-                style: const TextStyle(
-                  fontSize: 20,
+                style: TextStyle(
+                  fontSize: scaleFont(20),
                   fontWeight: FontWeight.w600,
                   color: Colors.black87,
+                  height: 1.3,
                 ),
               ),
             ),
@@ -436,7 +475,6 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                     onNotification: (sn) {
                       final max = sn.metrics.maxScrollExtent;
                       final pixels = sn.metrics.pixels;
-
                       final scrollable = max > 0;
                       final atBottom = pixels >= max - 10;
 
@@ -451,7 +489,10 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                     },
                     child: ListView.builder(
                       controller: _scrollControllers[index],
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: hPad,
+                        vertical: 4,
+                      ),
                       itemCount: options.length,
                       itemBuilder: (context, i) {
                         final opt = options[i];
@@ -460,7 +501,7 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                         return GestureDetector(
                           onTap: () {
                             if (isMultiple) {
-                              if (selectedOptions.contains(opt['key'])) {
+                              if (isSelected) {
                                 selectedOptions.remove(opt['key']);
                               } else {
                                 selectedOptions.add(opt['key']);
@@ -475,9 +516,11 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                             setState(() {});
                           },
                           child: Container(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 16, horizontal: 16),
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: EdgeInsets.symmetric(
+                              vertical: isTablet ? 16 : 12,
+                              horizontal: isTablet ? 18 : 14,
+                            ),
                             decoration: BoxDecoration(
                               color: isSelected
                                   ? const Color(0xFFE6F4EA)
@@ -487,7 +530,7 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                                 color: isSelected
                                     ? const Color(0xFF22C55E)
                                     : Colors.grey.shade300,
-                                width: 1.8,
+                                width: 1.5,
                               ),
                             ),
                             child: Row(
@@ -504,18 +547,19 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                                       ? const Color(0xFF22C55E)
                                       : Colors.grey,
                                 ),
-                                const SizedBox(width: 12),
+                                const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
                                     opt['value'].toString(),
                                     style: TextStyle(
-                                      fontSize: 17,
+                                      fontSize: scaleFont(17),
                                       color: isSelected
                                           ? const Color(0xFF22C55E)
                                           : Colors.black87,
                                       fontWeight: isSelected
                                           ? FontWeight.w600
                                           : FontWeight.normal,
+                                      height: 1.3,
                                     ),
                                   ),
                                 ),
@@ -537,20 +581,20 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                           duration: const Duration(milliseconds: 400),
                           child: LayoutBuilder(
                             builder: (context, constraints) {
-                              // Calculate horizontal shift dynamically — about 25% of screen width
-                              final double horizontalShift = constraints.maxWidth * 0.35;
+                              final double horizontalShift =
+                                  constraints.maxWidth * 0.35; // improved
 
                               return Transform.translate(
-                                offset: Offset(horizontalShift, 0), // ✅ pushes it slightly right
+                                offset: Offset(horizontalShift, 0),
                                 child: Container(
-                                  height: 60,
+                                  height: 55,
                                   decoration: const BoxDecoration(
                                     gradient: LinearGradient(
                                       begin: Alignment.topCenter,
                                       end: Alignment.bottomCenter,
                                       colors: [
                                         Colors.transparent,
-                                        Color(0xFFF9FAFB), // match your background color
+                                        Color(0xFFF9FAFB),
                                       ],
                                     ),
                                   ),
@@ -560,16 +604,16 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                                       Icon(
                                         Icons.keyboard_arrow_down_rounded,
                                         color: Color(0xFF515151),
-                                        size: 18,
+                                        size: 16,
                                       ),
                                       Text(
-                                        'Scroll for more',
+                                        'Scroll down',
                                         style: TextStyle(
                                           fontSize: 12,
                                           color: Color(0xFF515151),
                                         ),
                                       ),
-                                      SizedBox(height: 8),
+                                      SizedBox(height: 6),
                                     ],
                                   ),
                                 ),

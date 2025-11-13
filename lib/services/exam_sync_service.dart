@@ -67,16 +67,18 @@ class ExamSyncService {
   Future<Map<String, dynamic>?> startExamSession(int examId) async {
     try {
       final res = await _dio.post('/exams/$examId/start-session');
-      if (res.statusCode == 201) {
+
+      if (res.statusCode == 201 || res.statusCode == 200) {
         if (res.data is String) {
           return jsonDecode(res.data);
         } else if (res.data is Map<String, dynamic>) {
           return res.data;
         }
       }
+
       return null;
     } catch (e) {
-      print('Error starting exam session: $e');
+      print('❌ Error starting exam session: $e');
       return null;
     }
   }

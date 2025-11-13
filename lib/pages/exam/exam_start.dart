@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import '../../services/exam_sync_service.dart';
 import '../../state/exam_controller.dart';
@@ -17,43 +16,156 @@ import '../module_library.dart';
 import '../../models/user.dart';
 import 'exam_page.dart';
 
-class ExamStart extends StatelessWidget {
+
+class ExamStart extends StatefulWidget {
   final User user;
 
   const ExamStart({super.key, required this.user});
 
   @override
+  State<ExamStart> createState() => _ExamStartState();
+}
+
+class _ExamStartState extends State<ExamStart> {
+  String? assignedExamTitle;
+  int? assignedExamDuration;
+  bool hasAssignedExam = false;
+  bool isLoadingExam = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAssignedExam();
+  }
+
+  // --------------------------------------------
+  // 🔵 Load assigned exam ONCE at page load
+  // --------------------------------------------
+  Future<void> _loadAssignedExam() async {
+    try {
+      final sync = context.read<ExamSyncService>();
+      final res = await sync.dio.get('/exams/assigned');
+
+      final data = res.data is String ? jsonDecode(res.data) : res.data;
+
+      if (data is List && data.isNotEmpty) {
+        setState(() {
+          hasAssignedExam = true;
+          assignedExamTitle = data.first['title'];
+          assignedExamDuration = data.first['duration_minutes'];
+          isLoadingExam = false;
+        });
+      } else {
+        setState(() {
+          hasAssignedExam = false;
+          isLoadingExam = false;
+        });
+      }
+    } catch (e) {
+      setState(() => isLoadingExam = false);
+      print("❌ Error loading assigned exam: $e");
+    }
+  }
+
+  // --------------------------------------------
+  // 🔵 Handle Start Exam (resume or new)
+  // --------------------------------------------
+  Future<void> _handleStartExam() async {
+    final controller = context.read<ExamController>();
+    final sync = context.read<ExamSyncService>();
+
+    try {
+      print('\n==============================');
+      print('📦 [DEBUG] Start Exam Button Pressed');
+      print('==============================\n');
+
+      // 1️⃣ Try resume
+      await controller.restoreExamIfExists();
+
+      final remaining = controller.remainingSeconds;
+      final savedExamId = controller.savedExamId;
+
+      if (savedExamId != null && remaining > 0) {
+        print('🔁 Resuming exam $savedExamId');
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ExamPage(
+              examId: savedExamId,
+              userId: widget.user.id!,
+              sessionData: {'examTitle': assignedExamTitle},
+            ),
+          ),
+        );
+        return;
+      }
+
+      // 2️⃣ Start new exam session
+      final assignedRes = await sync.dio.get('/exams/assigned');
+      final data = assignedRes.data is String
+          ? jsonDecode(assignedRes.data)
+          : assignedRes.data;
+
+      if (data is! List || data.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No exam assigned at this time.')),
+        );
+        return;
+      }
+
+      final examId = data.first['exam_id'];
+      final questions = await controller.startExam(
+        examId: examId,
+        userId: widget.user.id!,
+      );
+
+      if (questions == null || questions.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Unable to load exam questions.')),
+        );
+        return;
+      }
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ExamPage(
+            examId: examId,
+            userId: widget.user.id!,
+            sessionData: {'examTitle': assignedExamTitle},
+          ),
+        ),
+      );
+    } catch (e) {
+      print("❌ Error starting exam: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Unable to start exam. Try again later.')),
+      );
+    }
+  }
+
+  // --------------------------------------------
+  // 📱 Build
+  // --------------------------------------------
+  @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
     final baseSize = MediaQuery.of(context).size.shortestSide;
-    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
     final scalingFactor = getScalingFactor(context);
+
+    Widget body = _buildContent(baseSize, scalingFactor);
 
     return Scaffold(
       body: SafeArea(
         child: Stack(
           children: [
-            // Background gradient
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFFFFF0DC),
-                    Color(0xFFF9EBD9),
-                    Color(0xFFFFC888),
-                  ],
-                ),
-              ),
-            ),
+            _buildBackground(),
             Column(
               children: [
                 CustomAppBar(
-                  onBackPressed: () {
-                    Navigator.pop(context);
-                  },
+                  onBackPressed: () => Navigator.pop(context),
                   requireAuth: false,
                 ),
                 Expanded(
@@ -61,45 +173,21 @@ class ExamStart extends StatelessWidget {
                     children: [
                       if (isLandscape)
                         CustomSideNavBar(
-                          onHomeTap: () => _navigateTo(context, const MyHomePage()),
-                          onLibraryTap: () => _navigateTo(context, ModuleLibrary()),
-                          onTrackerTap: () => _navigateTo(context, CMETracker()),
-                          onMenuTap: () async {
-                            bool isLoggedIn = await checkIfUserIsLoggedIn();
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
-                              ),
-                            );
-                          },
+                          onHomeTap: () => _navigateTo(const MyHomePage()),
+                          onLibraryTap: () => _navigateTo(ModuleLibrary()),
+                          onTrackerTap: () => _navigateTo(CMETracker()),
+                          onMenuTap: _openMenu,
                         ),
-
-                      Expanded(
-                        child: Center(
-                          child: isLandscape
-                              ? _buildLandscapeLayout(context, screenWidth, screenHeight, baseSize, scalingFactor)
-                              : _buildPortraitLayout(context, screenWidth, screenHeight, baseSize, scalingFactor),
-                        ),
-                      ),
+                      Expanded(child: Center(child: body)),
                     ],
                   ),
                 ),
-
                 if (!isLandscape)
                   CustomBottomNavBar(
-                    onHomeTap: () => _navigateTo(context, const MyHomePage()),
-                    onLibraryTap: () => _navigateTo(context, ModuleLibrary()),
-                    onTrackerTap: () => _navigateTo(context, CMETracker()),
-                    onMenuTap: () async {
-                      bool isLoggedIn = await checkIfUserIsLoggedIn();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
-                        ),
-                      );
-                    },
+                    onHomeTap: () => _navigateTo(const MyHomePage()),
+                    onLibraryTap: () => _navigateTo(ModuleLibrary()),
+                    onTrackerTap: () => _navigateTo(CMETracker()),
+                    onMenuTap: _openMenu,
                   ),
               ],
             ),
@@ -109,427 +197,74 @@ class ExamStart extends StatelessWidget {
     );
   }
 
-  // 📱 Portrait layout
-  Widget _buildPortraitLayout(
-      BuildContext context, double screenWidth, double screenHeight, double baseSize, double scalingFactor) {
+  // --------------------------------------------
+  // 🔹 Build main content
+  // --------------------------------------------
+  Widget _buildContent(double baseSize, double scalingFactor) {
     return SingleChildScrollView(
-      padding: EdgeInsets.symmetric(horizontal: baseSize * 0.05, vertical: baseSize * 0.03),
+      padding: EdgeInsets.symmetric(
+        horizontal: baseSize * 0.05,
+        vertical: baseSize * 0.03,
+      ),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
             'Welcome to the',
-            textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: baseSize * (isTablet(context) ? 0.07 : 0.08),
+              fontSize: baseSize * 0.08,
               fontWeight: FontWeight.bold,
-              color: Colors.black,
             ),
           ),
           Text(
             'Final Exam',
-            textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: baseSize * (isTablet(context) ? 0.07 : 0.08),
+              fontSize: baseSize * 0.08,
               fontWeight: FontWeight.bold,
-              color: Colors.black,
             ),
           ),
           SizedBox(height: baseSize * 0.02),
+
+          // User info
           Text(
-            'User ID: ${user.id ?? "N/A"}',
-            style: TextStyle(
-              fontSize: scalingFactor * (isTablet(context) ? 16 : 14),
-              color: Colors.black87,
-            ),
-          ),
-          Text(
-            'Name: ${user.lastName}, ${user.firstName}',
-            style: TextStyle(
-              fontSize: scalingFactor * (isTablet(context) ? 16 : 14),
-              color: Colors.black87,
-            ),
+            'User ID: ${widget.user.id ?? "N/A"}',
+            style: TextStyle(fontSize: scalingFactor * 16),
           ),
           Text(
-            'Email: ${user.email}',
-            style: TextStyle(
-              fontSize: scalingFactor * (isTablet(context) ? 16 : 14),
-              color: Colors.black87,
-            ),
+            'Name: ${widget.user.lastName}, ${widget.user.firstName}',
+            style: TextStyle(fontSize: scalingFactor * 16),
           ),
-          SizedBox(height: baseSize * 0.04),
-
-          // 🔹 Conditional exam title + message
-          FutureBuilder<Response>(
-            future: context.read<ExamSyncService>().dio.get('/exams/assigned'),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 20),
-                  child: CircularProgressIndicator(),
-                );
-              }
-
-              if (snapshot.hasError) {
-                return Text(
-                  'Could not check for assigned exams. Please try again later.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: scalingFactor * (isTablet(context) ? 14 : 12),
-                    color: Colors.redAccent,
-                  ),
-                );
-              }
-
-              // ✅ Safely handle assigned exams list
-              final exams = snapshot.data?.data as List?;
-              final hasExam = exams != null && exams.isNotEmpty;
-              final title = hasExam ? exams.first['title'] : null;
-              final duration = hasExam ? exams.first['duration_minutes'] : null;
-
-              return Column(
-                children: [
-                  if (hasExam)
-                    Text(
-                      '📘 $title',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: scalingFactor * (isTablet(context) ? 16 : 14),
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF0070C0),
-                      ),
-                    ),
-                  const SizedBox(height: 10),
-                  Text(
-                    hasExam
-                        ? 'You are scheduled for this exam. When ready, tap below to begin. '
-                        'You’ll have $duration minutes to complete it.'
-                        : 'You must be scheduled for the exam before you can start it. '
-                        'Do not start the exam until you are instructed to do so. '
-                        'When you are ready to start the exam, click the button below. '
-                        'You will have a set amount of time to complete the exam, and you have the option to review all your answers before submitting. '
-                        'Good luck!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: scalingFactor * (isTablet(context) ? 14 : 12),
-                      color: Colors.black54,
-                      height: 1.5,
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-
-          SizedBox(height: baseSize * 0.06),
-
-          // 🔵 Start Exam Button (unchanged)
-          ElevatedButton(
-            onPressed: () async {
-              final sync = context.read<ExamSyncService>();
-              final controller = context.read<ExamController>();
-
-              try {
-                print('==============================');
-                print('📦 [DEBUG] Start Exam Button Pressed');
-                print('==============================');
-
-                // 🧩 1️⃣ Try restoring any unfinished exam
-                print('🕵️ Checking Hive for existing exam data...');
-                await controller.restoreExamIfExists();
-
-                final remaining = controller.remainingSeconds;
-                final savedExamId = controller.savedExamId;
-                final savedIndex = controller.savedQuestionIndex;
-
-                print('📊 Hive restore results → remaining: $remaining | savedExamId: $savedExamId | savedIndex: $savedIndex');
-
-                final hasSavedExam = savedExamId != null && remaining > 0;
-
-                if (hasSavedExam) {
-                  print('🔁 [DEBUG] Resuming saved exam (ID: $savedExamId) at question index $savedIndex');
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Resuming your previous exam...')),
-                  );
-
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ExamPage(
-                        examId: savedExamId,
-                        userId: user.id!,
-                        sessionData: null,
-                      ),
-                    ),
-                  ).then((_) {
-                    Future.delayed(const Duration(milliseconds: 500), () {
-                      final pageControllerField = controller.savedQuestionIndex;
-                      if (pageControllerField > 0) {
-                        print('⏩ Jumping to saved question index: $pageControllerField');
-                      }
-                    });
-                  });
-
-                  return;
-                }
-
-                // 🧩 2️⃣ Otherwise, start a new exam session
-                print('🌐 [DEBUG] No saved exam found — requesting assigned exam...');
-                final res = await sync.dio.get('/exams/assigned');
-                print('✅ [DEBUG] API Response Status: ${res.statusCode}');
-                print('📦 [DEBUG] API Raw Response: ${res.data}');
-
-                final data = res.data is String ? jsonDecode(res.data) : res.data;
-
-                // 🔍 Handle list response from /assigned
-                if (data is List && data.isNotEmpty) {
-                  final examId = data.first['exam_id'];
-                  print('🚀 [DEBUG] Starting new exam session for examId: $examId');
-                  final session = await sync.startExamSession(examId);
-                  print('🧾 [DEBUG] Session response: $session');
-
-                  if (session != null) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ExamPage(
-                          examId: examId,
-                          userId: user.id!,
-                          sessionData: session,
-                        ),
-                      ),
-                    );
-                  } else {
-                    print('⚠️ [DEBUG] startExamSession returned null');
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Unable to start exam session.')),
-                    );
-                  }
-                } else {
-                  print('⚠️ [DEBUG] No exam assigned (data = $data)');
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('No exam assigned at this time.')),
-                  );
-                }
-              } catch (e, st) {
-                print('❌ [DEBUG] Error fetching or resuming exam: $e');
-                print(st);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Unable to reach server. Try again later.')),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0070C0),
-              padding: EdgeInsets.symmetric(
-                horizontal: scalingFactor * 40,
-                vertical: scalingFactor * 15,
-              ),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              elevation: 5,
-            ),
-            child: Text(
-              'Start Exam',
-              style: TextStyle(
-                fontSize: scalingFactor * (isTablet(context) ? 18 : 16),
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 💻 Landscape layout
-  Widget _buildLandscapeLayout(
-      BuildContext context, double screenWidth, double screenHeight, double baseSize, double scalingFactor) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: baseSize * 0.08, vertical: baseSize * 0.04),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
           Text(
-            'Welcome to WiRED International',
-            style: TextStyle(
-              fontSize: baseSize * (isTablet(context) ? 0.06 : 0.07),
-              fontWeight: FontWeight.bold,
-              color: Colors.black,
-            ),
+            'Email: ${widget.user.email}',
+            style: TextStyle(fontSize: scalingFactor * 16),
           ),
-          SizedBox(height: baseSize * 0.02),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildUserInfoTile(context, 'User ID', user.id?.toString() ?? 'N/A'),
-              _buildUserInfoTile(context, 'Email', user.email ?? 'N/A'),
-            ],
-          ),
-          SizedBox(height: baseSize * 0.04),
 
-          // 🔹 Conditional exam info
-          FutureBuilder<Response>(
-            future: context.read<ExamSyncService>().dio.get('/exams/assigned'),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 20),
-                  child: CircularProgressIndicator(),
-                );
-              }
+          SizedBox(height: baseSize * 0.05),
 
-              if (snapshot.hasError) {
-                return Text(
-                  'Could not check for assigned exams. Please try again later.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: scalingFactor * (isTablet(context) ? 14 : 12),
-                    color: Colors.redAccent,
-                  ),
-                );
-              }
-
-              final exams = snapshot.data?.data as List?;
-              final hasExam = exams != null && exams.isNotEmpty;
-              final title = hasExam ? exams.first['title'] : null;
-              final duration = hasExam ? exams.first['duration_minutes'] : null;
-
-              return Column(
-                children: [
-                  if (hasExam)
-                    Column(
-                      children: [
-                        Text(
-                          '📘 $title',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: scalingFactor * (isTablet(context) ? 18 : 16),
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF0070C0),
-                          ),
-                        ),
-                        SizedBox(height: baseSize * 0.015),
-                        Text(
-                          'You are scheduled for this exam. When ready, tap below to begin. '
-                              'You’ll have $duration minutes to complete it.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: scalingFactor * (isTablet(context) ? 14 : 12),
-                            color: Colors.black54,
-                            height: 1.5,
-                          ),
-                        ),
-                      ],
-                    )
-                  else
-                    Text(
-                      'Ensure a stable connection before starting. '
-                          'The exam can be completed offline and submitted when online.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: scalingFactor * (isTablet(context) ? 14 : 12),
-                        color: Colors.black54,
-                        height: 1.5,
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
+          // 🔵 Assigned exam info block
+          if (isLoadingExam)
+            const CircularProgressIndicator()
+          else
+            _buildAssignedExamMessage(scalingFactor, baseSize),
 
           SizedBox(height: baseSize * 0.06),
 
           // 🔵 Start Exam Button
           ElevatedButton(
-            onPressed: () async {
-              final sync = context.read<ExamSyncService>();
-              final controller = context.read<ExamController>();
-
-              try {
-                print('==============================');
-                print('📦 [DEBUG] Start Exam Button Pressed (Landscape)');
-                print('==============================');
-
-                await controller.restoreExamIfExists();
-
-                final remaining = controller.remainingSeconds;
-                final savedExamId = controller.savedExamId;
-                final savedIndex = controller.savedQuestionIndex;
-
-                final hasSavedExam = savedExamId != null && remaining > 0;
-
-                if (hasSavedExam) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Resuming your previous exam...')),
-                  );
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ExamPage(
-                        examId: savedExamId,
-                        userId: user.id!,
-                        sessionData: null,
-                      ),
-                    ),
-                  );
-                  return;
-                }
-
-                // Otherwise start new assigned exam
-                final res = await sync.dio.get('/exams/assigned');
-                final data = res.data is String ? jsonDecode(res.data) : res.data;
-
-                if (data is List && data.isNotEmpty) {
-                  final examId = data.first['exam_id'];
-                  print('🚀 [DEBUG] Starting new exam session for examId: $examId');
-                  final session = await sync.startExamSession(examId);
-
-                  if (session != null) {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ExamPage(
-                          examId: examId,
-                          userId: user.id!,
-                          sessionData: session,
-                        ),
-                      ),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Unable to start exam session.')),
-                    );
-                  }
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('No exam assigned at this time.')),
-                  );
-                }
-              } catch (e, st) {
-                print('❌ [DEBUG] Error starting exam (landscape): $e');
-                print(st);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Unable to reach server. Try again later.')),
-                );
-              }
-            },
+            onPressed: isLoadingExam ? null : _handleStartExam,
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF0070C0),
               padding: EdgeInsets.symmetric(
-                horizontal: scalingFactor * 50,
-                vertical: scalingFactor * 18,
-              ),
+                  horizontal: scalingFactor * 40,
+                  vertical: scalingFactor * 15),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
-              elevation: 6,
+              elevation: 4,
             ),
             child: Text(
               'Start Exam',
               style: TextStyle(
-                fontSize: scalingFactor * (isTablet(context) ? 18 : 16),
+                fontSize: scalingFactor * 16,
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
               ),
@@ -540,34 +275,83 @@ class ExamStart extends StatelessWidget {
     );
   }
 
-  // Small reusable info tile
-  Widget _buildUserInfoTile(BuildContext context, String label, String value) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 12.0),
-      child: Column(
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: getScalingFactor(context) * 14,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
+  // --------------------------------------------
+  // 🔹 Assigned Exam UI Block
+  // --------------------------------------------
+  Widget _buildAssignedExamMessage(double scalingFactor, double baseSize) {
+    if (!hasAssignedExam) {
+      return Text(
+        'You must be scheduled for the exam before you can start it.\n'
+            'Do not start until instructed. Good luck!',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: scalingFactor * 14,
+          color: Colors.black54,
+          height: 1.5,
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        Text(
+          '📘 $assignedExamTitle',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: scalingFactor * 18,
+            fontWeight: FontWeight.bold,
+            color: const Color(0xFF0070C0),
           ),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: getScalingFactor(context) * 14,
-              color: Colors.black54,
-            ),
+        ),
+        SizedBox(height: baseSize * 0.02),
+        Text(
+          'You are scheduled for this exam.\n'
+              'When ready, tap Start.\n'
+              '⏱ Duration: $assignedExamDuration minutes.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: scalingFactor * 14,
+            color: Colors.black54,
+            height: 1.5,
           ),
-        ],
+        ),
+      ],
+    );
+  }
+
+  // --------------------------------------------
+  // Background gradient
+  // --------------------------------------------
+  Widget _buildBackground() {
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Color(0xFFFFF0DC),
+            Color(0xFFF9EBD9),
+            Color(0xFFFFC888),
+          ],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
       ),
     );
   }
 
-  // Simple navigation helper
-  void _navigateTo(BuildContext context, Widget page) {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => page));
+  // --------------------------------------------
+  // Navigation helpers
+  // --------------------------------------------
+  void _navigateTo(Widget page) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  }
+
+  void _openMenu() async {
+    bool loggedIn = await checkIfUserIsLoggedIn();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => loggedIn ? Menu() : GuestMenu(),
+      ),
+    );
   }
 }

@@ -52,10 +52,9 @@ class ExamController extends ChangeNotifier {
   Future<List<Map<String, dynamic>>?> startExam({
     required int examId,
     required int userId,
-    Map<String, dynamic>? sessionData,
   }) async {
     try {
-      final response = sessionData ?? await _syncService.startExamSession(examId);
+      final response = await _syncService.startExamSession(examId);
       if (response == null) {
         debugPrint('❌ Failed to start session — using fallback.');
         return null;
