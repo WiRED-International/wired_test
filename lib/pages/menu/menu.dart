@@ -209,8 +209,7 @@ class _MenuState extends State<Menu> {
                                 baseSize,
                                 scalingFactor,
                                 authProvider,
-                                user.firstName,
-                                user.dateJoined,
+                                user,
                                 creditsEarned,
                               ),
                             ),
@@ -499,7 +498,7 @@ class _MenuState extends State<Menu> {
 
 
   Widget _buildLandscapeLayout(BuildContext context, baseSize, scalingFactor,
-      authProvider, firstName, dateJoined, creditsEarned) {
+      authProvider, User user, creditsEarned) {
     return SingleChildScrollView(
       child: Align(
         alignment: Alignment.topCenter,
@@ -546,7 +545,14 @@ class _MenuState extends State<Menu> {
                     );
                   }
                 }),
-                _buildEmptyButton(context, scalingFactor),
+                _buildInkWellButton(context, 'Exams', scalingFactor, () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ExamStart(user: user),
+                    ),
+                  );
+                }),
               ],
             ),
             SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 30)),

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:wired_test/pages/exam/review_answers_page.dart';
-import '../../models/exam_models.dart';
 import '../../state/exam_controller.dart';
+import '../../utils/dialog_utils.dart';
+import '../../utils/screen_utils.dart';
 import '../../utils/time_utils.dart';
+import '../../widgets/exam/footer_buttons.dart';
+import '../../widgets/exam/question_card.dart';
 
 class ExamPage extends StatefulWidget {
   final int examId;
@@ -35,37 +37,6 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
   final Map<int, bool> _listAtBottom = {};
   final Map<int, ScrollController> _scrollControllers = {};
 
-  // Determine if device is tablet-sized
-  bool get isTablet {
-    final shortestSide = MediaQuery.of(context).size.shortestSide;
-    return shortestSide >= 600; // standard Flutter rule of thumb
-  }
-
-// Hybrid font scaling: adjusts gently for small phones + tablets
-  double scaleFont(double baseSize) {
-    final size = MediaQuery.of(context).size;
-    final shortest = size.shortestSide;
-
-    // Avoid extremely tiny screens (e.g., 4.7" phones)
-    if (shortest < 360) {
-      return baseSize * 0.85;
-    }
-
-    // Tablets get slightly larger text
-    if (isTablet) {
-      return baseSize * 1.15;
-    }
-
-    // Normal phones: mild inflation
-    return baseSize * 0.98;
-  }
-
-// Hybrid horizontal spacing
-  double get hPad {
-    final width = MediaQuery.of(context).size.width;
-    return width * 0.04; // 4% of screen width = compact & responsive
-  }
-
   void _ensureScrollHintVisible(int index) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final ctrl = _scrollControllers[index];
@@ -80,7 +51,6 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
       }
     });
   }
-
 
   @override
   void initState() {
@@ -146,7 +116,8 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
 
           _ensureScrollHintVisible(savedIndex);
         } else {
-          debugPrint('⚠️ [ExamPage] Skipped jumpToPage — controller not attached or index=0');
+          debugPrint(
+              '⚠️ [ExamPage] Skipped jumpToPage — controller not attached or index=0');
         }
       });
     } catch (e, st) {
@@ -186,30 +157,10 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
         _listAtBottom[_currentIndex] = false;
         // Rebuild only if mounted (avoid setState on disposed widget)
         if (mounted) setState(() {});
-        debugPrint('🔁 [ExamPage] Scroll hint reset for question $_currentIndex');
+        debugPrint(
+            '🔁 [ExamPage] Scroll hint reset for question $_currentIndex');
       }
     }
-  }
-
-  Future<bool> _showExitDialog(BuildContext context) async {
-    return (await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Exit Exam?'),
-        content: const Text('Your progress will be saved so you can continue later.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Save & Exit'),
-          ),
-        ],
-      ),
-    )) ??
-        false;
   }
 
   Future<void> _loadQuestions() async {
@@ -226,7 +177,8 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
       // ✅ Use cached questions on resume (don’t create a new attempt)
       questions = controller.getCachedQuestions();
       if (questions == null || questions.isEmpty) {
-        debugPrint('⚠️ No cached questions found during resume — refetching from backend...');
+        debugPrint(
+            '⚠️ No cached questions found during resume — refetching from backend...');
         questions = await controller.startExam(
           examId: widget.examId,
           userId: widget.userId,
@@ -285,63 +237,66 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
       );
     }
 
-      return PopScope(
-        canPop: false, // we decide when to pop
-        // ✅ Use this if your SDK shows onPopInvoked as deprecated:
-        onPopInvokedWithResult: (didPop, result) async {
-          if (didPop) return;
-          final shouldExit = await _showExitDialog(context);
-          if (shouldExit) {
-            final controller = context.read<ExamController>();
-            await controller.saveProgress(_currentIndex);
-            if (!mounted) return;
-            Navigator.pop(context); // exit after saving
-          }
-        },
-        child: Scaffold(
+    return PopScope(
+      canPop: false, // we decide when to pop
+      // ✅ Use this if your SDK shows onPopInvoked as deprecated:
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final shouldExit = await DialogUtils.showExitExamDialog(context);
+        if (shouldExit) {
+          final controller = context.read<ExamController>();
+          await controller.saveProgress(_currentIndex);
+          if (!mounted) return;
+          Navigator.pop(context); // exit after saving
+        }
+      },
+      child: Scaffold(
         backgroundColor: const Color(0xFFFFF7EB),
-          appBar: AppBar(
-            automaticallyImplyLeading: false,
-            backgroundColor: const Color(0xFF0070C0),
-            elevation: 0,
-            title: Row(
-              children: [
-                // 📘 Exam Title (responsive)
-                Expanded(
-                  child: Text(
-                    widget.sessionData?['examTitle'] ?? 'Exam',
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: scaleFont(18),
-                      fontWeight: FontWeight.w600,
-                    ),
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          backgroundColor: const Color(0xFF0070C0),
+          elevation: 0,
+          title: Row(
+            children: [
+              // 📘 Exam Title (responsive)
+              Expanded(
+                child: Text(
+                  widget.sessionData?['examTitle'] ?? 'Exam',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: ScreenUtils.scaleFont(context, 19),
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
                   ),
                 ),
+              ),
 
-                const SizedBox(width: 12),
+              const SizedBox(width: 12),
 
-                // ⏱ Timer Cluster (responsive)
-                Row(
-                  children: [
-                    Icon(
-                      Icons.access_time,
+              // ⏱ Timer Cluster (responsive)
+              Row(
+                children: [
+                  Icon(
+                    Icons.access_time,
+                    color: Colors.white,
+                    size: ScreenUtils.scaleFont(context, 16),
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    formatTime(context
+                        .watch<ExamController>()
+                        .remainingSeconds),
+                    style: TextStyle(
+                      fontSize: ScreenUtils.scaleFont(context, 16),
+                      fontWeight: FontWeight.w600,
                       color: Colors.white,
-                      size: scaleFont(16),
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      formatTime(context.watch<ExamController>().remainingSeconds),
-                      style: TextStyle(
-                        fontSize: scaleFont(16),
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
+        ),
         body: PageView.builder(
           controller: _pageController,
           physics: const NeverScrollableScrollPhysics(),
@@ -354,490 +309,49 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
           },
           itemBuilder: (context, index) {
             final q = _questions[index];
-            return _buildQuestionCard(context, context.read<ExamController>(), q, index);
+            return Column(
+              children: [
+                Expanded(
+                  child: QuestionCard(
+                    parentContext: context,
+                    controller: controller,
+                    question: q,
+                    index: index,
+                    totalQuestions: _questions.length,
+                    isListScrollable: _isListScrollable,
+                    listAtBottom: _listAtBottom,
+                    scrollControllers: _scrollControllers,
+                  ),
+                ),
+
+                // ⬇️ Footer goes here
+                FooterButtons(
+                  parentContext: context,
+                  controller: controller,
+                  currentIndex: _currentIndex,
+                  totalQuestions: _questions.length,
+                  cameBackFromReview: _cameBackFromReview,
+                  readyToSubmit: _readyToSubmit,
+                  pageController: _pageController,
+
+                  updateIndex: (newIndex) {
+                    setState(() => _currentIndex = newIndex);
+                  },
+                  updateCameBackFromReview: (val) {
+                    setState(() => _cameBackFromReview = val);
+                  },
+                  updateReadyToSubmit: (val) {
+                    setState(() => _readyToSubmit = val);
+                  },
+                  refreshScrollHintForCurrent: () {
+                    if (_isListScrollable[_currentIndex] == true) {
+                      setState(() => _listAtBottom[_currentIndex] = false);
+                    }
+                  },
+                ),
+              ],
+            );
           },
-        ),
-      ),
-    );
-  }
-
-  // 🧩 Builds each question card
-  Widget _buildQuestionCard(
-      BuildContext context,
-      ExamController controller,
-      Map<String, dynamic> q,
-      int index,
-      ) {
-    final questionText = q['question_text'] ?? q['text'] ?? 'No question text';
-    final optionsData = q['options'];
-    final isMultiple = q['question_type'] == 'multiple';
-    List<dynamic> options = [];
-
-    // Handle both Map and List formats
-    if (optionsData is Map<String, dynamic>) {
-      options = optionsData.entries
-          .map((e) => {'key': e.key, 'value': e.value})
-          .toList();
-    } else if (optionsData is List) {
-      options = optionsData.asMap().entries
-          .map((e) => {'key': '${e.key}', 'value': e.value})
-          .toList();
-    }
-
-    final totalQuestions = _questions.length;
-
-    final answerRecord = controller.active?.answers.firstWhere(
-          (a) => a.questionId == q['id'],
-      orElse: () => AnswerRecord(
-        questionId: q['id'],
-        selectedOptionIds: [],
-        updatedAt: DateTime.now(),
-      ),
-    );
-
-    final selectedOptions = (answerRecord?.selectedOptionIds ?? []).cast<String>();
-
-    // Ensure keys exist
-    _isListScrollable[index] = _isListScrollable[index] ?? false;
-    _listAtBottom[index] = _listAtBottom[index] ?? false;
-    _scrollControllers[index] ??= ScrollController();
-
-    return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 📘 Header (kept)
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Question ${index + 1} of $totalQuestions',
-                    style: TextStyle(
-                      fontSize: scaleFont(15),
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  IconButton(
-                    icon: Icon(
-                      controller.isFlagged(q['id'])
-                          ? Icons.flag
-                          : Icons.outlined_flag,
-                      color: controller.isFlagged(q['id'])
-                          ? Colors.orange
-                          : Colors.grey,
-                    ),
-                    onPressed: () => controller.toggleFlag(q['id']),
-                  ),
-                ],
-              ),
-            ),
-
-            // 🔘 Progress bar (kept)
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: hPad),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: LinearProgressIndicator(
-                  value: (index + 1) / totalQuestions,
-                  minHeight: 7,
-                  backgroundColor: Colors.grey.shade300,
-                  color: const Color(0xFF22C55E),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Question text (kept)
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: hPad, vertical: 8),
-              child: Text(
-                questionText,
-                style: TextStyle(
-                  fontSize: scaleFont(20),
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                  height: 1.3,
-                ),
-              ),
-            ),
-
-            // 🧩 Answer options with scroll hint + fade (new)
-            Expanded(
-              child: Stack(
-                children: [
-                  NotificationListener<ScrollNotification>(
-                    onNotification: (sn) {
-                      final max = sn.metrics.maxScrollExtent;
-                      final pixels = sn.metrics.pixels;
-                      final scrollable = max > 0;
-                      final atBottom = pixels >= max - 10;
-
-                      if (_isListScrollable[index] != scrollable ||
-                          _listAtBottom[index] != atBottom) {
-                        setState(() {
-                          _isListScrollable[index] = scrollable;
-                          _listAtBottom[index] = atBottom;
-                        });
-                      }
-                      return false;
-                    },
-                    child: ListView.builder(
-                      controller: _scrollControllers[index],
-                      padding: EdgeInsets.symmetric(
-                        horizontal: hPad,
-                        vertical: 4,
-                      ),
-                      itemCount: options.length,
-                      itemBuilder: (context, i) {
-                        final opt = options[i];
-                        final isSelected = selectedOptions.contains(opt['key']);
-
-                        return GestureDetector(
-                          onTap: () {
-                            if (isMultiple) {
-                              if (isSelected) {
-                                selectedOptions.remove(opt['key']);
-                              } else {
-                                selectedOptions.add(opt['key']);
-                              }
-                              controller.selectMultipleAnswers(
-                                q['id'],
-                                List<String>.from(selectedOptions),
-                              );
-                            } else {
-                              controller.selectAnswer(q['id'], opt['key']);
-                            }
-                            setState(() {});
-                          },
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: EdgeInsets.symmetric(
-                              vertical: isTablet ? 16 : 12,
-                              horizontal: isTablet ? 18 : 14,
-                            ),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? const Color(0xFFE6F4EA)
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isSelected
-                                    ? const Color(0xFF22C55E)
-                                    : Colors.grey.shade300,
-                                width: 1.5,
-                              ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  isMultiple
-                                      ? (isSelected
-                                      ? Icons.check_box
-                                      : Icons.check_box_outline_blank)
-                                      : (isSelected
-                                      ? Icons.radio_button_checked
-                                      : Icons.radio_button_off),
-                                  color: isSelected
-                                      ? const Color(0xFF22C55E)
-                                      : Colors.grey,
-                                ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    opt['value'].toString(),
-                                    style: TextStyle(
-                                      fontSize: scaleFont(17),
-                                      color: isSelected
-                                          ? const Color(0xFF22C55E)
-                                          : Colors.black87,
-                                      fontWeight: isSelected
-                                          ? FontWeight.w600
-                                          : FontWeight.normal,
-                                      height: 1.3,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-
-                  // ✨ Fading overlay with "Scroll for more" (new)
-                  if ((_isListScrollable[index] ?? false) && !(_listAtBottom[index] ?? false))
-                    Align(
-                      alignment: Alignment.bottomCenter,
-                      child: IgnorePointer(
-                        child: AnimatedOpacity(
-                          opacity: 1.0,
-                          duration: const Duration(milliseconds: 400),
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              final double horizontalShift =
-                                  constraints.maxWidth * 0.35; // improved
-
-                              return Transform.translate(
-                                offset: Offset(horizontalShift, 0),
-                                child: Container(
-                                  height: 55,
-                                  decoration: const BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        Colors.transparent,
-                                        Color(0xFFF9FAFB),
-                                      ],
-                                    ),
-                                  ),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: const [
-                                      Icon(
-                                        Icons.keyboard_arrow_down_rounded,
-                                        color: Color(0xFF515151),
-                                        size: 16,
-                                      ),
-                                      Text(
-                                        'Scroll down',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Color(0xFF515151),
-                                        ),
-                                      ),
-                                      SizedBox(height: 6),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-
-            // ⬜ Footer buttons (includes full review logic)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 8,
-                    offset: Offset(0, -2),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  // PREVIOUS button
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _currentIndex > 0
-                          ? () {
-                        _pageController.previousPage(
-                          duration: const Duration(milliseconds: 300),
-                          curve: Curves.easeInOut,
-                        );
-                        setState(() => _currentIndex--);
-                      }
-                          : null,
-                      style: OutlinedButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      child: const Text(
-                        "Previous",
-                        style: TextStyle(fontSize: 16),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-
-                  // NEXT / REVIEW / SUBMIT button
-                  Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF22C55E),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                      ),
-                      onPressed: () async {
-                        // 🟣 NEW: Allow user to reopen ReviewAnswersPage once they’ve reached it
-                        if (_cameBackFromReview && !_readyToSubmit) {
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ReviewAnswersPage(questions: _questions),
-                            ),
-                          );
-
-                          // 🔁 Handle returned result
-                          if (result == 'submitted') {
-                            setState(() {
-                              _readyToSubmit = true;
-                              _cameBackFromReview = false;
-                            });
-                            return;
-                          }
-
-                          if (result is int && result >= 0 && result < _questions.length) {
-                            setState(() {
-                              _currentIndex = result;
-                              _cameBackFromReview = true;
-
-                              // Reset scroll hint for the returned question
-                              if (_isListScrollable[result] == true) {
-                                _listAtBottom[result] = false;
-                              }
-                            });
-                            _pageController.jumpToPage(result);
-                            return;
-                          }
-
-                          if (result == 'back_to_questions') {
-                            // Re-show scroll hint for the current question when returning
-                            if (_isListScrollable[_currentIndex] == true) {
-                              _listAtBottom[_currentIndex] = false;
-                              setState(() {});
-                            }
-                            return;
-                          }
-                        }
-
-                        final nextIndex = _currentIndex + 1;
-                        controller.saveProgress(nextIndex);
-
-                        // 🟢 CASE 1: Next question
-                        if (_currentIndex < _questions.length - 1) {
-                          setState(() => _currentIndex = nextIndex);
-                          _pageController.nextPage(
-                            duration: const Duration(milliseconds: 400),
-                            curve: Curves.easeInOut,
-                          );
-                          return;
-                        }
-
-                        // 🟡 CASE 2: Last question → go to ReviewAnswersPage
-                        if (_currentIndex == _questions.length - 1 && !_readyToSubmit) {
-                          // Reset the flags when navigating to review again
-                          _cameBackFromReview = false;
-
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ReviewAnswersPage(questions: _questions),
-                            ),
-                          );
-
-                          // 🟢 Case 1: User came back from review (didn't submit)
-                          if (result == 'back_to_questions') {
-                            setState(() {
-                              _cameBackFromReview = true;
-                              _readyToSubmit = false;
-                            });
-                            return;
-                          }
-
-                          // 🟣 Case 2: User submitted exam from review page
-                          if (result == 'submitted') {
-                            setState(() {
-                              _readyToSubmit = true;
-                              _cameBackFromReview = false;
-                            });
-                            return;
-                          }
-
-                          // 🟠 Case 3: User tapped on a question card → jump directly to it
-                          if (result is int && result >= 0 && result < _questions.length) {
-                            setState(() {
-                              _cameBackFromReview = true;
-                              _readyToSubmit = false;
-                              _currentIndex = result;
-                            });
-
-                            // ✨ Smooth transition animation
-                            await _pageController.animateToPage(
-                              result,
-                              duration: const Duration(milliseconds: 500),
-                              curve: Curves.easeInOut,
-                            );
-                            return;
-                          }
-                        } // ✅ properly closes the ReviewAnswersPage block here
-
-                        // 🔵 CASE 3: User ready to submit (final)
-                        if (_readyToSubmit) {
-                          // Navigate to review page again so the user can confirm submission there
-                          final result = await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => ReviewAnswersPage(questions: _questions),
-                            ),
-                          );
-
-                          // Handle result returned from review
-                          if (result == 'submitted') {
-                            // Exam was submitted successfully → go home (review page handles alerts)
-                            Future.delayed(const Duration(milliseconds: 100), () {
-                              Navigator.of(context).popUntil((route) => route.isFirst);
-                            });
-                          } else if (result == 'back_to_questions') {
-                            setState(() {
-                              _cameBackFromReview = true;
-                              _readyToSubmit = false;
-                            });
-                          } else if (result is int && result >= 0 && result < _questions.length) {
-                            setState(() {
-                              _currentIndex = result;
-                              _cameBackFromReview = true;
-                              _readyToSubmit = false;
-                            });
-                            _pageController.jumpToPage(result);
-                          }
-
-                          return;
-                        }
-                      },
-
-                      // 🧠 Button text logic
-                      child: Text(
-                        _cameBackFromReview
-                            ? 'Review Answers' // After first visit to review page
-                            : _currentIndex < _questions.length - 1
-                              ? 'Next Question'
-                              : _readyToSubmit
-                                ? 'Submit Exam'
-                                : 'Review Answers',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ),
       ),
     );
