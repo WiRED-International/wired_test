@@ -481,16 +481,44 @@ class ExamController extends ChangeNotifier {
 
   // 🧹 Clear all Hive data related to the ongoing exam
   Future<void> clearExamPersistence() async {
+    if (_tick != null) {
+      _tick!.cancel();
+      _tick = null;
+    }
+    debugPrint('🧹 [ExamController] Clearing ALL exam persistence...');
+
+    // 1️⃣ Clear examBox (all keys)
     await _examBox.delete('exam_start_time');
     await _examBox.delete('exam_duration');
     await _examBox.delete('exam_id');
     await _examBox.delete('user_id');
     await _examBox.delete('session_id');
+    await _examBox.delete('attempt_id');
     await _examBox.delete('current_index');
     await _examBox.delete('saved_answers');
-    await _examBox.delete('cached_questions'); // 🟢 add this line
+    await _examBox.delete('cached_questions');
     await _examBox.delete('flagged_questions');
-    debugPrint('🧹 Cleared exam cache after submission');
+    await _examBox.delete('remaining_seconds');
+    await _examBox.delete('is_paused');
+    await _examBox.delete('is_reviewed');
+    await _examBox.delete('last_saved');
+
+    // 2️⃣ Clear the active attempt in the attempts Hive box
+    if (_active != null) {
+      final id = _active!.attemptId;
+      if (_attempts.containsKey(id)) {
+        await _attempts.delete(id);
+        debugPrint('🗑️ Deleted attempt object: $id');
+      }
+    }
+
+    // 3️⃣ Reset in-memory state
+    _active = null;
+    _remainingSeconds = 0;
+    _isPaused = false;
+    _flaggedQuestions.clear();
+
+    debugPrint('🧹 ALL exam persistence cleared successfully.');
   }
 
   /// 🧾 Debug utility: logs all Hive keys/values in the exam box
