@@ -9,6 +9,7 @@ class QuestionCard extends StatefulWidget {
   final Map<String, dynamic> question;
   final int index;
   final int totalQuestions;
+  final bool examExpired;
 
   // scroll maps come directly from ExamPage
   final Map<int, bool> isListScrollable;
@@ -25,6 +26,7 @@ class QuestionCard extends StatefulWidget {
     required this.isListScrollable,
     required this.listAtBottom,
     required this.scrollControllers,
+    required this.examExpired,
   });
 
   @override
@@ -109,7 +111,9 @@ class _QuestionCardState extends State<QuestionCard> {
                           ? Colors.orange
                           : Colors.grey,
                     ),
-                    onPressed: () => controller.toggleFlag(q['id']),
+                    onPressed: widget.examExpired
+                        ? null
+                        : () => controller.toggleFlag(q['id']),
                   ),
                 ],
               ),
@@ -142,7 +146,7 @@ class _QuestionCardState extends State<QuestionCard> {
               child: Text(
                 questionText,
                 style: TextStyle(
-                  fontSize: ScreenUtils.scaleFont(context, 19),
+                  fontSize: ScreenUtils.scaleFont(context, 19.5),
                   fontWeight: FontWeight.w600,
                   color: Colors.black87,
                   height: 1.3,
@@ -183,7 +187,9 @@ class _QuestionCardState extends State<QuestionCard> {
                         selectedOptions.contains(opt['key']);
 
                         return GestureDetector(
-                          onTap: () {
+                          onTap: widget.examExpired
+                              ? null
+                              : () {
                             if (isMultiple) {
                               if (isSelected) {
                                 selectedOptions.remove(opt['key']);
@@ -199,59 +205,56 @@ class _QuestionCardState extends State<QuestionCard> {
                             }
                             setState(() {});
                           },
-                          child: Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: EdgeInsets.symmetric(
-                              vertical:
-                              ScreenUtils.answerVerticalPadding(context),
-                              horizontal:
-                              ScreenUtils.answerHorizontalPadding(context),
-                            ),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? const Color(0xFFE6F4EA)
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isSelected
-                                    ? const Color(0xFF22C55E)
-                                    : Colors.grey.shade300,
-                                width: 1.5,
+                          child: Opacity(
+                            opacity: widget.examExpired ? 0.45 : 1.0,
+                            child: Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              padding: EdgeInsets.symmetric(
+                                vertical: ScreenUtils.answerVerticalPadding(context),
+                                horizontal: ScreenUtils.answerHorizontalPadding(context),
                               ),
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  isMultiple
-                                      ? (isSelected
-                                      ? Icons.check_box
-                                      : Icons.check_box_outline_blank)
-                                      : (isSelected
-                                      ? Icons.radio_button_checked
-                                      : Icons.radio_button_off),
+                              decoration: BoxDecoration(
+                                color: isSelected ? const Color(0xFFE6F4EA) : Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
                                   color: isSelected
                                       ? const Color(0xFF22C55E)
-                                      : Colors.grey,
-                                  size: ScreenUtils.scaleFont(context, 20),
+                                      : Colors.grey.shade300,
+                                  width: 1.5,
                                 ),
-                                const SizedBox(width: 10),
-                                Expanded(
-                                  child: Text(
-                                    opt['value'].toString(),
-                                    style: TextStyle(
-                                      fontSize:
-                                      ScreenUtils.scaleFont(context, 17),
-                                      color: isSelected
-                                          ? const Color(0xFF22C55E)
-                                          : Colors.black87,
-                                      fontWeight: isSelected
-                                          ? FontWeight.w600
-                                          : FontWeight.normal,
-                                      height: 1.3,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    isMultiple
+                                        ? (isSelected
+                                        ? Icons.check_box
+                                        : Icons.check_box_outline_blank)
+                                        : (isSelected
+                                        ? Icons.radio_button_checked
+                                        : Icons.radio_button_off),
+                                    color: isSelected
+                                        ? const Color(0xFF22C55E)
+                                        : Colors.grey,
+                                    size: ScreenUtils.scaleFont(context, 20),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Text(
+                                      opt['value'].toString(),
+                                      style: TextStyle(
+                                        fontSize: ScreenUtils.scaleFont(context, 18),
+                                        color: isSelected
+                                            ? const Color(0xFF22C55E)
+                                            : Colors.black87,
+                                        fontWeight:
+                                        isSelected ? FontWeight.w600 : FontWeight.normal,
+                                        height: 1.3,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         );

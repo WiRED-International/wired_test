@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import '../models/exam_models.dart';
+import '../utils/network_utils.dart';
 import '../utils/validation.dart';
 import '../services/exam_sync_service.dart';
 
@@ -43,6 +44,7 @@ class ExamController extends ChangeNotifier {
 
   ExamAttempt? get active => _active;
   int get remainingSeconds => _remainingSeconds;
+  bool get examExpired => _remainingSeconds <= 0;
 
   // ✅ Public getters for accessing saved Hive data
   int? get savedExamId => _examBox.get('exam_id');
@@ -247,7 +249,12 @@ class ExamController extends ChangeNotifier {
   // ✅ Timer logic
   void _startTimer() {
     _tick?.cancel();
-    if (_remainingSeconds <= 0) return;
+
+    if (_remainingSeconds <= 0) {
+      // Immediately lock exam
+      _submitOnTimeout();
+      return;
+    }
 
     debugPrint('⏱️ [ExamController] Timer started | $_remainingSeconds s left');
 
@@ -278,8 +285,20 @@ class ExamController extends ChangeNotifier {
   }
 
   Future<void> _submitOnTimeout() async {
-    debugPrint('⏰ Exam time expired! Auto-submitting...');
-    await clearExamPersistence();
+    debugPrint('⏰ Exam time expired! Locking exam — waiting for manual submission.');
+
+    // Stop the timer
+    _tick?.cancel();
+    _tick = null;
+
+    // Freeze time
+    _remainingSeconds = 0;
+    _isPaused = true;
+
+    // Save final state so UI knows exam is locked
+    await _examBox.put('remaining_seconds', 0);
+    await _examBox.put('is_paused', true);
+
     notifyListeners();
   }
 
@@ -389,60 +408,30 @@ class ExamController extends ChangeNotifier {
   Future<Map<String, dynamic>?> buildSubmissionPayload() async {
     if (_active == null) return null;
 
-    // Build clean answers array from current attempt state
-    final answerList = _active!.answers
-        .map((a) {
-      final hasMulti = a.selectedOptionIds != null && a.selectedOptionIds!.isNotEmpty;
-      final hasSingle = a.selectedOptionId != null && a.selectedOptionId!.isNotEmpty;
-
-      // Derive final array of selected ids
-      final List<String> selectedIds = hasMulti
+    final normalized = _active!.answers.map((a) {
+      // Always produce MULTI-SELECT array, even for single-choice
+      final List<String> ids =
+      (a.selectedOptionIds != null && a.selectedOptionIds!.isNotEmpty)
           ? List<String>.from(a.selectedOptionIds!)
-          : hasSingle
+          : (a.selectedOptionId != null && a.selectedOptionId!.isNotEmpty)
           ? [a.selectedOptionId!]
           : <String>[];
 
-      // Skip if no selection at all
-      if (selectedIds.isEmpty) return null;
-
       return {
         'question_id': a.questionId,
-        'selected_option_ids': selectedIds,              // ✅ canonical
-        'selected_option': selectedIds.first,            // ✅ optional (for debug/legacy)
+        'selected_option_ids': ids,
         'updated_at': a.updatedAt.toIso8601String(),
       };
-    })
-        .whereType<Map<String, dynamic>>() // remove nulls
-        .toList();
+    }).toList();
 
-    if (answerList.isEmpty) {
-      debugPrint('⚠️ [buildSubmissionPayload] No answers selected.');
-      return null;
-    }
-
-    final payload = {
+    return {
       'attempt_id': _active!.attemptId,
       'exam_id': _active!.examId,
       'user_id': _active!.userId,
       'started_at': _active!.startedAt.toIso8601String(),
       'submitted_at': DateTime.now().toIso8601String(),
-      'answers': answerList,
-      'client_meta': {
-        'app_version': '2.0.0',
-        'device': 'android',
-      }
+      'answers': normalized,
     };
-
-    // 🔍 Debug: log exactly what we send
-    debugPrint('🔍 [buildSubmissionPayload] Payload:\n$payload');
-
-    final errors = validateSubmission(payload);
-    if (errors.isNotEmpty) {
-      debugPrint('⚠️ [buildSubmissionPayload] Validation errors: $errors');
-      return null;
-    }
-
-    return payload;
   }
 
   // ✅ Submit or enqueue
@@ -451,14 +440,26 @@ class ExamController extends ChangeNotifier {
     required Future<void> Function(Map<String, dynamic>) onEnqueue,
   }) async {
     if (_active == null) return false;
+
     final payload = await buildSubmissionPayload();
     if (payload == null) return false;
 
+    // Check online status
+    final online = await NetworkUtils.isOnline();
+
+    // ❌ If offline → queue, DO NOT auto-submit later
+    if (!online) {
+      debugPrint('📡 Offline — queued submission only.');
+      await onEnqueue(payload);
+      return false;
+    }
+
+    // Try submitting online
     bool ok = false;
     try {
       ok = await onSubmit(payload);
     } catch (e) {
-      debugPrint('❌ [ExamController] Submit failed: $e');
+      debugPrint('❌ Submit failed: $e');
       ok = false;
     }
 
@@ -467,16 +468,15 @@ class ExamController extends ChangeNotifier {
         ..submitted = true
         ..submittedAt = DateTime.now();
       await _active!.save();
-      debugPrint('✅ [ExamController] Submission successful — clearing Hive...');
-      // ✅ Clear all persisted exam data
+
       await clearExamPersistence();
     } else {
-      await onEnqueue(payload);
+      // ❌ DO NOT auto-enqueue if submission fails while online.
+      debugPrint('⚠️ Online but submit failed — NOT auto-enqueuing.');
     }
 
     notifyListeners();
-    debugPrint('🎯 [ExamController] ok=$ok | active.submitted=${_active?.submitted}');
-    return ok; // ✅ return true if submission succeeded
+    return ok;
   }
 
   // 🧹 Clear all Hive data related to the ongoing exam

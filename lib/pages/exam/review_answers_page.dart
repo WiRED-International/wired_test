@@ -4,6 +4,7 @@ import '../../models/exam_models.dart';
 import '../../state/exam_controller.dart';
 import '../../services/exam_sync_service.dart';
 import '../../services/retry_queue_service.dart';
+import '../../utils/network_utils.dart';
 import '../../utils/screen_utils.dart';
 
 class ReviewAnswersPage extends StatefulWidget {
@@ -31,8 +32,8 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
     final landscape = media.orientation == Orientation.landscape;
     final tablet = ScreenUtils.isTablet(context);
     final titleFont = ScreenUtils.scaleFont(context, 18);
-    final cardFont = ScreenUtils.scaleFont(context, 14);
-    final answerFont = ScreenUtils.scaleFont(context, 13.5);
+    final cardFont = ScreenUtils.scaleFont(context, 15);
+    final answerFont = ScreenUtils.scaleFont(context, 14.5);
     final isLandscape = media.orientation == Orientation.landscape;
 
     final controller = context.watch<ExamController>();
@@ -407,7 +408,7 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
               )),
           Text(label,
               style: TextStyle(
-                fontSize: ScreenUtils.scaleFont(context, 13),
+                fontSize: ScreenUtils.scaleFont(context, 14),
                 color: Colors.black54,
               )),
         ],
@@ -543,15 +544,28 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
     final sync = context.read<ExamSyncService>();
     final retry = context.read<RetryQueueService>();
 
-    final success = await controller.submitNow(
-      onSubmit: (payload) => sync.submitExam(payload),
-      onEnqueue: (payload) => retry.enqueue(payload),
-    );
+    // 🟢 Attempt submission
+    final payload = await controller.buildSubmissionPayload();
+
+    if (payload == null) {
+      setState(() => _isSubmitting = false);
+      return;
+    }
+
+    final isOnline = await NetworkUtils.isOnline();
+
+    bool success = false;
+
+    if (isOnline) {
+      // Try to submit online immediately
+      success = await sync.submitExam(payload);
+    }
 
     if (!mounted) return;
 
     setState(() => _isSubmitting = false);
 
+    // 🟩 SUCCESS — show success UI
     if (success) {
       await showDialog(
         context: context,
@@ -582,11 +596,48 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
 
       if (!mounted) return;
 
+      // Clear after success
+      controller.clearExamPersistence();
+
       Navigator.of(context).popUntil((route) => route.isFirst);
       return;
     }
 
-    // Offline queued case
+    // 🟧 FAIL: offline → enqueue
+    if (!isOnline) {
+      await retry.enqueue(payload);
+
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          title: const Row(
+            children: [
+              Icon(Icons.wifi_off, color: Colors.orangeAccent),
+              SizedBox(width: 8),
+              Text('Offline Mode'),
+            ],
+          ),
+          content: const Text(
+            'You appear to be offline.\nYour submission has been queued.\n\nPlease reconnect and press Submit again.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text(
+                'OK',
+                style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      );
+
+      return; // ❌ Do NOT exit exam
+    }
+
+    // 🟥 FAIL: online but backend rejected
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -594,28 +645,28 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         title: const Row(
           children: [
-            Icon(Icons.wifi_off, color: Colors.orangeAccent),
+            Icon(Icons.error_outline, color: Colors.red),
             SizedBox(width: 8),
-            Text('Offline Mode'),
+            Text('Server Error'),
           ],
         ),
         content: const Text(
-          'You appear to be offline.\nYour submission has been queued and will retry automatically when you’re back online.',
+          'The server could not process your submission.\n\n'
+              'Your exam is NOT submitted.\n'
+              'Please wait a moment and try again.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text(
-              'Go to Home',
-              style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
+              'OK',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
             ),
           ),
         ],
       ),
     );
-
-    if (!mounted) return;
-
-    Navigator.of(context).popUntil((route) => route.isFirst);
+    // ❌ Do NOT leave the exam page or clear Hive
+    return;
   }
 }

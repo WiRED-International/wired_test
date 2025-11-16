@@ -11,6 +11,7 @@ class FooterButtons extends StatelessWidget {
   final int totalQuestions;
   final bool cameBackFromReview;
   final bool readyToSubmit;
+  final bool examExpired;
 
   final PageController pageController;
 
@@ -33,6 +34,7 @@ class FooterButtons extends StatelessWidget {
     required this.updateCameBackFromReview,
     required this.updateReadyToSubmit,
     required this.refreshScrollHintForCurrent,
+    required this.examExpired,
   });
 
   @override
@@ -62,7 +64,9 @@ class FooterButtons extends StatelessWidget {
           // PREVIOUS
           Expanded(
             child: OutlinedButton(
-              onPressed: currentIndex > 0
+              onPressed: examExpired
+                  ? null
+                  : (currentIndex > 0
                   ? () {
                 pageController.previousPage(
                   duration: const Duration(milliseconds: 300),
@@ -70,7 +74,7 @@ class FooterButtons extends StatelessWidget {
                 );
                 updateIndex(currentIndex - 1);
               }
-                  : null,
+                  : null),
               style: OutlinedButton.styleFrom(
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
@@ -99,15 +103,33 @@ class FooterButtons extends StatelessWidget {
                 ),
                 padding: EdgeInsets.symmetric(vertical: vPad * 0.7),
               ),
-              onPressed: () {
+              onPressed: examExpired
+                  ? () {
+                // user is expired → force “Review Answers”
                 ExamNavigationUtils.handleFooterTap(
                   context: parentContext,
                   controller: controller,
                   pageController: pageController,
                   currentIndex: currentIndex,
                   totalQuestions: totalQuestions,
-                  questions: controller.getCachedQuestions() ??
-                      [], // get real list again from caller if needed
+                  questions: controller.getCachedQuestions() ?? [],
+                  cameBackFromReview: cameBackFromReview,
+                  readyToSubmit: readyToSubmit,
+                  updateIndex: updateIndex,
+                  updateCameBackFromReview: updateCameBackFromReview,
+                  updateReadyToSubmit: updateReadyToSubmit,
+                  refreshScrollHintForCurrent: refreshScrollHintForCurrent,
+                );
+              }
+                  : () {
+                // normal behavior (not expired)
+                ExamNavigationUtils.handleFooterTap(
+                  context: parentContext,
+                  controller: controller,
+                  pageController: pageController,
+                  currentIndex: currentIndex,
+                  totalQuestions: totalQuestions,
+                  questions: controller.getCachedQuestions() ?? [],
                   cameBackFromReview: cameBackFromReview,
                   readyToSubmit: readyToSubmit,
                   updateIndex: updateIndex,
@@ -117,13 +139,15 @@ class FooterButtons extends StatelessWidget {
                 );
               },
               child: Text(
-                cameBackFromReview
-                    ? 'Review Answers'
-                    : currentIndex < totalQuestions - 1
-                    ? 'Next Question'
-                    : readyToSubmit
-                    ? 'Submit Exam'
-                    : 'Review Answers',
+                examExpired
+                    ? 'Review Answers' // always
+                    : cameBackFromReview
+                      ? 'Review Answers'
+                      : currentIndex < totalQuestions - 1
+                        ? 'Next Question'
+                        : readyToSubmit
+                          ? 'Submit Exam'
+                          : 'Review Answers',
                 style: TextStyle(
                   fontSize: fontSize,
                   fontWeight: FontWeight.w600,
