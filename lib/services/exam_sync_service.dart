@@ -7,6 +7,7 @@ import 'package:hive/hive.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/exam_models.dart';
 import 'retry_queue_service.dart';
+import '../utils/network_utils.dart';
 
 class ExamSyncService {
   final Box<ExamAttempt> _attempts;
@@ -36,13 +37,6 @@ class ExamSyncService {
         },
       ),
     );
-
-    // 🌐 Auto retry when network reconnects
-    Connectivity().onConnectivityChanged.listen((status) {
-      if (status != ConnectivityResult.none) {
-        trySyncNow();
-      }
-    });
   }
 
   Dio get dio => _dio;
@@ -55,7 +49,13 @@ class ExamSyncService {
 
   /// 🔁 Retry queue flush
   Future<void> trySyncNow() async {
+    if (!await NetworkUtils.isOnline()) {
+      debugPrint('🌐 Retry skipped — still offline');
+      return;
+    }
+
     final retryService = RetryQueueService(_retryBox);
+
     for (final p in retryService.all.toList()) {
       final payload = jsonDecode(p.payloadJson) as Map<String, dynamic>;
       final ok = await submitPayload(payload);
@@ -114,76 +114,115 @@ class ExamSyncService {
     try {
       final sessionId = payload['attempt_id'] ?? payload['session_id'];
       if (sessionId == null) {
-        print('Missing session_id in payload');
+        debugPrint('❌ [submitPayload] Missing session_id/attempt_id in payload');
         return false;
       }
 
-      // Convert to backend format (selected_option)
-      final answers = (payload['answers'] as List)
-          .map((a) => {
-        'question_id': a['question_id'],
-        'selected_option': a['selected_option_id'] ?? a['selected_option'],
-      })
-          .toList();
+      final answers = payload['answers'] as List<dynamic>? ?? [];
+      final examId = payload['exam_id'];
+
+      if (answers.isEmpty) {
+        debugPrint('❌ [submitPayload] Empty answers list');
+        return false;
+      }
 
       final res = await _dio.put(
         '/exam-sessions/$sessionId/submit',
-        data: {'answers': answers},
+        data: {
+          'answers': answers,
+          if (examId != null) 'exam_id': examId,
+        },
       );
 
       return res.statusCode == 200;
     } catch (e) {
-      print('Retry submission failed: $e');
+      debugPrint('Retry submission failed: $e');
       return false;
     }
   }
 
+  /// 🔹 Main online submit called from ExamController
+  /// Also passes through normalized answers as-is.
   Future<bool> submitExam(Map<String, dynamic> payload) async {
-    print('Submitting payload: $payload');
+    debugPrint('Submitting payload: $payload');
     try {
       final sessionId = payload['session_id'] ?? payload['attempt_id'];
       if (sessionId == null) {
-        print('❌ Missing session_id in payload');
+        debugPrint('❌ [submitExam] Missing session_id/attempt_id in payload');
+        return false;
+      }
+
+      final answers = payload['answers'] as List<dynamic>? ?? [];
+      final examId = payload['exam_id'];
+
+      if (answers.isEmpty) {
+        debugPrint('❌ [submitExam] Empty answers list');
         return false;
       }
 
       final res = await _dio.put(
-        '/exam-sessions/$sessionId/submit', // ✅ matches your working backend route
-        data: payload,
+        '/exam-sessions/$sessionId/submit',
+        data: {
+          'answers': answers,
+          if (examId != null) 'exam_id': examId,
+        },
       );
 
       if (res.statusCode == 200) {
-        print('✅ Exam submitted successfully.');
         debugPrint('✅ [ExamSyncService] Submission succeeded');
         return true;
       } else {
-        print('⚠️ Exam submission failed: ${res.statusCode}');
+        debugPrint('⚠️ [ExamSyncService] Submission failed: ${res.statusCode}');
         return false;
       }
     } catch (e) {
-      print('❌ Error submitting exam: $e');
       debugPrint('❌ [ExamSyncService] Submission failed: $e');
       return false;
     }
   }
 
-  /// 🔹 Handle unsent Hive attempts
+  /// 🔹 Handle unsent Hive attempts — ONLY runs if *you* call autoSyncOnLaunch().
+  /// Kept for completeness, but no longer automatic.
   Future<void> _submitAnyUnsentAttempts() async {
+    if (!await NetworkUtils.isOnline()) {
+      debugPrint('🌐 Skipping unsent attempts — offline');
+      return;
+    }
+
+    final retryService = RetryQueueService(_retryBox);
+
     final unsent = _attempts.values.where((a) => !a.submitted);
+
     for (final a in unsent) {
+      final answers = a.answers.map((x) {
+        final ids =
+        (x.selectedOptionIds != null && x.selectedOptionIds!.isNotEmpty)
+            ? List<String>.from(x.selectedOptionIds!)
+            : (x.selectedOptionId != null && x.selectedOptionId!.isNotEmpty)
+            ? [x.selectedOptionId!]
+            : <String>[];
+
+        return {
+          'question_id': x.questionId,
+          'selected_option_ids': ids,
+          'updated_at': x.updatedAt.toIso8601String(),
+        };
+      }).toList();
+
       final payload = {
         'session_id': a.attemptId,
-        'answers': a.answers.map((x) => {
-          'question_id': x.questionId,
-          'selected_option': x.selectedOptionId,
-        }).toList(),
+        'exam_id': a.examId,
+        'answers': answers,
       };
-      final ok = await submitPayload(payload);
+
+      // ✅ Correct call — submitExam exists IN THIS CLASS
+      final ok = await submitExam(payload);
+
       if (ok) {
         a.submitted = true;
         await a.save();
       } else {
-        await RetryQueueService(_retryBox).enqueue(payload);
+        await retryService.enqueue(payload);
       }
     }
   }
@@ -195,7 +234,7 @@ class ExamSyncService {
         return List<Map<String, dynamic>>.from(res.data);
       }
     } catch (e) {
-      print('Error fetching assigned exams: $e');
+      debugPrint('Error fetching assigned exams: $e');
     }
     return [];
   }

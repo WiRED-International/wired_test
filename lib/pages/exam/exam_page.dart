@@ -107,19 +107,25 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
       });
 
       // ✅ Delay jump until PageView is attached
-      WidgetsBinding.instance.addPostFrameCallback((_) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
         if (_pageController.hasClients &&
             savedIndex >= 0 &&
             savedIndex < _questions.length) {
-          _pageController.jumpToPage(savedIndex);
-          debugPrint('⏩ [ExamPage] Jumped to saved question index $savedIndex');
+          debugPrint('⏩ [ExamPage] Jumping to saved question index $savedIndex');
 
+          // 🔥 Fix navigation freeze bug
+          await Future.delayed(const Duration(milliseconds: 30));
+
+          _pageController.jumpToPage(savedIndex);
           _ensureScrollHintVisible(savedIndex);
         } else {
-          debugPrint(
-              '⚠️ [ExamPage] Skipped jumpToPage — controller not attached or index=0');
+          debugPrint('⚠️ [ExamPage] Skipped jumpToPage — controller not ready');
         }
+
+        // 🔥 Safe to resume the timer ONLY AFTER UI + page jump is stable
+        controller.resumeTimer();
       });
+
     } catch (e, st) {
       debugPrint('❌ [ExamPage] Error initializing exam: $e');
       debugPrint(st.toString());
@@ -219,8 +225,7 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final controller = context.watch<ExamController>();
-    final remaining = controller.remainingSeconds;
-    final timeText = formatTime(remaining);
+    final bool expired = controller.examExpired;
 
     if (_loading) {
       return const Scaffold(
@@ -321,6 +326,7 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                     isListScrollable: _isListScrollable,
                     listAtBottom: _listAtBottom,
                     scrollControllers: _scrollControllers,
+                    examExpired: controller.examExpired,
                   ),
                 ),
 
@@ -348,6 +354,7 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                       setState(() => _listAtBottom[_currentIndex] = false);
                     }
                   },
+                  examExpired: controller.examExpired,
                 ),
               ],
             );
