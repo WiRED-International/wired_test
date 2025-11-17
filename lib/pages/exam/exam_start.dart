@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/exam_sync_service.dart';
@@ -15,6 +14,7 @@ import '../menu/menu.dart';
 import '../module_library.dart';
 import '../../models/user.dart';
 import 'exam_page.dart';
+import 'package:intl/intl.dart';
 
 
 class ExamStart extends StatefulWidget {
@@ -31,6 +31,8 @@ class _ExamStartState extends State<ExamStart> {
   int? assignedExamDuration;
   bool hasAssignedExam = false;
   bool isLoadingExam = true;
+  String? assignedExamStart;
+  String? assignedExamEnd;
 
   @override
   void initState() {
@@ -53,6 +55,8 @@ class _ExamStartState extends State<ExamStart> {
           hasAssignedExam = true;
           assignedExamTitle = data.first['title'];
           assignedExamDuration = data.first['duration_minutes'];
+          assignedExamStart = data.first['available_from'];
+          assignedExamEnd = data.first['available_until'];
           isLoadingExam = false;
         });
       } else {
@@ -65,6 +69,15 @@ class _ExamStartState extends State<ExamStart> {
       setState(() => isLoadingExam = false);
       print("❌ Error loading assigned exam: $e");
     }
+  }
+
+  String _formatLocal(String? utcString) {
+    if (utcString == null) return "N/A";
+
+    final utc = DateTime.parse(utcString).toUtc();
+    final local = utc.toLocal();
+
+    return DateFormat("MMM d, yyyy   h:mm a").format(local);
   }
 
   // --------------------------------------------
@@ -306,7 +319,9 @@ class _ExamStartState extends State<ExamStart> {
         SizedBox(height: baseSize * 0.02),
         Text(
           'You are scheduled for this exam.\n'
-              'When ready, tap Start.\n'
+              'Exam Window:\n'
+              '🟢 Opens: ${_formatLocal(assignedExamStart)}\n'
+              '🔴 Closes: ${_formatLocal(assignedExamEnd)}\n\n'
               '⏱ Duration: $assignedExamDuration minutes.',
           textAlign: TextAlign.center,
           style: TextStyle(
@@ -314,7 +329,7 @@ class _ExamStartState extends State<ExamStart> {
             color: Colors.black54,
             height: 1.5,
           ),
-        ),
+        )
       ],
     );
   }
