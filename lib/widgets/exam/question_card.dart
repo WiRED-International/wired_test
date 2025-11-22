@@ -40,6 +40,9 @@ class _QuestionCardState extends State<QuestionCard> {
     final controller = widget.controller;
     final index = widget.index;
 
+    final media = MediaQuery.of(context);
+    final isLandscape = media.orientation == Orientation.landscape;
+
     final questionText = q['question_text'] ?? q['text'] ?? 'No question text';
     final optionsData = q['options'];
     final isMultiple = q['question_type'] == 'multiple';
@@ -62,11 +65,12 @@ class _QuestionCardState extends State<QuestionCard> {
 
     final answerRecord = controller.active?.answers.firstWhere(
           (a) => a.questionId == q['id'],
-      orElse: () => AnswerRecord(
-        questionId: q['id'],
-        selectedOptionIds: [],
-        updatedAt: DateTime.now(),
-      ),
+      orElse: () =>
+          AnswerRecord(
+            questionId: q['id'],
+            selectedOptionIds: [],
+            updatedAt: DateTime.now(),
+          ),
     );
 
     final selectedOptions =
@@ -137,188 +141,294 @@ class _QuestionCardState extends State<QuestionCard> {
 
             const SizedBox(height: 12),
 
-            // Question text
-            Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: ScreenUtils.hPad(context),
-                vertical: 8,
-              ),
-              child: Text(
-                questionText,
-                style: TextStyle(
-                  fontSize: ScreenUtils.scaleFont(context, 19.5),
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                  height: 1.3,
-                ),
-              ),
-            ),
-
-            // ANSWERS + SCROLL HINT (unchanged)
-            Expanded(
-              child: Stack(
-                children: [
-                  NotificationListener<ScrollNotification>(
-                    onNotification: (sn) {
-                      final max = sn.metrics.maxScrollExtent;
-                      final pixels = sn.metrics.pixels;
-                      final scrollable = max > 0;
-                      final atBottom = pixels >= max - 10;
-
-                      if (widget.isListScrollable[index] != scrollable ||
-                          widget.listAtBottom[index] != atBottom) {
-                        setState(() {
-                          widget.isListScrollable[index] = scrollable;
-                          widget.listAtBottom[index] = atBottom;
-                        });
-                      }
-                      return false;
-                    },
-                    child: ListView.builder(
-                      controller: widget.scrollControllers[index],
+            // ===============================
+            // PORTRAIT: OLD LAYOUT
+            // ===============================
+            if (!isLandscape)
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // QUESTION TEXT
+                    Padding(
                       padding: EdgeInsets.symmetric(
                         horizontal: ScreenUtils.hPad(context),
-                        vertical: 4,
+                        vertical: 8,
                       ),
-                      itemCount: options.length,
-                      itemBuilder: (context, i) {
-                        final opt = options[i];
-                        final isSelected =
-                        selectedOptions.contains(opt['key']);
-
-                        return GestureDetector(
-                          onTap: widget.examExpired
-                              ? null
-                              : () {
-                            if (isMultiple) {
-                              if (isSelected) {
-                                selectedOptions.remove(opt['key']);
-                              } else {
-                                selectedOptions.add(opt['key']);
-                              }
-                              controller.selectMultipleAnswers(
-                                q['id'],
-                                List<String>.from(selectedOptions),
-                              );
-                            } else {
-                              controller.selectAnswer(q['id'], opt['key']);
-                            }
-                            setState(() {});
-                          },
-                          child: Opacity(
-                            opacity: widget.examExpired ? 0.45 : 1.0,
-                            child: Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              padding: EdgeInsets.symmetric(
-                                vertical: ScreenUtils.answerVerticalPadding(context),
-                                horizontal: ScreenUtils.answerHorizontalPadding(context),
-                              ),
-                              decoration: BoxDecoration(
-                                color: isSelected ? const Color(0xFFE6F4EA) : Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: isSelected
-                                      ? const Color(0xFF22C55E)
-                                      : Colors.grey.shade300,
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Icon(
-                                    isMultiple
-                                        ? (isSelected
-                                        ? Icons.check_box
-                                        : Icons.check_box_outline_blank)
-                                        : (isSelected
-                                        ? Icons.radio_button_checked
-                                        : Icons.radio_button_off),
-                                    color: isSelected
-                                        ? const Color(0xFF22C55E)
-                                        : Colors.grey,
-                                    size: ScreenUtils.scaleFont(context, 20),
-                                  ),
-                                  const SizedBox(width: 10),
-                                  Expanded(
-                                    child: Text(
-                                      opt['value'].toString(),
-                                      style: TextStyle(
-                                        fontSize: ScreenUtils.scaleFont(context, 18),
-                                        color: isSelected
-                                            ? const Color(0xFF22C55E)
-                                            : Colors.black87,
-                                        fontWeight:
-                                        isSelected ? FontWeight.w600 : FontWeight.normal,
-                                        height: 1.3,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
+                      child: Text(
+                        questionText,
+                        style: TextStyle(
+                          fontSize: ScreenUtils.scaleFont(context, 19.5),
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                          height: 1.3,
+                        ),
+                      ),
                     ),
-                  ),
 
-                  if ((widget.isListScrollable[index] ?? false) &&
-                      !(widget.listAtBottom[index] ?? false))
-                    Align(
-                      alignment: Alignment.bottomCenter,
-                      child: IgnorePointer(
-                        child: AnimatedOpacity(
-                          opacity: 1.0,
-                          duration: const Duration(milliseconds: 400),
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              final double horizontalShift =
-                                  constraints.maxWidth * 0.35;
+                    if (isMultiple)
+                      Padding(
+                        padding: EdgeInsets.only(
+                          left: ScreenUtils.hPad(context),
+                          bottom: 6,
+                        ),
+                        child: Text(
+                          "(Select all answers that apply)",
+                          style: TextStyle(
+                            fontSize: ScreenUtils.scaleFont(context, 17),
+                            fontStyle: FontStyle.italic,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ),
 
-                              return Transform.translate(
-                                offset: Offset(horizontalShift, 0),
-                                child: Container(
-                                  height: 55,
-                                  decoration: const BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        Colors.transparent,
-                                        Color(0xFFF9FAFB),
-                                      ],
+                    // ANSWERS (EXISTING CODE)
+                    Expanded(child: _buildAnswerList(
+                        context, options, selectedOptions, isMultiple)),
+                  ],
+                ),
+              ),
+
+            // ===============================
+            // LANDSCAPE: NEW SPLIT VIEW
+            // ===============================
+            if (isLandscape)
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,  // <-- Top-align both sides
+                  children: [
+                    // LEFT SIDE — QUESTION + SELECT-ALL NOTE
+                    Expanded(
+                      flex: 45,
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: ScreenUtils.hPad(context),
+                          vertical: 8,
+                        ),
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // QUESTION TEXT
+                              Text(
+                                questionText,
+                                style: TextStyle(
+                                  fontSize: ScreenUtils.scaleFont(context, 20),
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.black87,
+                                  height: 1.3,
+                                ),
+                              ),
+
+                              // SELECT-ALL LABEL (only for multiple choice)
+                              if (isMultiple)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: Text(
+                                    '(Select all answers that apply)',
+                                    style: TextStyle(
+                                      fontSize: ScreenUtils.scaleFont(context, 14),
+                                      fontStyle: FontStyle.italic,
+                                      color: Colors.grey.shade700,
                                     ),
                                   ),
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.end,
-                                    children: const [
-                                      Icon(Icons.keyboard_arrow_down_rounded,
-                                          size: 16,
-                                          color: Color(0xFF515151)),
-                                      Text(
-                                        'Scroll down',
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          color: Color(0xFF515151),
-                                        ),
-                                      ),
-                                      SizedBox(height: 6),
-                                    ],
-                                  ),
                                 ),
-                              );
-                            },
+
+                              const SizedBox(height: 10),
+                            ],
                           ),
                         ),
                       ),
                     ),
-                ],
+
+                    // RIGHT SIDE — ANSWERS
+                    Expanded(
+                      flex: 55,
+                      child: _buildAnswerList(
+                          context, options, selectedOptions, isMultiple),
+                    ),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
       ),
     );
   }
-}
 
+// 🔹 Moved your answer/scroll-hint code into a helper so it works in both portrait & landscape.
+  Widget _buildAnswerList(
+      BuildContext context,
+      List options,
+      List<String> selectedOptions,
+      bool isMultiple,
+      ) {
+    final index = widget.index;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double availableHeight = constraints.maxHeight;
+
+        return Stack(
+          children: [
+            NotificationListener<ScrollNotification>(
+              onNotification: (sn) {
+                final max = sn.metrics.maxScrollExtent;
+                final pixels = sn.metrics.pixels;
+
+                // 🔥 REALISTIC overflow detection
+                final scrollable = max > 12;  // 12 px = real overflow
+                final atBottom = scrollable && pixels >= max - 8;
+
+                if (widget.isListScrollable[index] != scrollable ||
+                    widget.listAtBottom[index] != atBottom) {
+                  setState(() {
+                    widget.isListScrollable[index] = scrollable;
+                    widget.listAtBottom[index] = atBottom;
+                  });
+                }
+                return false;
+              },
+              child: ListView.builder(
+                controller: widget.scrollControllers[index],
+                padding: EdgeInsets.symmetric(
+                  horizontal: ScreenUtils.hPad(context),
+                  vertical: 4,
+                ),
+                itemCount: options.length,
+                itemBuilder: (context, i) {
+                  final opt = options[i];
+                  final isSelected = selectedOptions.contains(opt['key']);
+
+                  return GestureDetector(
+                    onTap: widget.examExpired
+                        ? null
+                        : () {
+                      if (isMultiple) {
+                        if (isSelected) {
+                          selectedOptions.remove(opt['key']);
+                        } else {
+                          selectedOptions.add(opt['key']);
+                        }
+                        widget.controller.selectMultipleAnswers(
+                          widget.question['id'],
+                          List<String>.from(selectedOptions),
+                        );
+                      } else {
+                        widget.controller.selectAnswer(
+                          widget.question['id'],
+                          opt['key'],
+                        );
+                      }
+                      setState(() {});
+                    },
+                    child: Opacity(
+                      opacity: widget.examExpired ? 0.45 : 1.0,
+                      child: Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: EdgeInsets.symmetric(
+                          vertical: ScreenUtils.answerVerticalPadding(context),
+                          horizontal: ScreenUtils.answerHorizontalPadding(context),
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? const Color(0xFFE6F4EA)
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFF22C55E)
+                                : Colors.grey.shade300,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              isMultiple
+                                  ? (isSelected
+                                  ? Icons.check_box
+                                  : Icons.check_box_outline_blank)
+                                  : (isSelected
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_off),
+                              color: isSelected
+                                  ? const Color(0xFF22C55E)
+                                  : Colors.grey,
+                              size: ScreenUtils.scaleFont(context, 20),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                opt['value'].toString(),
+                                style: TextStyle(
+                                  fontSize: ScreenUtils.scaleFont(context, 18),
+                                  color: isSelected
+                                      ? const Color(0xFF22C55E)
+                                      : Colors.black87,
+                                  fontWeight: isSelected
+                                      ? FontWeight.w600
+                                      : FontWeight.normal,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+
+            // 🔥 Scroll hint
+            if ((widget.isListScrollable[index] ?? false) &&
+                !(widget.listAtBottom[index] ?? false))
+              Positioned(
+                bottom: 0,
+                right: constraints.maxWidth * 0.12, // nice position
+                child: IgnorePointer(
+                  child: AnimatedOpacity(
+                    opacity: 1.0,
+                    duration: const Duration(milliseconds: 350),
+                    child: Container(
+                      height: 50,
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Color(0xFFF9FAFB),
+                          ],
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: const [
+                          Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            size: 18,
+                            color: Color(0xFF515151),
+                          ),
+                          Text(
+                            'Scroll down',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFF515151),
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}

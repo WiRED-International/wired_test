@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/exam_sync_service.dart';
@@ -15,6 +16,7 @@ import '../module_library.dart';
 import '../../models/user.dart';
 import 'exam_page.dart';
 import 'package:intl/intl.dart';
+import '../../utils/screen_utils.dart';
 
 
 class ExamStart extends StatefulWidget {
@@ -163,12 +165,11 @@ class _ExamStartState extends State<ExamStart> {
   // --------------------------------------------
   @override
   Widget build(BuildContext context) {
-    final isLandscape =
-        MediaQuery.of(context).orientation == Orientation.landscape;
-    final baseSize = MediaQuery.of(context).size.shortestSide;
-    final scalingFactor = getScalingFactor(context);
+    final media = MediaQuery.of(context);
+    final isLandscape = media.orientation == Orientation.landscape;
+    final baseSize = media.size.shortestSide;
 
-    Widget body = _buildContent(baseSize, scalingFactor);
+    final body = _buildContent(context, baseSize);
 
     return Scaffold(
       body: SafeArea(
@@ -213,7 +214,19 @@ class _ExamStartState extends State<ExamStart> {
   // --------------------------------------------
   // 🔹 Build main content
   // --------------------------------------------
-  Widget _buildContent(double baseSize, double scalingFactor) {
+  Widget _buildContent(BuildContext context, double baseSize) {
+    final size = MediaQuery.of(context).size;
+    final shortest = size.shortestSide;
+    final isTablet = ScreenUtils.isTablet(context);
+
+    // Shared button sizing (phone vs tablet)
+    final double buttonWidth =
+    isTablet ? shortest * 0.3 : shortest * 0.70;
+    final double buttonHeight =
+    isTablet ? shortest * 0.09 : shortest * 0.17;
+    final double buttonFont =
+    ScreenUtils.scaleFont(context, 18);
+
     return SingleChildScrollView(
       padding: EdgeInsets.symmetric(
         horizontal: baseSize * 0.05,
@@ -224,62 +237,76 @@ class _ExamStartState extends State<ExamStart> {
           Text(
             'Welcome to the',
             style: TextStyle(
-              fontSize: baseSize * 0.08,
+              fontSize: ScreenUtils.scaleFont(context, 32),
               fontWeight: FontWeight.bold,
             ),
           ),
           Text(
             'Final Exam',
             style: TextStyle(
-              fontSize: baseSize * 0.08,
+              fontSize: ScreenUtils.scaleFont(context, 32),
               fontWeight: FontWeight.bold,
             ),
           ),
+
           SizedBox(height: baseSize * 0.02),
 
-          // User info
+          // ---------------------
+          // USER INFO
+          // ---------------------
           Text(
             'User ID: ${widget.user.id ?? "N/A"}',
-            style: TextStyle(fontSize: scalingFactor * 16),
+            style: TextStyle(
+              fontSize: ScreenUtils.scaleFont(context, 20),
+            ),
           ),
           Text(
             'Name: ${widget.user.lastName}, ${widget.user.firstName}',
-            style: TextStyle(fontSize: scalingFactor * 16),
+            style: TextStyle(
+              fontSize: ScreenUtils.scaleFont(context, 20),
+            ),
           ),
           Text(
             'Email: ${widget.user.email}',
-            style: TextStyle(fontSize: scalingFactor * 16),
+            style: TextStyle(
+              fontSize: ScreenUtils.scaleFont(context, 20),
+            ),
           ),
 
           SizedBox(height: baseSize * 0.05),
 
-          // 🔵 Assigned exam info block
+          // ---------------------
+          // EXAM MESSAGE
+          // ---------------------
           if (isLoadingExam)
             const CircularProgressIndicator()
           else
-            _buildAssignedExamMessage(scalingFactor, baseSize),
+            _buildAssignedExamMessage(context, baseSize),
 
           SizedBox(height: baseSize * 0.06),
 
-          // 🔵 Start Exam Button
-          ElevatedButton(
-            onPressed: isLoadingExam ? null : _handleStartExam,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0070C0),
-              padding: EdgeInsets.symmetric(
-                  horizontal: scalingFactor * 40,
-                  vertical: scalingFactor * 15),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          // ---------------------
+          // START EXAM BUTTON (Correct Placement)
+          // ---------------------
+          SizedBox(
+            width: buttonWidth,
+            height: buttonHeight,
+            child: ElevatedButton(
+              onPressed: isLoadingExam ? null : _handleStartExam,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0070C0),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 4,
               ),
-              elevation: 4,
-            ),
-            child: Text(
-              'Start Exam',
-              style: TextStyle(
-                fontSize: scalingFactor * 16,
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
+              child: Text(
+                'Start Exam',
+                style: TextStyle(
+                  fontSize: buttonFont,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
               ),
             ),
           ),
@@ -291,14 +318,17 @@ class _ExamStartState extends State<ExamStart> {
   // --------------------------------------------
   // 🔹 Assigned Exam UI Block
   // --------------------------------------------
-  Widget _buildAssignedExamMessage(double scalingFactor, double baseSize) {
+  Widget _buildAssignedExamMessage(BuildContext context, double baseSize) {
+    final bodyFont = ScreenUtils.scaleFont(context, 20);
+    final titleFont = ScreenUtils.scaleFont(context, 25);
+
     if (!hasAssignedExam) {
       return Text(
         'You must be scheduled for the exam before you can start it.\n'
             'Do not start until instructed. Good luck!',
         textAlign: TextAlign.center,
         style: TextStyle(
-          fontSize: scalingFactor * 14,
+          fontSize: bodyFont,
           color: Colors.black54,
           height: 1.5,
         ),
@@ -311,7 +341,7 @@ class _ExamStartState extends State<ExamStart> {
           '📘 $assignedExamTitle',
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: scalingFactor * 18,
+            fontSize: titleFont,
             fontWeight: FontWeight.bold,
             color: const Color(0xFF0070C0),
           ),
@@ -325,11 +355,11 @@ class _ExamStartState extends State<ExamStart> {
               '⏱ Duration: $assignedExamDuration minutes.',
           textAlign: TextAlign.center,
           style: TextStyle(
-            fontSize: scalingFactor * 14,
+            fontSize: bodyFont,
             color: Colors.black54,
             height: 1.5,
           ),
-        )
+        ),
       ],
     );
   }

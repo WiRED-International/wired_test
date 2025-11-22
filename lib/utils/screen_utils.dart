@@ -44,4 +44,24 @@ class ScreenUtils {
     if (isTablet) return isLandscape ? 28 : 20;
     return isLandscape ? 18 : 14;
   }
+
+  static double scaleButtonWidth(BuildContext context, double base) {
+    final size = MediaQuery.of(context).size;
+    final isLandscape = size.width > size.height;
+
+    if (isTablet(context)) {
+      return isLandscape ? base * 1.10 : base * 1.00;
+    }
+    return isLandscape ? base * 0.90 : base * 1.00;
+  }
+
+  static double scaleButtonHeight(BuildContext context, double base) {
+    final size = MediaQuery.of(context).size;
+    final isLandscape = size.width > size.height;
+
+    if (isTablet(context)) {
+      return isLandscape ? base * 1.05 : base * 1.00;
+    }
+    return isLandscape ? base * 0.85 : base * 1.00;
+  }
 }

@@ -356,6 +356,7 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                   },
                   examExpired: controller.examExpired,
                 ),
+                const SizedBox(height: 10),
               ],
             );
           },
