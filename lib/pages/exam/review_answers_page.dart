@@ -166,40 +166,46 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
           // ---------- LEFT PANEL ----------
           Expanded(
             flex: 4,
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  isLandscape
-                      ? Wrap(
-                    alignment: WrapAlignment.center,
-                    spacing: 12,
-                    runSpacing: 8,
-                    children: [
-                      _buildSummaryCard('Answered', answered, Colors.green),
-                      _buildSummaryCard('Unanswered', unanswered, Colors.redAccent),
-                      _buildSummaryCard('Flagged', flagged, Colors.orangeAccent),
-                    ],
-                  )
-                      : Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      _buildSummaryCard('Answered', answered, Colors.green),
-                      _buildSummaryCard('Unanswered', unanswered, Colors.redAccent),
-                      _buildSummaryCard('Flagged', flagged, Colors.orangeAccent),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
+            child: Align(
+              alignment: Alignment.topLeft,   // 🟢 forces top placement
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,   // 🟢 avoids vertical stretch
+                  children: [
+                    isLandscape
+                        ? Wrap(
+                      alignment: WrapAlignment.start,
+                      spacing: 12,
+                      runSpacing: 8,
+                      children: [
+                        _buildSummaryCard('Answered', answered, Colors.green),
+                        _buildSummaryCard('Unanswered', unanswered, Colors.redAccent),
+                        _buildSummaryCard('Flagged', flagged, Colors.orangeAccent),
+                      ],
+                    )
+                        : Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        _buildSummaryCard('Answered', answered, Colors.green),
+                        _buildSummaryCard('Unanswered', unanswered, Colors.redAccent),
+                        _buildSummaryCard('Flagged', flagged, Colors.orangeAccent),
+                      ],
+                    ),
 
-                  _buildWarningBox(shortest, answerFont, unanswered),
-                  const SizedBox(height: 20),
+                    const SizedBox(height: 20),
+                    _buildWarningBox(shortest, answerFont, unanswered),
+                    const SizedBox(height: 20),
 
-                  Text('All Questions',
+                    Text(
+                      'All Questions',
                       style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: ScreenUtils.scaleFont(context, 16),
-                      )),
-                ],
+                        fontWeight: FontWeight.bold,
+                        fontSize: ScreenUtils.scaleFont(context, 16),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -425,11 +431,19 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
       double cardFont, {
         required int answered,
       }) {
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+
+    final double vPad = isLandscape
+        ? ScreenUtils.answerVerticalPadding(context) * 0.55   // 🟢 shrink by ~45%
+        : ScreenUtils.answerVerticalPadding(context);
+
+    final double hPad = ScreenUtils.answerHorizontalPadding(context);
     return SafeArea(
       child: Container(
         padding: EdgeInsets.symmetric(
-          horizontal: ScreenUtils.answerVerticalPadding(context),
-          vertical: ScreenUtils.answerHorizontalPadding(context),
+          horizontal: hPad,
+          vertical: vPad,
         ),
         decoration: BoxDecoration(
           color: Colors.grey[100],
@@ -510,19 +524,29 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Submit Exam?'),
-        content: const Text(
+        title: Text(
+          'Submit Exam?',
+          style: TextStyle(fontSize: ScreenUtils.scaleFont(context, 22)),
+        ),
+        content: Text(
           'Are you sure you want to submit? You won’t be able to change your answers after submission.',
+          style: TextStyle(fontSize: ScreenUtils.scaleFont(context, 16)),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: TextStyle(fontSize: ScreenUtils.scaleFont(context, 16)),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text('Submit', style: TextStyle(color: Colors.white)),
+            child: Text(
+              'Submit',
+              style: TextStyle(color: Colors.white, fontSize: ScreenUtils.scaleFont(context, 16),
+            )),
           ),
         ],
       ),
@@ -572,22 +596,30 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
         barrierDismissible: false,
         builder: (context) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          title: const Row(
+          title: Row(
             children: [
               Icon(Icons.check_circle, color: Colors.green),
               SizedBox(width: 8),
-              Text('Exam Submitted'),
+              Text(
+                'Exam Submitted',
+                style: TextStyle(fontSize: ScreenUtils.scaleFont(context, 22)),
+              ),
             ],
           ),
-          content: const Text(
+          content: Text(
             'Your exam was successfully submitted.\n\nTap "Go to Home" to return to the main page.',
+            style: TextStyle(fontSize: ScreenUtils.scaleFont(context, 16)),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text(
+              child: Text(
                 'Go to Home',
-                style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.green,
+                  fontWeight: FontWeight.bold,
+                  fontSize: ScreenUtils.scaleFont(context, 16),
+                ),
               ),
             ),
           ],

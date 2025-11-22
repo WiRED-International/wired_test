@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -37,6 +38,19 @@ class _MenuState extends State<Menu> {
   late Future<User> userData;
   final _storage = const FlutterSecureStorage();
   bool showCreditsHistory = false;
+  bool isTablet(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final diagonal = sqrt(size.width * size.width + size.height * size.height);
+    return diagonal > 1100;
+  }
+
+  double scaleForDevice(
+      BuildContext context,
+      double phoneValue,
+      double tabletValue,
+      ) {
+    return isTablet(context) ? tabletValue : phoneValue;
+  }
 
   @override
   void initState() {
@@ -133,6 +147,7 @@ class _MenuState extends State<Menu> {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final scalingFactor = getScalingFactor(context);
     final isTabletDevice = isTablet(context);
+
 
     return Scaffold(
       body: SafeArea(
@@ -272,168 +287,244 @@ class _MenuState extends State<Menu> {
     Navigator.push(context, MaterialPageRoute(builder: (context) => page));
   }
 
-  Widget _buildPortraitLayout(BuildContext context, baseSize, scalingFactor,
-      authProvider, User user, creditsEarned) {
+  Widget _buildPortraitLayout(
+      BuildContext context,
+      baseSize,
+      scalingFactor,
+      authProvider,
+      User user,
+      creditsEarned,
+      ) {
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    double fontBase = screenWidth * scaleForDevice(context, 0.04, 0.032);
+    double iconBase = screenWidth * scaleForDevice(context, 0.055, 0.04);
+    double cardPadding = screenWidth * scaleForDevice(context, 0.045, 0.03);
+    double titleSize = screenWidth * scaleForDevice(context, 0.05, 0.033);
+
     return SingleChildScrollView(
       child: Align(
         alignment: Alignment.topCenter,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 40)),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildInkWellButton(context, 'Meet The Team', scalingFactor, () async {
-                  final Uri url = Uri.parse('https://sites.google.com/view/wired-international-team/home');
-                  if (await canLaunchUrl(url)) {
-                    await launchUrl(url, mode: LaunchMode.externalApplication);
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Could not launch Meet The Team')),
-                    );
-                  }
-                }),
-                _buildInkWellButton(context, 'About WiRED', scalingFactor, () async {
-                  final Uri url = Uri.parse('https://sites.google.com/view/healthmap-about/home');
-                  if (await canLaunchUrl(url)) {
-                    await launchUrl(url, mode: LaunchMode.externalApplication);
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Could not launch About WiRED')),
-                    );
-                  }
-                }),
-              ],
-            ),
-            SizedBox(height: scalingFactor * (isTablet(context) ? 10 : 30)),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildInkWellButton(context, 'Privacy Policy', scalingFactor, () async {
-                  final Uri url = Uri.parse('https://sites.google.com/view/healthmapprivacypolicy/home');
-                  if (await canLaunchUrl(url)) {
-                    await launchUrl(url, mode: LaunchMode.externalApplication);
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Could not launch Privacy Policy')),
-                    );
-                  }
-                }),
-                _buildInkWellButton(context, 'Exams', scalingFactor, () {
-                  Navigator.push(
+            SizedBox(height: screenWidth * 0.08),
+
+            // TOP BUTTONS (unchanged)
+            _buildTopButtons(context, scalingFactor, user),
+
+            SizedBox(height: screenWidth * 0.15),
+
+            // ACCOUNT MANAGEMENT CARD
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.06),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Account Management",
+                    style: TextStyle(
+                      fontSize: titleSize,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  SizedBox(height: screenWidth * 0.03),
+
+                  _buildAccountCard(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => ExamStart(user: user),
-                    ),
-                  );
-                }),
-              ],
-            ),
-            SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 70)),
-            GestureDetector(
-              onTap: () {
-                Provider.of<AuthProvider>(context, listen: false).logOut();
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => Login()),
-                );
-              },
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: EdgeInsets.only(
-                      left: scalingFactor * (isTablet(context) ? 20 : 15)),
-                  child: Text(
-                    'Log out',
-                    style: TextStyle(
-                      fontSize: scalingFactor * (isTablet(context) ? 16 : 18),
-                      fontWeight: FontWeight.w400,
-                      color: Color(0xFF0070C0),
-                    ),
+                    fontBase,
+                    iconBase,
+                    cardPadding,
+                    user,
                   ),
-                ),
+                ],
               ),
             ),
-            SizedBox(
-              height: scalingFactor * (isTablet(context) ? 30 : 30),
-            ),
-            GestureDetector(
-              onTap: () async {
-                bool confirmDelete = await showDialog(
-                  context: context,
-                  builder: (context) =>
-                      AlertDialog(
-                        title: Text("Delete Account"),
-                        content: Text(
-                            "Are you sure you want to delete your account? This action cannot be undone."),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: Text("Cancel"),
-                          ),
-                          TextButton(
-                            onPressed: () async {
-                              Navigator.pop(context, true);
-                              await deleteAccount(context);
-                            },
-                            child: Text("Delete"),
-                          ),
-                        ],
-                      ),
-                );
 
-                if (confirmDelete == true) {
-                  await deleteAccount(context);
-                }
-              },
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: EdgeInsets.only(
-                      left: scalingFactor * (isTablet(context) ? 20 : 15)),
-                  child: Text(
-                    'Delete Account',
-                    style: TextStyle(
-                      fontSize: scalingFactor * (isTablet(context) ? 16 : 18),
-                      fontWeight: FontWeight.w400,
-                      color: Colors.red,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(
-              height: scalingFactor * (isTablet(context) ? 30 : 30),
-            ),
-            GestureDetector(
-              onTap: () async {
-                final Uri deleteAccountUri = Uri.parse("https://sites.google.com/view/wired-international-healthmap/home");
+            SizedBox(height: screenWidth * 0.15),
+          ],
+        ),
+      ),
+    );
+  }
 
-                if (await canLaunchUrl(deleteAccountUri)) {
-                  await launchUrl(deleteAccountUri, mode: LaunchMode.externalApplication);
-                } else {
-                  print("Could not open the delete account request page");
-                  _showCopyDeleteAccountDialog(context);
-                }
-              },
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 60 : 15)),
-                  child: Text(
-                    'Request Data Deletion',
-                    style: TextStyle(
-                      fontSize: scalingFactor * (isTablet(context) ? 15 : 18),
-                      fontWeight: FontWeight.w400,
-                      color: Color(0xFF0070C0),
+  Widget _buildTopButtons(
+      BuildContext context,
+      double scalingFactor,
+      User user,
+      ) {
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildInkWellButton(context, 'Meet The Team', scalingFactor, () async {
+              final Uri url = Uri.parse('https://sites.google.com/view/wired-international-team/home');
+              if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
+            }),
+            _buildInkWellButton(context, 'About WiRED', scalingFactor, () async {
+              final Uri url = Uri.parse('https://sites.google.com/view/healthmap-about/home');
+              if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
+            }),
+          ],
+        ),
+        SizedBox(height: 20),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _buildInkWellButton(context, 'Privacy Policy', scalingFactor, () async {
+              final Uri url = Uri.parse('https://sites.google.com/view/healthmapprivacypolicy/home');
+              if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
+            }),
+            _buildInkWellButton(context, 'Exams', scalingFactor, () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => ExamStart(user: user)),
+              );
+            }),
+          ],
+        )
+      ],
+    );
+  }
+
+  Widget _buildAccountCard(
+      BuildContext context,
+      double fontBase,
+      double iconBase,
+      double padding,
+      User user,
+      ) {
+    return Container(
+      decoration: BoxDecoration(
+          color: const Color(0xFFFCEDDA).withOpacity(0.92),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black26,
+            blurRadius: 6,
+            offset: Offset(0, 3),
+          )
+        ],
+      ),
+      child: Column(
+        children: [
+          _buildAccountRow(
+            context,
+            icon: Icons.download_outlined,
+            label: "Request Data Deletion",
+            color: Color(0xFF0070C0),
+            fontSize: fontBase,
+            iconSize: iconBase,
+            padding: padding,
+            onTap: () async {
+              final Uri deleteAccountUri = Uri.parse(
+                  "https://sites.google.com/view/wired-international-healthmap/home");
+              if (await canLaunchUrl(deleteAccountUri)) {
+                await launchUrl(deleteAccountUri, mode: LaunchMode.externalApplication);
+              } else {
+                _showCopyDeleteAccountDialog(context);
+              }
+            },
+          ),
+
+          _responsiveDivider(),
+
+          _buildAccountRow(
+            context,
+            icon: Icons.logout,
+            label: "Log out",
+            color: Color(0xFF0070C0),
+            fontSize: fontBase,
+            iconSize: iconBase,
+            padding: padding,
+            onTap: () {
+              Provider.of<AuthProvider>(context, listen: false).logOut();
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(builder: (context) => Login()),
+              );
+            },
+          ),
+
+          _responsiveDivider(),
+
+          _buildAccountRow(
+            context,
+            icon: Icons.delete_outline,
+            label: "Delete Account",
+            color: Colors.red,
+            fontSize: fontBase,
+            iconSize: iconBase,
+            padding: padding,
+            onTap: () async {
+              bool confirmDelete = await showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: Text("Delete Account"),
+                  content: Text("Are you sure? This cannot be undone."),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: Text("Cancel"),
                     ),
-                  ),
+                    TextButton(
+                      onPressed: () async {
+                        Navigator.pop(context, true);
+                        await deleteAccount(context);
+                      },
+                      child: Text("Delete"),
+                    ),
+                  ],
                 ),
+              );
+              if (confirmDelete == true) {
+                await deleteAccount(context);
+              }
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _responsiveDivider() {
+    return Container(
+      height: 1,
+      color: Colors.black.withOpacity(0.12),
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+    );
+  }
+
+  Widget _buildAccountRow(
+      BuildContext context, {
+        required IconData icon,
+        required String label,
+        required Color color,
+        required double fontSize,
+        required double iconSize,
+        required double padding,
+        required VoidCallback onTap,
+      }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          vertical: padding * 0.8,
+          horizontal: padding,
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: iconSize, color: color),
+            SizedBox(width: padding * 0.6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: fontSize,
+                color: color,
+                fontWeight: FontWeight.w400,
               ),
-            ),
-            SizedBox(
-              height: scalingFactor * (isTablet(context) ? 20 : 30),
             ),
           ],
         ),
@@ -441,42 +532,55 @@ class _MenuState extends State<Menu> {
     );
   }
 
-  Widget _buildInkWellButton(BuildContext context, String text,
-      double scalingFactor, VoidCallback onTap) {
+  Widget _buildInkWellButton(
+      BuildContext context,
+      String text,
+      double scalingFactor,
+      VoidCallback onTap,
+      ) {
+    final mediaQuery = MediaQuery.of(context);
+    final isLandscape = mediaQuery.orientation == Orientation.landscape;
+
+    // Use height in landscape, width in portrait
+    final base = isLandscape
+        ? mediaQuery.size.height     // prevent huge buttons
+        : mediaQuery.size.width;
+
+    // Fully responsive values
+    double buttonWidth = base * scaleForDevice(context, 0.40, 0.28);
+    double buttonHeight = base * scaleForDevice(context, 0.20, 0.14);
+    double fontSize = base * scaleForDevice(context, 0.040, 0.026);
+
     return Material(
-      color: Colors.transparent, // Ensures ripple effect works
+      color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        // Rounded edges for ripple effect
-        splashColor: Colors.grey.withOpacity(0.3),
-        // Light splash effect
+        borderRadius: BorderRadius.circular(12),
+        splashColor: Colors.grey.withOpacity(0.25),
         child: Container(
-          height: scalingFactor * (isTablet(context) ? 80 : 90),
-          width: scalingFactor * (isTablet(context) ? 150 : 165),
-          padding: EdgeInsets.all(16.0),
+          width: buttonWidth,
+          height: buttonHeight,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            color: Color(0xFFFCEDDA),
-            border: Border.all(color: Colors.black, width: 0.7),
+            color: const Color(0xFFFCEDDA),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.black, width: 0.8),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.5),
-                spreadRadius: 2,
-                blurRadius: 5,
-                offset: Offset(3, 3),
+                color: Colors.black.withOpacity(0.15),
+                blurRadius: 6,
+                offset: const Offset(3, 3),
               ),
             ],
           ),
-          child: Center( // Ensures text is centered
-            child: Text(
-              text,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: scalingFactor * (isTablet(context) ? 13 : 15),
-                fontWeight: FontWeight.w500,
-                color: Colors.black,
-              ),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: FontWeight.w600,
+              color: Colors.black,
             ),
           ),
         ),
@@ -484,182 +588,64 @@ class _MenuState extends State<Menu> {
     );
   }
 
-// 🔹 Helper function for an empty placeholder button
-  Widget _buildEmptyButton(BuildContext context, double scalingFactor) {
-    return Container(
-      height: scalingFactor * (isTablet(context) ? 80 : 90),
-      width: scalingFactor * (isTablet(context) ? 150 : 165),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        color: Colors.transparent, // Invisible placeholder
-      ),
-    );
-  }
+  Widget _buildLandscapeLayout(
+      BuildContext context,
+      baseSize,
+      double scalingFactor,
+      AuthProvider authProvider,
+      User user,
+      int creditsEarned,
+      ) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final screenHeight = MediaQuery.of(context).size.height;
 
+    // Responsive values
+    double fontBase = screenWidth * scaleForDevice(context, 0.03, 0.018);
+    double iconBase = screenWidth * scaleForDevice(context, 0.04, 0.025);
+    double cardPadding = screenWidth * scaleForDevice(context, 0.035, 0.022);
+    double titleSize = screenWidth * scaleForDevice(context, 0.035, 0.022);
 
-  Widget _buildLandscapeLayout(BuildContext context, baseSize, scalingFactor,
-      authProvider, User user, creditsEarned) {
     return SingleChildScrollView(
       child: Align(
         alignment: Alignment.topCenter,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            SizedBox(height: scalingFactor * (isTablet(context) ? 20 : 20)),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildInkWellButton(context, 'Meet The Team', scalingFactor, () async {
-                  final Uri url = Uri.parse('https://sites.google.com/view/wired-international-team/home');
-                  if (await canLaunchUrl(url)) {
-                    await launchUrl(url, mode: LaunchMode.externalApplication);
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Could not launch Meet The Team')),
-                    );
-                  }
-                }),
-                _buildInkWellButton(context, 'About WiRED', scalingFactor, () async {
-                  final Uri url = Uri.parse('https://sites.google.com/view/healthmap-about/home');
-                  if (await canLaunchUrl(url)) {
-                    await launchUrl(url, mode: LaunchMode.externalApplication);
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Could not launch About WiRED')),
-                    );
-                  }
-                }),
-              ],
-            ),
-            SizedBox(height: scalingFactor * (isTablet(context) ? 10 : 10)),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildInkWellButton(context, 'Privacy Policy', scalingFactor, () async {
-                  final Uri url = Uri.parse('https://sites.google.com/view/healthmapprivacypolicy/home');
-                  if (await canLaunchUrl(url)) {
-                    await launchUrl(url, mode: LaunchMode.externalApplication);
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Could not launch Privacy Policy')),
-                    );
-                  }
-                }),
-                _buildInkWellButton(context, 'Exams', scalingFactor, () {
-                  Navigator.push(
+          children: [
+            SizedBox(height: screenHeight * 0.04),
+
+            // TOP BUTTON ROWS
+            _buildTopButtons(context, scalingFactor, user),
+
+            SizedBox(height: screenHeight * 0.08),
+
+            // ACCOUNT MANAGEMENT
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: screenWidth * 0.05),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Account Management",
+                    style: TextStyle(
+                      fontSize: titleSize,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  SizedBox(height: screenHeight * 0.02),
+
+                  _buildAccountCard(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => ExamStart(user: user),
-                    ),
-                  );
-                }),
-              ],
-            ),
-            SizedBox(height: scalingFactor * (isTablet(context) ? 30 : 30)),
-            GestureDetector(
-              onTap: () {
-                Provider.of<AuthProvider>(context, listen: false).logOut();
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => Login()),
-                );
-              },
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: EdgeInsets.only(
-                      left: scalingFactor * (isTablet(context) ? 60 : 55)),
-                  child: Text(
-                    'Log out',
-                    style: TextStyle(
-                      fontSize: scalingFactor * (isTablet(context) ? 15 : 16),
-                      fontWeight: FontWeight.w400,
-                      color: Color(0xFF0070C0),
-                    ),
+                    fontBase,
+                    iconBase,
+                    cardPadding,
+                    user,
                   ),
-                ),
+                ],
               ),
             ),
-            SizedBox(
-              height: scalingFactor * (isTablet(context) ? 15 : 15),
-            ),
-            GestureDetector(
-              onTap: () async {
-                bool confirmDelete = await showDialog(
-                  context: context,
-                  builder: (context) =>
-                      AlertDialog(
-                        title: Text("Delete Account"),
-                        content: Text(
-                            "Are you sure you want to delete your account? This action cannot be undone."),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context, false),
-                            child: Text("Cancel"),
-                          ),
-                          TextButton(
-                            onPressed: () async {
-                              Navigator.pop(context, true);
-                              await deleteAccount(context);
-                            },
-                            child: Text("Delete"),
-                          ),
-                        ],
-                      ),
-                );
 
-                if (confirmDelete == true) {
-                  await deleteAccount(context);
-                }
-              },
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: EdgeInsets.only(
-                      left: scalingFactor * (isTablet(context) ? 60 : 55)),
-                  child: Text(
-                    'Delete Account',
-                    style: TextStyle(
-                      fontSize: scalingFactor * (isTablet(context) ? 15 : 16),
-                      fontWeight: FontWeight.w400,
-                      color: Colors.red,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(
-              height: scalingFactor * (isTablet(context) ? 15 : 15),
-            ),
-            GestureDetector(
-              onTap: () async {
-                final Uri deleteAccountUri = Uri.parse("https://sites.google.com/view/wired-international-healthmap/home");
-
-                if (await canLaunchUrl(deleteAccountUri)) {
-                  await launchUrl(deleteAccountUri, mode: LaunchMode.externalApplication);
-                } else {
-                  print("Could not open the delete account request page");
-                  _showCopyDeleteAccountDialog(context);
-                }
-              },
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: EdgeInsets.only(left: scalingFactor * (isTablet(context) ? 60 : 55)),
-                  child: Text(
-                    'Request Data Deletion',
-                    style: TextStyle(
-                      fontSize: scalingFactor * (isTablet(context) ? 15 : 16),
-                      fontWeight: FontWeight.w400,
-                      color: Color(0xFF0070C0),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            SizedBox(
-              height: scalingFactor * (isTablet(context) ? 30 : 30),
-            ),
+            SizedBox(height: screenHeight * 0.08),
           ],
         ),
       ),
