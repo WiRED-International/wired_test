@@ -59,8 +59,8 @@ android {
         targetSdkVersion 36
         // versionCode flutterVersionCode.toInteger()
         // versionName flutterVersionName
-        versionCode 36
-        versionName "2.2.3"
+        versionCode 37
+        versionName "2.2.4"
     }
 
     signingConfigs {

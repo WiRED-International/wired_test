@@ -104,9 +104,13 @@ class _RegisterState extends State<Register> {
               _countryController.text = value?['name'] ?? '';
 
               // 🔹 Filter organizations by selected country
-              _filteredOrganizations = _organizations
-                  .where((org) => org['country_id'] == _selectedCountry?['id'])
-                  .toList();
+              _filteredOrganizations = _organizations.where((org) {
+                final countries = org['countries'] as List<dynamic>? ?? [];
+
+                return countries.any(
+                      (c) => c['id'] == _selectedCountry?['id'],
+                );
+              }).toList();
 
               _selectedOrganization = null;
             });
@@ -128,14 +132,18 @@ class _RegisterState extends State<Register> {
       final response = await http.get(url);
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
+
         setState(() {
-          _organizations = data.map((item) => {
-            'id': item['id'],
-            'name': item['name'],
-            'country_id': item['country_id'],
-            'city_id': item['city_id'],
-            'country_name': item['country']?['name'],
-            'city_name': item['cities']?['name'],
+          _organizations = data.map((item) {
+            final countries = item['countries'] as List<dynamic>? ?? [];
+
+            return {
+              'id': item['id'],
+              'name': item['name'],
+              'city_id': item['city_id'],
+              'city_name': item['cities']?['name'],
+              'countries': countries, // ✅ REQUIRED
+            };
           }).toList();
         });
       } else {
@@ -160,11 +168,16 @@ class _RegisterState extends State<Register> {
             contentPadding: EdgeInsets.symmetric(vertical: 14, horizontal: 12),
           ),
           items: _filteredOrganizations.map((org) {
+            final city = org['city_name'];
+            final displayText = org['name'] == 'Independent' || city == null
+                ? org['name']
+                : "${org['name']} ($city)";
+
             return DropdownMenuItem<Map<String, dynamic>>(
               value: org,
               child: Text(
-                "${org['name']} (${org['city_name']})",
-                overflow: TextOverflow.ellipsis, // ✅ keep text tidy in narrow layouts
+                displayText,
+                overflow: TextOverflow.ellipsis,
               ),
             );
           }).toList(),

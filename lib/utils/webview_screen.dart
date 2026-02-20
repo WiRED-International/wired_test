@@ -35,6 +35,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
             useOnDownloadStart: true,
             allowFileAccess: true,
             allowContentAccess: true,
+            allowFileAccessFromFileURLs: true,
+            allowUniversalAccessFromFileURLs: true,
             useWideViewPort: true,
             useHybridComposition: true,
             hardwareAcceleration: true,
@@ -85,6 +87,30 @@ class _WebViewScreenState extends State<WebViewScreen> {
                   }
                 }
               });
+            """);
+
+            // -----------------------------
+            // Samsung-safe video fix
+            // -----------------------------
+                        await _webViewController.evaluateJavascript(source: """
+              const patchVideo = (v) => {
+                v.setAttribute('playsinline', '');
+                v.controls = true;
+                v.autoplay = false;
+                v.muted = false;
+                v.preload = 'auto';
+                console.log('🎥 Video patched for Android WebView:', v.src);
+              };
+            
+              // Patch existing videos
+              document.querySelectorAll('video').forEach(patchVideo);
+            
+              // Patch videos added later (Storyline / JS slides)
+              const observer = new MutationObserver(() => {
+                document.querySelectorAll('video').forEach(patchVideo);
+              });
+            
+              observer.observe(document.body, { childList: true, subtree: true });
             """);
 
             // Inject JS to detect PDFs opened in iframes
