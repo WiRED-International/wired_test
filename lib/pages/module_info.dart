@@ -126,6 +126,15 @@ class _ModuleInfoState extends State<ModuleInfo> {
 
       final zipFile = File('${modulesDir.path}/$fileName');
 
+      // 🆕 Create a folder for this module
+      final moduleFolderName = fileName.replaceAll(".zip", "");
+      final moduleOutputDir = Directory("${modulesDir.path}/$moduleFolderName");
+
+      if (!moduleOutputDir.existsSync()) {
+        moduleOutputDir.createSync(recursive: true);
+        print("📁 Created module folder: ${moduleOutputDir.path}");
+      }
+
       // ⚙️ Ensure parent directories exist (fixes PathNotFoundException)
       if (!await zipFile.parent.exists()) {
         await zipFile.parent.create(recursive: true);
@@ -194,7 +203,7 @@ class _ModuleInfoState extends State<ModuleInfo> {
       // 🧠 Extract in background isolate (non-blocking)
       await Isolate.spawn(_extractZipWithProgress, {
         'zipPath': zipFile.path,
-        'outputDir': modulesDir.path,
+        'outputDir': moduleOutputDir.path,
         'sendPort': receivePort.sendPort,
       });
 
@@ -209,6 +218,69 @@ class _ModuleInfoState extends State<ModuleInfo> {
             });
           }
         } else if (message == 'done') {
+          final storyFile = File("${moduleOutputDir.path}/story.html");
+          final indexFile = File("${moduleOutputDir.path}/index.html");
+
+          // 🔍 SEARCH for story.html (ONLY ONCE)
+          print("🔍 Searching for story.html...");
+
+          File? foundStoryFile;
+
+          await for (var entity in Directory(moduleOutputDir.path).list(recursive: true)) {
+            if (entity is File && entity.path.endsWith("story.html")) {
+              foundStoryFile = entity;
+              break;
+            }
+          }
+
+          // ✅ CASE 1: STORYLINE
+          if (foundStoryFile != null) {
+            print("✅ Found story.html at: ${foundStoryFile.path}");
+
+            final storyParent = Directory(foundStoryFile.parent.path);
+            final realFolderName = storyParent.path.split('/').last;
+
+            final baseDir = Directory(storagePath).parent;
+            final filesRoot = Directory("${baseDir.path}/files");
+
+            if (!filesRoot.existsSync()) {
+              filesRoot.createSync(recursive: true);
+            }
+
+            final targetDir = Directory("${filesRoot.path}/$realFolderName");
+
+            if (!targetDir.existsSync()) {
+              await storyParent.rename(targetDir.path);
+              print("📁 Moved Storyline folder to: ${targetDir.path}");
+            }
+
+            final newHtmFile = File("${modulesDir.path}/${realFolderName}.htm");
+
+            final launcherContent = '''
+            <html>
+            <head>
+            <meta name="module-title" content="${widget.moduleName}">
+            <meta http-equiv="refresh" content="0; url=../files/$realFolderName/story.html">
+            </head>
+            <body></body>
+            </html>
+            ''';
+
+            await newHtmFile.writeAsString(launcherContent);
+
+            print("📄 Created launcher: ${newHtmFile.path}");
+          }
+
+          // ✅ CASE 2: COMPILER
+          else if (indexFile.existsSync()) {
+            print("📦 Detected Compiler module");
+          }
+
+          // ❌ UNKNOWN
+          else {
+            print("❌ Unknown module format");
+          }
+
           await zipFile.delete();
           print('🗑️ Deleted ZIP after extraction.');
 

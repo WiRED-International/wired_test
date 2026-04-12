@@ -49,7 +49,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
   }
 
   String? extractModuleId(String content) {
-    final regex = RegExp(r'content="0; url=files/(\d+)/story.html"'); // Adjust regex if needed
+    final regex = RegExp(r'files/(\d+)/story.html'); // Adjust regex if needed
     final match = regex.firstMatch(content);
     return match?.group(1); // Return the captured group (module ID)
   }
@@ -127,27 +127,66 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
 
     // Process files in modules directory
     if (modulesDirectory.existsSync()) {
-      final moduleFiles = modulesDirectory.listSync().whereType<File>().toList();
+      final moduleFiles = modulesDirectory
+          .listSync()
+          .whereType<File>()
+          .toList();
       print("DEBUG: Found ${moduleFiles.length} module files.");
+
       fetchedModules.addAll(moduleFiles.map((file) {
-        String fileName = file.path.split('/').last.replaceAll('.htm', '');
+        final fileName = file.path.split('/').last.replaceAll('.htm', '');
 
         String? moduleId;
         try {
-          final content = file.readAsStringSync(); // Read file content
-          moduleId = extractModuleId(content); // Extract module ID
+          final content = file.readAsStringSync();
+          moduleId = extractModuleId(content) ?? fileName;
         } catch (e) {
           print("Error reading file: ${file.path}, $e");
+        }
+
+        String displayName = fileName;
+
+        try {
+          final content = file.readAsStringSync();
+
+          final titleMatch = RegExp(r'<meta name="module-title" content="([^"]+)">')
+              .firstMatch(content);
+
+          if (titleMatch != null) {
+            displayName = titleMatch.group(1)!;
+          }
+        } catch (e) {
+          print("Title extraction error: $e");
         }
 
         return ModuleFile(
           file: file,
           path: file.path,
-          moduleName: fileName,
-          moduleId: moduleId ?? fileName, // Fallback to fileName if ID not found
+          moduleName: displayName,
+          moduleId: moduleId ?? fileName,
         );
       }).toList());
     }
+
+    // 🆕 Process directories in modules directory (HealthMAP modules)
+    final moduleDirs = modulesDirectory.listSync().whereType<Directory>().toList();
+    print("DEBUG: Found ${moduleDirs.length} module directories.");
+
+    fetchedModules.addAll(moduleDirs.where((dir) {
+      final indexFile = File("${dir.path}/index.html");
+      final storyFile = File("${dir.path}/story.html");
+
+      return indexFile.existsSync() || storyFile.existsSync();
+    }).map((dir) {
+      String folderName = dir.path.split('/').last;
+
+      return ModuleFile(
+        file: dir,
+        path: "${dir.path}/index.html", // ✅ IMPORTANT
+        moduleName: folderName,
+        moduleId: folderName,
+      );
+    }).toList());
 
     fetchedModules.sort((a, b) => a.moduleName.compareTo(b.moduleName));
 
@@ -175,13 +214,13 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
     }
   }
 
-  void _showDeleteConfirmation(String fileName) {
+  void _showDeleteConfirmation(ModuleFile module) {
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
           title: Text("Delete Module"),
-          content: Text("Are you sure you want to delete the module: $fileName?"),
+          content: Text("Are you sure you want to delete the module: ${module.moduleName}?"),
           actions: [
             TextButton(
               onPressed: () {
@@ -192,7 +231,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop(); // Close the modal
-                deleteFileAndAssociatedDirectory(fileName); // Call the delete function after confirmation
+                deleteModule(module); // Call the delete function after confirmation
               },
               child: Text("Yes, delete"),
             ),
@@ -202,74 +241,73 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
     );
   }
 
-  Future<void> deleteFileAndAssociatedDirectory(String fileName) async {
+  Future<void> deleteModule(ModuleFile module) async {
     try {
       final directory = await getStoragePath();
-      if (directory == null) {
-        return;
-      }
-      // Define the path to the file
-      final packagesFilePath = '${directory.path}/packages/$fileName';
-      final modulesFilePath = '${directory.path}/modules/$fileName';
 
-      // Determine which directory the file exists in
-      String? filePath;
-      if (File(packagesFilePath).existsSync()) {
-        filePath = packagesFilePath;
-      } else if (File(modulesFilePath).existsSync()) {
-        filePath = modulesFilePath;
-      }
+      // ✅ CASE 1: NEW COMPILER MODULE (Directory)
+      if (module.file is Directory) {
+        final dir = Directory(module.file.path);
 
-      if (filePath == null) {
-        print('File not found in either directory: $fileName');
+        if (dir.existsSync()) {
+          await dir.delete(recursive: true);
+          print("🗑️ Deleted compiler module: ${dir.path}");
+        }
+
+        setState(() {
+          futureModules = _fetchModules();
+        });
+
         return;
       }
 
-      final file = File(filePath);
-      print('Attempting to delete file: $filePath');
+      // ✅ CASE 2: OLD STORYLINE MODULE (File)
+      final file = File(module.file.path);
+
+      if (!file.existsSync()) {
+        print("❌ File not found: ${module.file.path}");
+        return;
+      }
+
+      print('Deleting storyline file: ${file.path}');
 
       String? associatedDirectoryPath;
 
-      // Only do RegEx logic if the file is not an .mp4
+      final fileName = module.file.path.split('/').last;
+
       if (!fileName.toLowerCase().endsWith('.mp4')) {
         final fileContent = await file.readAsString();
-        // Use RegEx to find the path to the associated directory
+
         final regEx = RegExp(r'files/(\d+(-[a-zA-Z0-9]+)*(-[A-Z]+)?)/');
         final match = regEx.firstMatch(fileContent);
 
         if (match != null) {
           final directoryName = match.group(1);
           associatedDirectoryPath = '${directory.path}/files/$directoryName';
-        } else {
-          print('No associated directory found in file: $filePath');
         }
       } else {
-        // 🔁 Fallback for .mp4 files – infer folder name from filename (optional logic)
         final baseName = fileName.split('.').first;
         associatedDirectoryPath = '${directory.path}/files/$baseName';
       }
 
-      // Delete the file
       await file.delete();
-      print('Deleted file: $filePath');
+      print('Deleted file: ${file.path}');
 
-      // Delete the associated directory
       if (associatedDirectoryPath != null) {
         final associatedDirectory = Directory(associatedDirectoryPath);
+
         if (associatedDirectory.existsSync()) {
           await associatedDirectory.delete(recursive: true);
-          print('Deleted directory: $associatedDirectoryPath');
-        } else {
-          print('Associated directory not found: $associatedDirectoryPath');
+          print('Deleted associated directory: $associatedDirectoryPath');
         }
       }
 
-      // Update state to remove the deleted module
       setState(() {
-        modules.removeWhere((module) => module.path == filePath);
+        futureModules = _fetchModules();
       });
+
     } catch (e) {
-      print('Error deleting file or directory: $e');
+      print('❌ Error deleting module: $e');
     }
   }
 
@@ -284,9 +322,6 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
     print("🔍 Stored Module ID: $savedModuleId");
     print("🔍 Stored Module Name: $savedModuleName");
   }
-
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -579,7 +614,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                                                 child: GestureDetector(
                                                   onTap: () {
                                                     print("Delete tapped");
-                                                    _showDeleteConfirmation(moduleFile.file.path.split('/').last);
+                                                    _showDeleteConfirmation(moduleFile);
                                                   },
                                                   child: FittedBox(
                                                     child: Column(
@@ -818,7 +853,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                                                 child: GestureDetector(
                                                   onTap: () {
                                                     print("Delete tapped");
-                                                    _showDeleteConfirmation(moduleFile.file.path.split('/').last);
+                                                    _showDeleteConfirmation(moduleFile);
                                                   },
                                                   child: FittedBox(
                                                     child: Column(
