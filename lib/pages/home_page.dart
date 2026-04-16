@@ -175,17 +175,6 @@ class _MyHomePageState extends State<MyHomePage> {
                   Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
                 },
                 onTrackerTap: () {
-                  final authProvider = Provider.of<AuthProvider>(context, listen: false);
-
-                  if (authProvider.isLoading) {
-                    debugPrint("AuthProvider is still loading, delaying navigation...");
-                    return;
-                  }
-                  // Navigator.push(
-                  //   context,
-                  //   MaterialPageRoute(
-                  //     builder: (context) => AuthGuard(child: CMETracker()),
-                  //   ),
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -198,7 +187,7 @@ class _MyHomePageState extends State<MyHomePage> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => isLoggedIn ? Menu(onLocaleChange: widget.onLocaleChange) : GuestMenu(onLocaleChange: widget.onLocaleChange),
+                      builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
                     ),
                   );
                 },

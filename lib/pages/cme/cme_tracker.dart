@@ -364,6 +364,7 @@ class _CMETrackerState extends State<CMETracker> {
     final safeTotal = totalCredits == 0 ? 1.0 : totalCredits;
     final percentComplete = (earnedCredits / safeTotal).clamp(0.0, 1.0);
     final remainingCredits = (safeTotal - earnedCredits).clamp(0.0, safeTotal);
+    final int currentYear = DateTime.now().year;
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -429,7 +430,7 @@ class _CMETrackerState extends State<CMETracker> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text("2025 Progress",
+                      Text("$currentYear Progress",
                         style: TextStyle(
                             fontSize: baseSize * 0.035, color: Colors.white70),
                       ),
@@ -552,7 +553,7 @@ class _CMETrackerState extends State<CMETracker> {
               ),
               child: Text(
                 "Reminder: You need ${remainingCredits.toStringAsFixed(
-                    1)} more credits to meet your 2025 requirement.",
+                    1)} more credits to meet your $currentYear requirement.",
                 style: TextStyle(
                   color: const Color(0xFF047857),
                   fontSize: baseSize * 0.035 * scale,
@@ -578,9 +579,10 @@ class _CMETrackerState extends State<CMETracker> {
       double earnedCredits,
       double totalCredits,
       List<Map<String, dynamic>> recentCredits,) {
-    double percentComplete = (earnedCredits / totalCredits).clamp(0.0, 1.0);
-    double remainingCredits =
-    (totalCredits - earnedCredits).clamp(0.0, totalCredits);
+    final safeTotal = totalCredits == 0 ? 1.0 : totalCredits;
+    double percentComplete = (earnedCredits / safeTotal).clamp(0.0, 1.0);
+    double remainingCredits = (totalCredits - earnedCredits).clamp(0.0, totalCredits);
+    final int currentYear = DateTime.now().year;
 
     return Padding(
       padding: EdgeInsets.symmetric(
@@ -644,7 +646,7 @@ class _CMETrackerState extends State<CMETracker> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              "2025 Progress",
+                              "$currentYear Progress",
                               style: TextStyle(
                                 fontSize: baseSize * 0.035,
                                 color: Colors.white70,
@@ -787,7 +789,7 @@ class _CMETrackerState extends State<CMETracker> {
                       ),
                       child: Text(
                         "Reminder: You need ${remainingCredits.toStringAsFixed(
-                            1)} more credits to meet your 2025 requirement.",
+                            1)} more credits to meet your $currentYear requirement.",
                         style: TextStyle(
                           color: const Color(0xFF047857),
                           fontSize: baseSize * 0.035 * scale,

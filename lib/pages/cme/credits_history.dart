@@ -37,6 +37,9 @@ class _CreditsHistoryState extends State<CreditsHistory> {
   void initState() {
     super.initState();
     userData = fetchUserData();
+
+    // Default to current year
+    selectedYear = DateTime.now().year;
   }
 
   Future<String?> getAuthToken() async {
@@ -201,6 +204,16 @@ class _CreditsHistoryState extends State<CreditsHistory> {
           (a, b) =>
           DateTime.parse(b['date_taken']).compareTo(DateTime.parse(a['date_taken'])),
     );
+
+    // ✅ ADD THIS HERE
+    final currentYear = DateTime.now().year;
+
+    final years = {
+      ...quizScores.map((q) => DateTime.parse(q['date_taken']).year),
+      currentYear,
+    }.toList()
+      ..sort((a, b) => b.compareTo(a)); // newest first
+
     final filtered = selectedYear == null
         ? quizScores
         : quizScores
@@ -250,11 +263,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                         onChanged: (int? year) => setState(() => selectedYear = year),
                         items: [
                           null,
-                          ...quizScores
-                              .map((q) => DateTime.parse(q['date_taken']).year)
-                              .toSet()
-                              .toList()
-                            ..sort()
+                          ...years,
                         ].map<DropdownMenuItem<int>>((year) {
                           return DropdownMenuItem<int>(
                             value: year,
@@ -383,7 +392,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
             )
                 : Center(
               child: Text(
-                "No CME records found.",
+                "No CME records found for $selectedYear.",
                 style: TextStyle(
                   fontSize: baseSize * 0.035 * scale,
                   color: Colors.black54,
@@ -407,6 +416,13 @@ class _CreditsHistoryState extends State<CreditsHistory> {
       double baseSize,
       double scale,
       ) {
+    final currentYear = DateTime.now().year;
+
+    final years = {
+      ...quizScores.map((q) => DateTime.parse(q['date_taken']).year),
+      currentYear,
+    }.toList()
+      ..sort((a, b) => b.compareTo(a));
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: baseSize * 0.05,
@@ -457,12 +473,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                                 setState(() => selectedYear = year),
                             items: [
                               null,
-                              ...quizScores
-                                  .map((q) =>
-                              DateTime.parse(q['date_taken']).year)
-                                  .toSet()
-                                  .toList()
-                                ..sort()
+                              ...years,
                             ].map<DropdownMenuItem<int>>((year) {
                               return DropdownMenuItem<int>(
                                 value: year,
