@@ -129,9 +129,20 @@ class _SubmitCreditsState extends State<SubmitCredits> {
 
     try {
       final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
-
       final apiEndpoint = '/quiz-scores';
 
+      // 🔥 NORMALIZE MODULE ID (SAFE VERSION)
+      final rawId = moduleFile.moduleId ?? "";
+
+      final normalizedId = rawId.replaceAll(RegExp(r'[^0-9]'), '');
+
+      final finalId = normalizedId.length > 4
+          ? normalizedId.substring(normalizedId.length - 4)
+          : normalizedId;
+
+      print("📦 Raw ID: $rawId");
+      print("📦 Normalized ID: $normalizedId");
+      print("📦 Final ID (last 4): $finalId");
 
       final response = await http.post(
         Uri.parse('$apiBaseUrl$apiEndpoint'),
@@ -140,7 +151,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
           'Authorization': 'Bearer $token',
         },
         body: json.encode({
-          'module_id': moduleFile.moduleId!.substring(moduleFile.moduleId!.length - 4),
+          'module_id': finalId, // ✅ USE CLEAN ID HERE
           'user_id': userId,
           'score': moduleFile.score ?? 0.0,
           'date_taken': DateTime.now().toIso8601String(),

@@ -20,73 +20,68 @@ class CustomBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseSize = MediaQuery
-        .of(context)
-        .size
-        .shortestSide;
+    final baseSize = MediaQuery.of(context).size.shortestSide;
     final isTabletDevice = isTablet(context);
     final effectiveScale = scale ?? (isTabletDevice ? 1.0 : 1.0);
 
-    final double barHeight = baseSize * 0.2 * effectiveScale;
     final double iconSize = baseSize * 0.08 * effectiveScale;
     final double fontSize = baseSize * 0.04 * effectiveScale;
+    final double bottomPadding = MediaQuery.of(context).padding.bottom;
+    final double baseHeight = baseSize * 0.2 * effectiveScale;
 
-    return Container(
-      color: Colors.transparent,
-      height: barHeight,
-      padding: EdgeInsets.symmetric(vertical: baseSize * 0.01 * effectiveScale),
-      //height: screenHeight * 0.1,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          // =====================
-          // 🔹 HOME BUTTON
-          // =====================
-          _buildIconNavItem(
-            context,
-            label: "Home",
-            icon: Icons.home,
-            onTap: onHomeTap,
-            iconSize: iconSize,
-            fontSize: fontSize,
-          ),
+    return SafeArea(
+      top: false, // ✅ critical: only protect bottom
+      child: Container(
+        color: Colors.transparent,
 
-          // =====================
-          // 🔹 LIBRARY BUTTON
-          // =====================
-          _buildIconNavItem(
-            context,
-            label: "My Library",
-            icon: Icons.library_books,
-            onTap: onLibraryTap,
-            iconSize: iconSize,
-            fontSize: fontSize,
-          ),
+        // ✅ IMPORTANT: height now includes system padding
+        height: baseHeight + bottomPadding,
 
-          // =====================
-          // 🔹 TRACKER BUTTON (SVG)
-          // =====================
-          _buildSvgNavItem(
-            context,
-            label: "Tracker",
-            svgPath: 'assets/icons/credits.svg',
-            onTap: onTrackerTap,
-            iconSize: iconSize,
-            fontSize: fontSize,
-          ),
+        padding: EdgeInsets.only(
+          top: baseSize * 0.01 * effectiveScale,
+          bottom: bottomPadding, // ✅ push content above nav bar
+        ),
 
-          // =====================
-          // 🔹 MENU BUTTON (SVG)
-          // =====================
-          _buildSvgNavItem(
-            context,
-            label: "Menu",
-            svgPath: 'assets/icons/hamburger.svg',
-            onTap: onMenuTap,
-            iconSize: iconSize,
-            fontSize: fontSize,
-          ),
-        ],
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _buildIconNavItem(
+              context,
+              label: "Home",
+              icon: Icons.home,
+              onTap: onHomeTap,
+              iconSize: iconSize,
+              fontSize: fontSize,
+            ),
+
+            _buildIconNavItem(
+              context,
+              label: "My Library",
+              icon: Icons.library_books,
+              onTap: onLibraryTap,
+              iconSize: iconSize,
+              fontSize: fontSize,
+            ),
+
+            _buildSvgNavItem(
+              context,
+              label: "Tracker",
+              svgPath: 'assets/icons/credits.svg',
+              onTap: onTrackerTap,
+              iconSize: iconSize,
+              fontSize: fontSize,
+            ),
+
+            _buildSvgNavItem(
+              context,
+              label: "Menu",
+              svgPath: 'assets/icons/hamburger.svg',
+              onTap: onMenuTap,
+              iconSize: iconSize,
+              fontSize: fontSize,
+            ),
+          ],
+        ),
       ),
     );
   }

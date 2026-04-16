@@ -8,11 +8,11 @@ import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
 import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
-import 'cme/cme_tracker.dart';
 import 'creditsTracker/credits_tracker.dart';
 import 'home_page.dart';
 import 'menu/guestMenu.dart';
 import 'menu/menu.dart';
+import 'dart:convert';
 
 
 class ModuleLibrary extends StatefulWidget {
@@ -110,8 +110,8 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
 
         String? moduleId;
         try {
-          final content = file.readAsStringSync(); // Read file content
-          moduleId = extractPackageModuleId(content); // Extract module ID
+          final content = file.readAsStringSync();
+          moduleId = extractPackageModuleId(content);
         } catch (e) {
           print("Error reading file: ${file.path}, $e");
         }
@@ -120,12 +120,12 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
           file: file,
           path: file.path,
           moduleName: fileName,
-          moduleId: moduleId ?? fileName, // Fallback to fileName if ID not found
+          moduleId: moduleId ?? fileName,
         );
       }).toList());
     }
 
-    // Process files in modules directory
+    // Process files in modules directory (Storyline .htm files)
     if (modulesDirectory.existsSync()) {
       final moduleFiles = modulesDirectory
           .listSync()
@@ -168,7 +168,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
       }).toList());
     }
 
-    // 🆕 Process directories in modules directory (HealthMAP modules)
+    // 🆕 Process directories in modules directory (Compiler modules)
     final moduleDirs = modulesDirectory.listSync().whereType<Directory>().toList();
     print("DEBUG: Found ${moduleDirs.length} module directories.");
 
@@ -178,13 +178,43 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
 
       return indexFile.existsSync() || storyFile.existsSync();
     }).map((dir) {
+
       String folderName = dir.path.split('/').last;
+
+      // 🔥 FIX: Read module_id from module.json if available
+      String moduleId = folderName;
+      String displayName = folderName;
+
+      try {
+        final jsonFile = File("${dir.path}/module.json");
+
+        if (jsonFile.existsSync()) {
+          final content = jsonDecode(jsonFile.readAsStringSync());
+
+          // ✅ Proper numeric module ID
+          if (content["module_id"] != null) {
+            moduleId = content["module_id"].toString();
+          }
+
+          // ✅ Better display name if available
+          if (content["module_title"] != null) {
+            displayName = content["module_title"].toString();
+          }
+
+          print("✅ Compiler module detected: ID=$moduleId Name=$displayName");
+        } else {
+          print("⚠️ module.json not found in ${dir.path}");
+        }
+
+      } catch (e) {
+        print("❌ Error reading module.json in ${dir.path}: $e");
+      }
 
       return ModuleFile(
         file: dir,
-        path: "${dir.path}/index.html", // ✅ IMPORTANT
-        moduleName: folderName,
-        moduleId: folderName,
+        path: "${dir.path}/index.html",
+        moduleName: displayName,
+        moduleId: moduleId,
       );
     }).toList());
 
@@ -559,7 +589,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                                                 child: GestureDetector(
                                                   onTap: () {
                                                     saveModuleInfo(moduleFile.moduleId, moduleFile.moduleName);
-                                                    print( "Saving module id: $moduleFile.moduleId");
+                                                    print("Saving module id: ${moduleFile.moduleId}");
                                                     Navigator.push(
                                                       context,
                                                       MaterialPageRoute(
@@ -797,7 +827,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
                                                 child: GestureDetector(
                                                   onTap: () {
                                                     saveModuleInfo(moduleFile.moduleId, moduleFile.moduleName);
-                                                    print( "Saving module id: $moduleFile.moduleId");
+                                                    print("Saving module id: ${moduleFile.moduleId}");
                                                     // Play the module
                                                     Navigator.push(
                                                       context,
