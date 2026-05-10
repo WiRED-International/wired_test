@@ -8,6 +8,7 @@ import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
 import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
+import '../utils/app_layout.dart';
 import 'creditsTracker/credits_tracker.dart';
 import 'home_page.dart';
 import 'menu/guestMenu.dart';
@@ -46,6 +47,13 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
     testStoragePath();
     futureModules = _fetchModules();
     futureResources = _fetchResources(); // Fetch the resources
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    futureModules = _fetchModules();
   }
 
   String? extractModuleId(String content) {
@@ -88,143 +96,176 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
   }
 
   Future<List<ModuleFile>> _fetchModules() async {
-    final directory = await getStoragePath();
-    if (directory == null) {
-      print("ERROR: getStoragePath() returned NULL in _fetchModules()");
-      return [];
-    }
-
-    final packagesDirectory = Directory('${directory.path}/packages');
-    final modulesDirectory = Directory('${directory.path}/modules');
-
-    print("DEBUG: Checking directories -> Packages: ${packagesDirectory.path}, Modules: ${modulesDirectory.path}");
-
-    List<ModuleFile> fetchedModules = [];
-
-    // Process files in packages directory
-    if (packagesDirectory.existsSync()) {
-      final packageFiles = packagesDirectory.listSync().whereType<File>().toList();
-      print("DEBUG: Found ${packageFiles.length} package files.");
-      fetchedModules.addAll(packageFiles.map((file) {
-        String fileName = file.path.split('/').last.replaceAll('.htm', '');
-
-        String? moduleId;
-        try {
-          final content = file.readAsStringSync();
-          moduleId = extractPackageModuleId(content);
-        } catch (e) {
-          print("Error reading file: ${file.path}, $e");
-        }
-
-        return ModuleFile(
-          file: file,
-          path: file.path,
-          moduleName: fileName,
-          moduleId: moduleId ?? fileName,
-        );
-      }).toList());
-    }
-
-    // Process files in modules directory (Storyline .htm files)
-    if (modulesDirectory.existsSync()) {
-      final moduleFiles = modulesDirectory
-          .listSync()
-          .whereType<File>()
-          .toList();
-      print("DEBUG: Found ${moduleFiles.length} module files.");
-
-      fetchedModules.addAll(moduleFiles.map((file) {
-        final fileName = file.path.split('/').last.replaceAll('.htm', '');
-
-        String? moduleId;
-        try {
-          final content = file.readAsStringSync();
-          moduleId = extractModuleId(content) ?? fileName;
-        } catch (e) {
-          print("Error reading file: ${file.path}, $e");
-        }
-
-        String displayName = fileName;
-
-        try {
-          final content = file.readAsStringSync();
-
-          final titleMatch = RegExp(r'<meta name="module-title" content="([^"]+)">')
-              .firstMatch(content);
-
-          if (titleMatch != null) {
-            displayName = titleMatch.group(1)!;
-          }
-        } catch (e) {
-          print("Title extraction error: $e");
-        }
-
-        return ModuleFile(
-          file: file,
-          path: file.path,
-          moduleName: displayName,
-          moduleId: moduleId ?? fileName,
-        );
-      }).toList());
-    }
-
-    // 🆕 Process directories in modules directory (Compiler modules)
-    final moduleDirs = modulesDirectory.listSync().whereType<Directory>().toList();
-    print("DEBUG: Found ${moduleDirs.length} module directories.");
-
-    fetchedModules.addAll(moduleDirs.where((dir) {
-      final indexFile = File("${dir.path}/index.html");
-      final storyFile = File("${dir.path}/story.html");
-
-      return indexFile.existsSync() || storyFile.existsSync();
-    }).map((dir) {
-
-      String folderName = dir.path.split('/').last;
-
-      // 🔥 FIX: Read module_id from module.json if available
-      String moduleId = folderName;
-      String displayName = folderName;
-
-      try {
-        final jsonFile = File("${dir.path}/module.json");
-
-        if (jsonFile.existsSync()) {
-          final content = jsonDecode(jsonFile.readAsStringSync());
-
-          // ✅ Proper numeric module ID
-          if (content["module_id"] != null) {
-            moduleId = content["module_id"].toString();
-          }
-
-          // ✅ Better display name if available
-          if (content["module_title"] != null) {
-            displayName = content["module_title"].toString();
-          }
-
-          print("✅ Compiler module detected: ID=$moduleId Name=$displayName");
-        } else {
-          print("⚠️ module.json not found in ${dir.path}");
-        }
-
-      } catch (e) {
-        print("❌ Error reading module.json in ${dir.path}: $e");
+    try {
+      final directory = await getStoragePath();
+      if (directory == null) {
+        print("ERROR: getStoragePath() returned NULL in _fetchModules()");
+        return [];
       }
 
-      return ModuleFile(
-        file: dir,
-        path: "${dir.path}/index.html",
-        moduleName: displayName,
-        moduleId: moduleId,
-      );
-    }).toList());
+      final packagesDirectory = Directory('${directory.path}/packages');
+      final modulesDirectory = Directory('${directory.path}/modules');
 
-    fetchedModules.sort((a, b) => a.moduleName.compareTo(b.moduleName));
+      print("DEBUG: Checking directories -> Packages: ${packagesDirectory.path}, Modules: ${modulesDirectory.path}");
 
-    setState(() {
-      modules = fetchedModules;
-    });
+      List<ModuleFile> fetchedModules = [];
 
-    return fetchedModules;
+      // Process files in packages directory
+      if (packagesDirectory.existsSync()) {
+        final packageFiles = packagesDirectory
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) {
+          final lowerPath = file.path.toLowerCase();
+
+          // Only include top-level Storyline launcher files.
+          // Exclude internal Storyline files like story.html, meta.html, analytics-frame.html.
+          final fileName = lowerPath.split('/').last;
+
+          return (fileName.endsWith(".htm") || fileName.endsWith(".html")) &&
+              !fileName.contains("story") &&
+              !fileName.contains("meta") &&
+              !fileName.contains("analytics-frame");
+        })
+            .toList();
+
+        print("DEBUG: Found ${packageFiles.length} package launcher files.");
+
+        fetchedModules.addAll(packageFiles.map((file) {
+          final rawFileName = file.path.split('/').last;
+          final fileName = rawFileName
+              .replaceAll('.htm', '')
+              .replaceAll('.html', '');
+
+          String? moduleId;
+
+          try {
+            final content = file.readAsStringSync();
+            moduleId = extractPackageModuleId(content);
+          } catch (e) {
+            print("Error reading package file: ${file.path}, $e");
+          }
+
+          return ModuleFile(
+            file: file,
+            path: file.path,
+            moduleName: fileName,
+            moduleId: moduleId ?? fileName,
+          );
+        }).toList());
+      }
+
+      // Process files in modules directory (Storyline .htm files)
+      if (modulesDirectory.existsSync()) {
+        final moduleFiles = modulesDirectory
+            .listSync()
+            .whereType<File>()
+            .toList();
+        print("DEBUG: Found ${moduleFiles.length} module files.");
+
+        fetchedModules.addAll(moduleFiles.map((file) {
+          final fileName = file.path.split('/').last.replaceAll('.htm', '');
+
+          String? moduleId;
+          try {
+            final content = file.readAsStringSync();
+            moduleId = extractModuleId(content) ?? fileName;
+          } catch (e) {
+            print("Error reading file: ${file.path}, $e");
+          }
+
+          String displayName = fileName;
+
+          try {
+            final content = file.readAsStringSync();
+
+            final titleMatch = RegExp(r'<meta name="module-title" content="([^"]+)">')
+                .firstMatch(content);
+
+            if (titleMatch != null) {
+              displayName = titleMatch.group(1)!;
+            }
+          } catch (e) {
+            print("Title extraction error: $e");
+          }
+
+          return ModuleFile(
+            file: file,
+            path: file.path,
+            moduleName: displayName,
+            moduleId: moduleId ?? fileName,
+          );
+        }).toList());
+      }
+
+      // 🆕 Process directories in modules directory (Compiler modules)
+      List<Directory> moduleDirs = [];
+
+      if (modulesDirectory.existsSync()) {
+        moduleDirs = modulesDirectory.listSync().whereType<Directory>().toList();
+      } else {
+        print("⚠️ Modules directory does not exist yet.");
+      }
+      print("DEBUG: Found ${moduleDirs.length} module directories.");
+
+      fetchedModules.addAll(moduleDirs.where((dir) {
+        final indexFile = File("${dir.path}/index.html");
+        final storyFile = File("${dir.path}/story.html");
+
+        return indexFile.existsSync() || storyFile.existsSync();
+      }).map((dir) {
+
+        String folderName = dir.path.split('/').last;
+
+        // 🔥 FIX: Read module_id from module.json if available
+        String moduleId = folderName;
+        String displayName = folderName;
+
+        try {
+          final jsonFile = File("${dir.path}/module.json");
+
+          if (jsonFile.existsSync()) {
+            final content = jsonDecode(jsonFile.readAsStringSync());
+
+            // ✅ Proper numeric module ID
+            if (content["module_id"] != null) {
+              moduleId = content["module_id"].toString();
+            }
+
+            // ✅ Better display name if available
+            if (content["module_title"] != null) {
+              displayName = content["module_title"].toString();
+            }
+
+            print("✅ Compiler module detected: ID=$moduleId Name=$displayName");
+          } else {
+            print("⚠️ module.json not found in ${dir.path}");
+          }
+
+        } catch (e) {
+          print("❌ Error reading module.json in ${dir.path}: $e");
+        }
+
+        return ModuleFile(
+          file: dir,
+          path: "${dir.path}/index.html",
+          moduleName: displayName,
+          moduleId: moduleId,
+        );
+      }).toList());
+
+      fetchedModules.sort((a, b) => a.moduleName.compareTo(b.moduleName));
+
+      setState(() {
+        modules = fetchedModules;
+      });
+
+      return fetchedModules;
+    } catch (e, stack) {
+      print("❌ ERROR in _fetchModules: $e");
+      print(stack);
+      return [];
+    }
   }
 
   Future<List<FileSystemEntity>> _fetchResources() async {
@@ -360,118 +401,96 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
     var baseSize = MediaQuery.of(context).size.shortestSide;
     bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
-    return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFFFFF0DC),
-                    Color(0xFFF9EBD9),
-                    Color(0xFFFFC888),
-                  ],
-                ),
+    return AppLayout(
+      appBar: CustomAppBar(
+        onBackPressed: () {
+          Navigator.pop(context);
+        },
+        requireAuth: false,
+      ),
+
+      bottomNav: CustomBottomNavBar(
+        onHomeTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const MyHomePage()),
+          );
+        },
+        onLibraryTap: () {
+          // Intentionally left blank
+        },
+        onTrackerTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AuthGuard(
+                child: CreditsTracker(),
               ),
             ),
-            Column(
-              children: [
-                // Custom AppBar
-                CustomAppBar(
-                  onBackPressed: () {
-                    Navigator.pop(context);
-                  },
-                  requireAuth: false,
-                ),
-                // Expanded layout for the main content
-                Expanded(
-                  child: Row(
-                    children: [
-                      if (isLandscape)
-                        CustomSideNavBar(
-                          onHomeTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(builder: (context) => const MyHomePage()),
-                            );
-                          },
-                          onLibraryTap: () {
-                            // Intentionally left blank
-                          },
-                          onTrackerTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => AuthGuard(
-                                  child: CreditsTracker(),
-                                ),
-                              ),
-                            );
-                          },
-                          onMenuTap: () async {
-                            bool isLoggedIn = await checkIfUserIsLoggedIn();
-                            print("Navigating to menu. Logged in: $isLoggedIn");
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
-                              ),
-                            );
-                          },
-                        ),
-
-                      // Main content area (expanded to fill remaining space)
-                      Expanded(
-                        child: Center(
-                          child: isLandscape
-                              ? _buildLandscapeLayout(screenWidth, screenHeight, baseSize)
-                              : _buildPortraitLayout(screenWidth, screenHeight, baseSize),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                if (!isLandscape)
-                  CustomBottomNavBar(
-                    onHomeTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const MyHomePage()),
-                      );
-                    },
-                    onLibraryTap: () {
-                      // Intentionally left blank
-                    },
-                    onTrackerTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => AuthGuard(
-                            child: CreditsTracker(),
-                          ),
-                        ),
-                      );
-                    },
-                    onMenuTap: () async {
-                      bool isLoggedIn = await checkIfUserIsLoggedIn();
-                      print("Navigating to menu. Logged in: $isLoggedIn");
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
-                        ),
-                      );
-                    },
-                  ),
-              ],
+          );
+        },
+        onMenuTap: () async {
+          bool isLoggedIn = await checkIfUserIsLoggedIn();
+          print("Navigating to menu. Logged in: $isLoggedIn");
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
             ),
-          ],
-        ),
+          );
+        },
+      ),
+
+      // ❗ IMPORTANT: no Center()
+      child: isLandscape
+          ? Row(
+        children: [
+          CustomSideNavBar(
+            onHomeTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const MyHomePage()),
+              );
+            },
+            onLibraryTap: () {
+              // Intentionally left blank
+            },
+            onTrackerTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AuthGuard(
+                    child: CreditsTracker(),
+                  ),
+                ),
+              );
+            },
+            onMenuTap: () async {
+              bool isLoggedIn = await checkIfUserIsLoggedIn();
+              print("Navigating to menu. Logged in: $isLoggedIn");
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                  isLoggedIn ? Menu() : GuestMenu(),
+                ),
+              );
+            },
+          ),
+
+          Expanded(
+            child: _buildLandscapeLayout(
+              screenWidth,
+              screenHeight,
+              baseSize,
+            ),
+          ),
+        ],
+      )
+          : _buildPortraitLayout(
+        screenWidth,
+        screenHeight,
+        baseSize,
       ),
     );
   }

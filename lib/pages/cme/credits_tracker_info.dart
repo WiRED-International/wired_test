@@ -6,6 +6,7 @@ import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
 import '../../utils/side_nav_bar.dart';
+import '../../utils/app_layout.dart';
 import '../home_page.dart';
 import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
@@ -51,95 +52,62 @@ class _CreditsTrackerInfoState extends State<CreditsTrackerInfo>
     final isLandscape = media.orientation == Orientation.landscape;
     final bool tablet = ScreenUtils.isTablet(context);
 
-    return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // 📌 Your original gradient background (unchanged)
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFFFFF0DC),
-                    Color(0xFFF9EBD9),
-                    Color(0xFFFFC888),
-                  ],
-                ),
-              ),
-            ),
-
-            Column(
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      if (isLandscape)
-                        CustomSideNavBar(
-                          onHomeTap: () =>
-                              Navigator.push(context,
-                                  MaterialPageRoute(builder: (_) => const MyHomePage())),
-                          onLibraryTap: () =>
-                              Navigator.push(context,
-                                  MaterialPageRoute(builder: (_) => ModuleLibrary())),
-                          onTrackerTap: () {},
-                          onMenuTap: () async {
-                            final loggedIn = await checkIfUserIsLoggedIn();
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => loggedIn ? Menu() : GuestMenu(),
-                              ),
-                            );
-                          },
-                        ),
-
-                      Expanded(
-                        child: Center(
-                          child: isLandscape
-                              ? _buildLandscape(context, shortest, tablet)
-                              : _buildPortrait(context, shortest, tablet),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                if (!isLandscape)
-                  CustomBottomNavBar(
-                    onHomeTap: () =>
-                        Navigator.push(context,
-                            MaterialPageRoute(builder: (_) => const MyHomePage())),
-                    onLibraryTap: () =>
-                        Navigator.push(context,
-                            MaterialPageRoute(builder: (_) => ModuleLibrary())),
-                    onTrackerTap: () {},
-                    onMenuTap: () async {
-                      final loggedIn = await checkIfUserIsLoggedIn();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => loggedIn ? Menu() : GuestMenu(),
-                        ),
-                      );
-                    },
-                  ),
-              ],
-            ),
-
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: CustomAppBar(
-                onBackPressed: () => Navigator.pop(context),
-                requireAuth: false,
-              ),
-            ),
-          ],
-        ),
+    return AppLayout(
+      // 🔹 Move Positioned AppBar here
+      appBar: CustomAppBar(
+        onBackPressed: () => Navigator.pop(context),
+        requireAuth: false,
       ),
+
+      bottomNav: CustomBottomNavBar(
+        onHomeTap: () =>
+            Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const MyHomePage())),
+        onLibraryTap: () =>
+            Navigator.push(context,
+                MaterialPageRoute(builder: (_) => ModuleLibrary())),
+        onTrackerTap: () {},
+        onMenuTap: () async {
+          final loggedIn = await checkIfUserIsLoggedIn();
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => loggedIn ? Menu() : GuestMenu(),
+            ),
+          );
+        },
+      ),
+
+      // ❗ IMPORTANT: remove Center()
+      child: isLandscape
+          ? Row(
+        children: [
+          CustomSideNavBar(
+            onHomeTap: () =>
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const MyHomePage())),
+            onLibraryTap: () =>
+                Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => ModuleLibrary())),
+            onTrackerTap: () {},
+            onMenuTap: () async {
+              final loggedIn = await checkIfUserIsLoggedIn();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                  loggedIn ? Menu() : GuestMenu(),
+                ),
+              );
+            },
+          ),
+
+          Expanded(
+            child: _buildLandscape(context, shortest, tablet),
+          ),
+        ],
+      )
+          : _buildPortrait(context, shortest, tablet),
     );
   }
 

@@ -3,25 +3,27 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
+
 import 'package:archive/archive_io.dart';
 import 'package:http/http.dart' as http;
-import 'package:flutter/foundation.dart';
+
 import 'package:wired_test/pages/home_page.dart';
 import '../providers/auth_guard.dart';
 import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
 import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
-import 'cme/cme_tracker.dart';
+
 import 'creditsTracker/credits_tracker.dart';
 import 'download_confirm.dart';
 import 'menu/guestMenu.dart';
 import 'menu/menu.dart';
 import 'module_library.dart';
 import '../services/location_service.dart';
-import '../utils/download_section.dart';
+
+import '../utils/app_layout.dart';
 import 'dart:isolate';
+import 'package:shared_preferences/shared_preferences.dart';
 
 
 class ModuleInfo extends StatefulWidget {
@@ -291,6 +293,10 @@ class _ModuleInfoState extends State<ModuleInfo> {
             });
           }
 
+          if (mounted) {
+            setState(() {}); // forces rebuild of this screen (optional but fine)
+          }
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Downloaded and extracted $fileName')),
           );
@@ -319,6 +325,47 @@ class _ModuleInfoState extends State<ModuleInfo> {
     await widget.locationService.saveDownload(widget.moduleId, location);
   }
 
+  Future<bool> showLocationExplanationDialog(BuildContext context) async {
+    return await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text("Share Location to Support Public Health"),
+          content: const Text(
+            "Would you like to share your location (including precise GPS-level data) "
+                "to help us understand where health education modules are being used?\n\n"
+                "This helps us identify potential disease patterns and improve access in underserved communities.\n\n"
+                "Your location is optional, not linked to your personal information, and is never sold or shared with third parties.",
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text("Not Now"),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text("Allow Location"),
+            ),
+          ],
+        );
+      },
+    ) ?? false;
+  }
+
+  Future<bool?> getSavedLocationPreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('location_permission_choice');
+  }
+
+  Future<void> saveLocationPreference(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('location_permission_choice', value);
+  }
+
 // Consider using AutoSizeText for the module name instead of RichText
 
   @override
@@ -327,129 +374,89 @@ class _ModuleInfoState extends State<ModuleInfo> {
     var screenHeight = MediaQuery.of(context).size.height;
     var baseSize = MediaQuery.of(context).size.shortestSide;
     bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    double scalingFactor = getScalingFactor(context);
 
-    return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFFFFF0DC),
-                    Color(0xFFF9EBD9),
-                    Color(0xFFFFC888),
-                  ],
-                ),
-              ),
-            ),
-            Column(
-              children: [
-                // Custom AppBar
-                CustomAppBar(
-                  onBackPressed: () {
-                    Navigator.pop(context);
-                  },
-                  requireAuth: false,
-                ),
-                // Expanded layout for the main content
-                Expanded(
-                  child: Row(
-                    children: [
-                      if (isLandscape)
-                        CustomSideNavBar(
-                          onHomeTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => const MyHomePage()),
-                            );
-                          },
-                          onLibraryTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => ModuleLibrary()),
-                            );
-                          },
-                          onTrackerTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => AuthGuard(
-                                  child: CreditsTracker(),
-                                ),
-                              ),
-                            );
-                          },
-                          onMenuTap: () async {
-                            bool isLoggedIn = await checkIfUserIsLoggedIn();
-                            print("Navigating to menu. Logged in: $isLoggedIn");
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
-                              ),
-                            );
-                          },
-                        ),
-
-                      // Main content area (expanded to fill remaining space)
-                      Expanded(
-                        child: Center(
-                          child: isLandscape
-                              ? _buildLandscapeLayout(screenWidth, screenHeight, baseSize)
-                              : _buildPortraitLayout(screenWidth, screenHeight, baseSize),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                if (!isLandscape)
-                  CustomBottomNavBar(
-                    onHomeTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const MyHomePage()),
-                      );
-                    },
-                    onLibraryTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => ModuleLibrary()),
-                      );
-                    },
-                    onTrackerTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => AuthGuard(
-                            child: CreditsTracker(),
-                          ),
-                        ),
-                      );
-                    },
-                    onMenuTap: () async {
-                      bool isLoggedIn = await checkIfUserIsLoggedIn();
-                      print("Navigating to menu. Logged in: $isLoggedIn");
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
-                        ),
-                      );
-                    },
-                  ),
-              ],
-            ),
-          ],
-        ),
+    return AppLayout(
+      appBar: CustomAppBar(
+        onBackPressed: () => Navigator.pop(context),
+        requireAuth: false,
       ),
+
+      bottomNav: CustomBottomNavBar(
+        onHomeTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const MyHomePage()),
+          );
+        },
+        onLibraryTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => ModuleLibrary()),
+          );
+        },
+        onTrackerTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AuthGuard(child: CreditsTracker()),
+            ),
+          );
+        },
+        onMenuTap: () async {
+          bool isLoggedIn = await checkIfUserIsLoggedIn();
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => isLoggedIn ? Menu() : GuestMenu(),
+            ),
+          );
+        },
+      ),
+
+      // ❗ IMPORTANT: NO Center()
+      child: isLandscape
+          ? Row(
+        children: [
+          CustomSideNavBar(
+            onHomeTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MyHomePage()),
+              );
+            },
+            onLibraryTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => ModuleLibrary()),
+              );
+            },
+            onTrackerTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AuthGuard(child: CreditsTracker()),
+                ),
+              );
+            },
+            onMenuTap: () async {
+              bool isLoggedIn = await checkIfUserIsLoggedIn();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                  isLoggedIn ? Menu() : GuestMenu(),
+                ),
+              );
+            },
+          ),
+
+          Expanded(
+            child: _buildLandscapeLayout(screenWidth, screenHeight, baseSize),
+          ),
+        ],
+      )
+          : _buildPortraitLayout(screenWidth, screenHeight, baseSize),
     );
   }
 
@@ -550,20 +557,42 @@ class _ModuleInfoState extends State<ModuleInfo> {
 
                       String fileName = "${widget.moduleName}.zip";
                       await downloadModule(widget.downloadLink!, fileName);
-                      await getLocationAndSaveDownload();
+
+                      // 🔹 Show explanation FIRST
+                      final savedChoice = await getSavedLocationPreference();
+
+                      bool allowLocation;
+
+                      if (savedChoice == null) {
+                        // First time → show modal
+                        allowLocation = await showLocationExplanationDialog(context);
+
+                        // Save user choice
+                        await saveLocationPreference(allowLocation);
+                      } else {
+                        // Use saved preference
+                        allowLocation = savedChoice;
+                      }
+
+                      if (allowLocation) {
+                        await getLocationAndSaveDownload();
+                      }
 
                       setState(() {
                         _isLoading = false;
                         _isDownloading = false;
                       });
 
-                      Navigator.push(
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) =>
                               DownloadConfirm(moduleName: widget.moduleName),
                         ),
                       );
+                      if (mounted) {
+                        Navigator.pop(context, true);
+                      }
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
@@ -574,57 +603,59 @@ class _ModuleInfoState extends State<ModuleInfo> {
                       );
                     }
                   },
-                  child: Container(
-                    width: baseSize * (isTablet(context) ? 0.5 : 0.55),
-                    height: baseSize * (isTablet(context) ? 0.10 : 0.12),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [
-                          Color(0xFF0070C0),
-                          Color(0xFF00C1FF),
-                          Color(0xFF0070C0),
-                        ],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                      borderRadius: BorderRadius.circular(35),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.5),
-                          spreadRadius: 1,
-                          blurRadius: 5,
-                          offset: const Offset(1, 3),
+                  child: Center(
+                    child: Container(
+                      width: baseSize * (isTablet(context) ? 0.5 : 0.55),
+                      height: baseSize * (isTablet(context) ? 0.10 : 0.12),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [
+                            Color(0xFF0070C0),
+                            Color(0xFF00C1FF),
+                            Color(0xFF0070C0),
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
                         ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          _isLoading || _isDownloading
-                              ? const CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 3,
-                          )
-                              : Text(
-                            "Download",
-                            style: TextStyle(
-                              fontSize: baseSize *
-                                  (isTablet(context) ? 0.071 : 0.071),
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(width: 7),
-                          SvgPicture.asset(
-                            'assets/icons/download_icon.svg',
-                            height: baseSize *
-                                (isTablet(context) ? 0.0675 : 0.0675),
-                            width: baseSize *
-                                (isTablet(context) ? 0.0675 : 0.0675),
+                        borderRadius: BorderRadius.circular(35),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.5),
+                            spreadRadius: 1,
+                            blurRadius: 5,
+                            offset: const Offset(1, 3),
                           ),
                         ],
+                      ),
+                      child: Center(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            _isLoading || _isDownloading
+                                ? const CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 3,
+                            )
+                                : Text(
+                              "Download",
+                              style: TextStyle(
+                                fontSize: baseSize *
+                                    (isTablet(context) ? 0.071 : 0.071),
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 7),
+                            SvgPicture.asset(
+                              'assets/icons/download_icon.svg',
+                              height: baseSize *
+                                  (isTablet(context) ? 0.0675 : 0.0675),
+                              width: baseSize *
+                                  (isTablet(context) ? 0.0675 : 0.0675),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
@@ -797,21 +828,29 @@ class _ModuleInfoState extends State<ModuleInfo> {
 
                       String fileName = "${widget.moduleName}.zip";
                       await downloadModule(widget.downloadLink!, fileName);
-                      await getLocationAndSaveDownload();
+
+                      // 🔹 Show explanation FIRST
+                      bool allowLocation = await showLocationExplanationDialog(context);
+
+                      if (allowLocation) {
+                        await getLocationAndSaveDownload();
+                      }
 
                       setState(() {
                         _isLoading = false;
                         _isDownloading = false;
                       });
 
-                      Navigator.push(
+                      await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (context) =>
                               DownloadConfirm(moduleName: widget.moduleName),
                         ),
                       );
-                      print("Module Id: ${widget.moduleId}");
+                      if (mounted) {
+                        Navigator.pop(context, true);
+                      }
                     } else {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(

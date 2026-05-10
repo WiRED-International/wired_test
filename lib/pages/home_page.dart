@@ -19,6 +19,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:wired_test/utils/app_layout.dart';
 // import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 
@@ -98,103 +99,65 @@ class _MyHomePageState extends State<MyHomePage> {
     var baseSize = MediaQuery.of(context).size.shortestSide;
     bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
 
-    return Scaffold(
-      backgroundColor: Colors.transparent, // Ensures no default white background
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFFFFF0DC),
-                    Color(0xFFF9EBD9),
-                    Color(0xFFFFC888),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Row(
-            children: [
-              // Side Nav Bar with transparent background
-              if (isLandscape)
-                SafeArea(
-                  child: Container(
-                    color: Colors.transparent, // Ensures no white background
-                    child: CustomSideNavBar(
-                      onHomeTap: () {},
-                      onLibraryTap: () {
-                        Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
-                      },
-                      onTrackerTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => AuthGuard(child: CreditsTracker()),
-                          ),
-                        );
-                      },
-                      onMenuTap: () async {
-                        bool isLoggedIn = await checkIfUserIsLoggedIn();
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ),
+    return AppLayout(
+      appBar: null,
 
-              // Main Content
-              Expanded(
-                child: SafeArea(
-                  child: Center(
-                    child: isLandscape
-                        ? _buildLandscapeLayout(screenWidth, screenHeight, baseSize)
-                        : _buildPortraitLayout(screenWidth, screenHeight, baseSize),
-                  ),
-                ),
-              ),
-            ],
-          ),
-
-          // Bottom Nav Bar only in portrait mode
-          if (!isLandscape)
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: CustomBottomNavBar(
-                onHomeTap: () {},
-                onLibraryTap: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (context) => ModuleLibrary()));
-                },
-                onTrackerTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => AuthGuard(child: CreditsTracker()),
-                    ),
-                  );
-                },
-                onMenuTap: () async {
-                  bool isLoggedIn = await checkIfUserIsLoggedIn();
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
-                    ),
-                  );
-                },
-              ),
+      bottomNav: CustomBottomNavBar(
+        onHomeTap: () {},
+        onLibraryTap: () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => ModuleLibrary()));
+        },
+        onTrackerTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => AuthGuard(child: CreditsTracker()),
             ),
-        ],
+          );
+        },
+        onMenuTap: () async {
+          bool isLoggedIn = await checkIfUserIsLoggedIn();
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => isLoggedIn ? Menu() : GuestMenu(),
+            ),
+          );
+        },
       ),
+
+      child: isLandscape
+          ? Row(
+        children: [
+          CustomSideNavBar(
+            onHomeTap: () {},
+            onLibraryTap: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => ModuleLibrary()));
+            },
+            onTrackerTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AuthGuard(child: CreditsTracker()),
+                ),
+              );
+            },
+            onMenuTap: () async {
+              bool isLoggedIn = await checkIfUserIsLoggedIn();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => isLoggedIn ? Menu() : GuestMenu(),
+                ),
+              );
+            },
+          ),
+          Expanded(
+            child: _buildLandscapeLayout(screenWidth, screenHeight, baseSize),
+          ),
+        ],
+      )
+          : _buildPortraitLayout(screenWidth, screenHeight, baseSize),
     );
   }
 

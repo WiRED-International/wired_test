@@ -5,6 +5,7 @@ import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
 import '../utils/functions.dart';
 import '../utils/side_nav_bar.dart';
+import '../utils/app_layout.dart';
 import 'byAlphabet/by_alphabet.dart';
 import 'byPackage/by_packages.dart';
 import 'byTopic/by_topic.dart';
@@ -87,129 +88,59 @@ class _SearchState extends State<Search> {
     bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
     double scalingFactor = getScalingFactor(context);
 
-    return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFFFFF0DC),
-                    Color(0xFFF9EBD9),
-                    Color(0xFFFFC888),
-                  ],
-                ),
-              ),
-            ),
-            Column(
-              children: [
-                CustomAppBar(
-                  onBackPressed: () {
-                    Navigator.pop(context);
-                  },
-                  requireAuth: false,
-                ),
-                Expanded(
-                  child: Row(
-                    children: [
-                      if (isLandscape)
-                        CustomSideNavBar(
-                          onHomeTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => const MyHomePage()),
-                            );
-                          },
-                          onLibraryTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => ModuleLibrary()),
-                            );
-                          },
-                          onTrackerTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    AuthGuard(
-                                      child: CreditsTracker(),
-                                    ),
-                              ),
-                            );
-                          },
-                          onMenuTap: () async {
-                            bool isLoggedIn = await checkIfUserIsLoggedIn();
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                isLoggedIn
-                                    ? Menu()
-                                    : GuestMenu(),
-                              ),
-                            );
-                          },
-                        ),
-                      Expanded(
-                        child: Center(
-                          child: isLandscape
-                              ? _buildLandscapeLayout(scalingFactor)
-                              : _buildPortraitLayout(scalingFactor),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (!isLandscape)
-                  CustomBottomNavBar(
-                    onHomeTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const MyHomePage()),
-                      );
-                    },
-                    onLibraryTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => ModuleLibrary()),
-                      );
-                    },
-                    onTrackerTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              AuthGuard(
-                                child: CreditsTracker(),
-                              ),
-                        ),
-                      );
-                    },
-                    onMenuTap: () async {
-                      bool isLoggedIn = await checkIfUserIsLoggedIn();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                          isLoggedIn
-                              ? Menu()
-                              : GuestMenu(),
-                        ),
-                      );
-                    },
-                  ),
-              ],
-            ),
-          ],
-        ),
+    return AppLayout(
+      appBar: CustomAppBar(
+        onBackPressed: () => Navigator.pop(context),
+        requireAuth: false,
       ),
+
+      bottomNav: CustomBottomNavBar(
+        onHomeTap: () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const MyHomePage()));
+        },
+        onLibraryTap: () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => ModuleLibrary()));
+        },
+        onTrackerTap: () {
+          Navigator.push(context, MaterialPageRoute(
+            builder: (_) => AuthGuard(child: CreditsTracker()),
+          ));
+        },
+        onMenuTap: () async {
+          bool isLoggedIn = await checkIfUserIsLoggedIn();
+          Navigator.push(context, MaterialPageRoute(
+            builder: (_) => isLoggedIn ? Menu() : GuestMenu(),
+          ));
+        },
+      ),
+
+      // ❗ NO Center here
+      child: isLandscape
+          ? Row(
+        children: [
+          CustomSideNavBar(
+            onHomeTap: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const MyHomePage()));
+            },
+            onLibraryTap: () {
+              Navigator.push(context, MaterialPageRoute(builder: (_) => ModuleLibrary()));
+            },
+            onTrackerTap: () {
+              Navigator.push(context, MaterialPageRoute(
+                builder: (_) => AuthGuard(child: CreditsTracker()),
+              ));
+            },
+            onMenuTap: () async {
+              bool isLoggedIn = await checkIfUserIsLoggedIn();
+              Navigator.push(context, MaterialPageRoute(
+                builder: (_) => isLoggedIn ? Menu() : GuestMenu(),
+              ));
+            },
+          ),
+          Expanded(child: _buildLandscapeLayout(scalingFactor)),
+        ],
+      )
+          : _buildPortraitLayout(scalingFactor),
     );
   }
 

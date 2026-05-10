@@ -15,6 +15,7 @@ import '../../utils/functions.dart';
 import '../../utils/landscape_profile_section.dart';
 import '../../utils/profile_section.dart';
 import '../../utils/side_nav_bar.dart';
+import '../../utils/app_layout.dart';
 import '../creditsTracker/credits_tracker.dart';
 import '../home_page.dart';
 import '../menu/guestMenu.dart';
@@ -140,212 +141,238 @@ class _CMETrackerState extends State<CMETracker> {
     final isTabletDevice = isTablet(context);
     final scale = isTabletDevice ? 1.0 : 1.0;
 
-    return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // 🟠 Background Gradient
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFFFFF0DC),
-                    Color(0xFFF9EBD9),
-                    Color(0xFFFFC888),
-                  ],
-                ),
+    return AppLayout(
+      appBar: CustomAppBar(
+        onBackPressed: () => Navigator.pop(context),
+        requireAuth: false,
+        scale: scale,
+      ),
+
+      bottomNav: CustomBottomNavBar(
+        onHomeTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const MyHomePage()),
+        ),
+        onLibraryTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => ModuleLibrary()),
+        ),
+        onTrackerTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AuthGuard(child: CreditsTracker()),
+          ),
+        ),
+        onMenuTap: () async {
+          bool isLoggedIn = await checkIfUserIsLoggedIn();
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+              isLoggedIn ? const Menu() : const GuestMenu(),
+            ),
+          );
+        },
+        scale: scale,
+      ),
+
+      // ❗ NO Center()
+      child: isLandscape
+          ? Row(
+        children: [
+          CustomSideNavBar(
+            onHomeTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MyHomePage()),
+            ),
+            onLibraryTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => ModuleLibrary()),
+            ),
+            onTrackerTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => AuthGuard(child: CreditsTracker()),
               ),
             ),
-
-            Column(
-              children: [
-                // AppBar
-                CustomAppBar(
-                  onBackPressed: () => Navigator.pop(context),
-                  requireAuth: false,
-                  scale: scale,
+            onMenuTap: () async {
+              bool isLoggedIn = await checkIfUserIsLoggedIn();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                  isLoggedIn ? const Menu() : const GuestMenu(),
                 ),
+              );
+            },
+            scale: scale,
+          ),
 
-                // Main content area
-                Expanded(
-                  child: Row(
-                    children: [
-                      // 🔹 Side Nav (Landscape only)
-                      if (isLandscape)
-                        CustomSideNavBar(
-                          onHomeTap: () =>
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) => const MyHomePage()),
-                              ),
-                          onLibraryTap: () =>
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) => ModuleLibrary()),
-                              ),
-                          onTrackerTap: () =>
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                    builder: (_) =>
-                                        AuthGuard(child: CreditsTracker())),
-                              ),
-                          onMenuTap: () async {
-                            bool isLoggedIn = await checkIfUserIsLoggedIn();
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                isLoggedIn ? const Menu() : const GuestMenu(),
-                              ),
-                            );
-                          },
-                          scale: scale,
-                        ),
+          Expanded(
+            child: FutureBuilder<User>(
+              future: userData,
+              builder: (context, userSnapshot) {
+                if (userSnapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (userSnapshot.hasError) {
+                  return Center(child: Text('Error: ${userSnapshot.error}'));
+                }
 
-                      // Main content
-                      Expanded(
-                        child: FutureBuilder<User>(
-                          future: userData,
-                          builder: (context, userSnapshot) {
-                            if (userSnapshot.connectionState == ConnectionState.waiting) {
-                              return const Center(child: CircularProgressIndicator());
-                            }
-                            if (userSnapshot.hasError) {
-                              return Center(child: Text('Error: ${userSnapshot.error}'));
-                            }
+                final user = userSnapshot.data!;
+                final double totalCredits = user.totalCredits.toDouble();
 
-                            final user = userSnapshot.data!;
-                            final double totalCredits = user.totalCredits.toDouble();
+                return Consumer<QuizScoreProvider>(
+                  builder: (context, quizProvider, child) {
+                    final quizScores =
+                    List<Map<String, dynamic>>.from(quizProvider.quizScores);
 
-                            // ✅ Now listen to provider *inside* the FutureBuilder
-                            return Consumer<QuizScoreProvider>(
-                              builder: (context, quizProvider, child) {
-                                final quizScores =
-                                List<Map<String, dynamic>>.from(quizProvider.quizScores);
-
-                                if (quizProvider.isLoading) {
-                                  return const Center(
-                                    child: Text(
-                                      "Loading your CME credits...",
-                                      style: TextStyle(fontSize: 16, color: Colors.black54),
-                                    ),
-                                  );
-                                }
-
-                                if (quizScores.isEmpty) {
-                                  return const Center(
-                                    child: Text(
-                                      "You haven’t earned any CME credits yet.\nComplete a quiz to get started!",
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 16,
-                                        color: Colors.black54,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  );
-                                }
-
-                                // ✅ Calculate credits only once provider is ready
-                                final double earnedCredits =
-                                calculateCredits(quizScores).toDouble();
-
-                                debugPrint('🎯 Provider ready — ${quizScores.length} scores, $earnedCredits credits');
-
-                                // ✅ Filter CME modules for “recent credits” section
-                                final cmeScores = quizScores
-                                    .where((q) =>
-                                (q['credit_type']?.toString().toLowerCase() == 'cme'))
-                                    .toList();
-                                cmeScores.sort((a, b) =>
-                                    (b['date_taken'] ?? '').compareTo(a['date_taken'] ?? ''));
-                                final recentCredits = cmeScores.take(3).toList();
-
-                                final orientation = MediaQuery.of(context).orientation;
-
-                                return AnimatedSwitcher(
-                                  duration: const Duration(milliseconds: 400),
-                                  switchInCurve: Curves.easeIn,
-                                  switchOutCurve: Curves.easeOut,
-                                  transitionBuilder: (child, animation) =>
-                                      FadeTransition(opacity: animation, child: child),
-                                  child: orientation == Orientation.landscape
-                                      ? KeyedSubtree(
-                                    key: const ValueKey('landscape'),
-                                    child: _buildLandscapeLayout(
-                                      context,
-                                      screenWidth,
-                                      screenHeight,
-                                      baseSize,
-                                      scale,
-                                      earnedCredits,
-                                      totalCredits,
-                                      recentCredits,
-                                    ),
-                                  )
-                                      : KeyedSubtree(
-                                    key: const ValueKey('portrait'),
-                                    child: _buildPortraitLayout(
-                                      context,
-                                      screenWidth,
-                                      screenHeight,
-                                      baseSize,
-                                      scale,
-                                      earnedCredits,
-                                      totalCredits,
-                                      recentCredits,
-                                    ),
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Bottom Nav (Portrait only)
-                if (!isLandscape)
-                  CustomBottomNavBar(
-                    onHomeTap: () =>
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const MyHomePage()),
-                        ),
-                    onLibraryTap: () =>
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => ModuleLibrary()),
-                        ),
-                    onTrackerTap: () =>
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => AuthGuard(child: CreditsTracker())),
-                        ),
-                    onMenuTap: () async {
-                      bool isLoggedIn = await checkIfUserIsLoggedIn();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                          isLoggedIn ? const Menu() : const GuestMenu(),
+                    if (quizProvider.isLoading) {
+                      return const Center(
+                        child: Text(
+                          "Loading your CME credits...",
+                          style: TextStyle(fontSize: 16, color: Colors.black54),
                         ),
                       );
-                    },
-                    scale: scale,
-                  ),
-              ],
+                    }
+
+                    if (quizScores.isEmpty) {
+                      return const Center(
+                        child: Text(
+                          "You haven’t earned any CME credits yet.\nComplete a quiz to get started!",
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: Colors.black54,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      );
+                    }
+
+                    final double earnedCredits =
+                    calculateCredits(quizScores).toDouble();
+
+                    final cmeScores = quizScores
+                        .where((q) =>
+                    (q['credit_type']?.toString().toLowerCase() == 'cme'))
+                        .toList();
+
+                    cmeScores.sort((a, b) =>
+                        (b['date_taken'] ?? '').compareTo(a['date_taken'] ?? ''));
+
+                    final recentCredits = cmeScores.take(3).toList();
+
+                    final orientation = MediaQuery.of(context).orientation;
+
+                    return AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 400),
+                      switchInCurve: Curves.easeIn,
+                      switchOutCurve: Curves.easeOut,
+                      transitionBuilder: (child, animation) =>
+                          FadeTransition(opacity: animation, child: child),
+                      child: orientation == Orientation.landscape
+                          ? KeyedSubtree(
+                        key: const ValueKey('landscape'),
+                        child: _buildLandscapeLayout(
+                          context,
+                          screenWidth,
+                          screenHeight,
+                          baseSize,
+                          scale,
+                          earnedCredits,
+                          totalCredits,
+                          recentCredits,
+                        ),
+                      )
+                          : KeyedSubtree(
+                        key: const ValueKey('portrait'),
+                        child: _buildPortraitLayout(
+                          context,
+                          screenWidth,
+                          screenHeight,
+                          baseSize,
+                          scale,
+                          earnedCredits,
+                          totalCredits,
+                          recentCredits,
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
             ),
-          ],
-        ),
+          ),
+        ],
+      )
+          : FutureBuilder<User>(
+        future: userData,
+        builder: (context, userSnapshot) {
+          if (userSnapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (userSnapshot.hasError) {
+            return Center(child: Text('Error: ${userSnapshot.error}'));
+          }
+
+          final user = userSnapshot.data!;
+          final double totalCredits = user.totalCredits.toDouble();
+
+          return Consumer<QuizScoreProvider>(
+            builder: (context, quizProvider, child) {
+              final quizScores =
+              List<Map<String, dynamic>>.from(quizProvider.quizScores);
+
+              if (quizProvider.isLoading) {
+                return const Center(
+                  child: Text(
+                    "Loading your CME credits...",
+                    style: TextStyle(fontSize: 16, color: Colors.black54),
+                  ),
+                );
+              }
+
+              if (quizScores.isEmpty) {
+                return const Center(
+                  child: Text(
+                    "You haven’t earned any CME credits yet.\nComplete a quiz to get started!",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.black54,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                );
+              }
+
+              final double earnedCredits =
+              calculateCredits(quizScores).toDouble();
+
+              final cmeScores = quizScores
+                  .where((q) =>
+              (q['credit_type']?.toString().toLowerCase() == 'cme'))
+                  .toList();
+
+              cmeScores.sort((a, b) =>
+                  (b['date_taken'] ?? '').compareTo(a['date_taken'] ?? ''));
+
+              final recentCredits = cmeScores.take(3).toList();
+
+              return _buildPortraitLayout(
+                context,
+                screenWidth,
+                screenHeight,
+                baseSize,
+                scale,
+                earnedCredits,
+                totalCredits,
+                recentCredits,
+              );
+            },
+          );
+        },
       ),
     );
   }

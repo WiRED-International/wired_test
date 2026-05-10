@@ -11,6 +11,7 @@ import '../../utils/functions.dart';
 import '../../utils/pdf_preview_screen.dart';
 import '../../utils/pdf_utils.dart';
 import '../../utils/side_nav_bar.dart';
+import '../../utils/app_layout.dart';
 import '../creditsTracker/credits_tracker.dart';
 import '../home_page.dart';
 import '../menu/guestMenu.dart';
@@ -83,107 +84,92 @@ class _CreditsHistoryState extends State<CreditsHistory> {
     final isTabletDevice = isTablet(context);
     final scale = isTabletDevice ? 1.0 : 1.0;
 
-    return Scaffold(
-      body: SafeArea(
-        child: FutureBuilder<User>(
-          future: userData,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            } else if (snapshot.hasError) {
-              return Center(child: Text('Error: ${snapshot.error}'));
-            } else if (!snapshot.hasData) {
-              return const Center(child: Text('No data available'));
-            }
+    return AppLayout(
+      appBar: CustomAppBar(
+        onBackPressed: () => Navigator.pop(context),
+        requireAuth: true,
+        scale: scale,
+      ),
 
-            final user = snapshot.data!;
-            final quizScores = user.quizScores ?? [];
-            final creditsEarned = user.creditsEarned ?? 0;
+      bottomNav: CustomBottomNavBar(
+        onHomeTap: () => _navigateTo(context, const MyHomePage()),
+        onLibraryTap: () => _navigateTo(context, ModuleLibrary()),
+        onTrackerTap: () =>
+            _navigateTo(context, AuthGuard(child: const CreditsTracker())),
+        onMenuTap: () async {
+          bool isLoggedIn = await checkIfUserIsLoggedIn();
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) =>
+              isLoggedIn ? const Menu() : const GuestMenu(),
+            ),
+          );
+        },
+        scale: scale,
+      ),
 
-            return Stack(
-              children: [
-                // Background Gradient
-                Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Color(0xFFFFF0DC),
-                        Color(0xFFF9EBD9),
-                        Color(0xFFFFC888),
-                      ],
+      child: FutureBuilder<User>(
+        future: userData,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          } else if (!snapshot.hasData) {
+            return const Center(child: Text('No data available'));
+          }
+
+          final user = snapshot.data!;
+          final quizScores = user.quizScores ?? [];
+          final creditsEarned = user.creditsEarned ?? 0;
+
+          // ❗ IMPORTANT: no Center()
+          return isLandscape
+              ? Row(
+            children: [
+              CustomSideNavBar(
+                onHomeTap: () =>
+                    _navigateTo(context, const MyHomePage()),
+                onLibraryTap: () =>
+                    _navigateTo(context, ModuleLibrary()),
+                onTrackerTap: () => _navigateTo(
+                    context, AuthGuard(child: const CreditsTracker())),
+                onMenuTap: () async {
+                  bool isLoggedIn = await checkIfUserIsLoggedIn();
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => isLoggedIn
+                          ? const Menu()
+                          : const GuestMenu(),
                     ),
-                  ),
+                  );
+                },
+                scale: scale,
+              ),
+
+              Expanded(
+                child: _buildLandscapeLayout(
+                  context,
+                  user,
+                  quizScores,
+                  creditsEarned,
+                  baseSize,
+                  scale,
                 ),
-                Column(
-                  children: [
-                    CustomAppBar(
-                      onBackPressed: () => Navigator.pop(context),
-                      requireAuth: true,
-                      scale: scale,
-                    ),
-                    Expanded(
-                      child: Row(
-                        children: [
-                          // 🟩 SideNav (Landscape only)
-                          if (isLandscape)
-                            CustomSideNavBar(
-                              onHomeTap: () => _navigateTo(context, const MyHomePage()),
-                              onLibraryTap: () => _navigateTo(context, ModuleLibrary()),
-                              onTrackerTap: () =>
-                                  _navigateTo(context, AuthGuard(child: const CreditsTracker())),
-                              onMenuTap: () async {
-                                bool isLoggedIn = await checkIfUserIsLoggedIn();
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => isLoggedIn ? const Menu() : const GuestMenu(),
-                                  ),
-                                );
-                              },
-                              scale: scale,
-                            ),
-
-                          // 🟩 Main content
-                          Expanded(
-                            child: Center(
-                              child: isLandscape
-                                  ? _buildLandscapeLayout(context, user, quizScores,
-                                  creditsEarned, baseSize, scale)
-                                  : _buildPortraitLayout(context, user, quizScores,
-                                  creditsEarned, baseSize, scale),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    // 🟩 Bottom Nav (portrait only)
-                    if (!isLandscape)
-                      CustomBottomNavBar(
-                        onHomeTap: () => _navigateTo(context, const MyHomePage()),
-                        onLibraryTap: () => _navigateTo(context, ModuleLibrary()),
-                        onTrackerTap: () =>
-                            _navigateTo(context, AuthGuard(child: const CreditsTracker())),
-                        onMenuTap: () async {
-                          bool isLoggedIn = await checkIfUserIsLoggedIn();
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                              isLoggedIn ? const Menu() : const GuestMenu(),
-                            ),
-                          );
-                        },
-                        scale: scale,
-                      ),
-                  ],
-                ),
-              ],
-            );
-          },
-        ),
+              ),
+            ],
+          )
+              : _buildPortraitLayout(
+            context,
+            user,
+            quizScores,
+            creditsEarned,
+            baseSize,
+            scale,
+          );
+        },
       ),
     );
   }

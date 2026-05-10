@@ -13,6 +13,7 @@ import '../../utils/functions.dart';
 import '../../utils/landscape_profile_section.dart';
 import '../../utils/profile_section.dart';
 import '../../utils/side_nav_bar.dart';
+import '../../utils/app_layout.dart';
 import 'package:http/http.dart' as http;
 import '../cme/cme_tracker.dart';
 import '../cme/login.dart';
@@ -148,135 +149,117 @@ class _MenuState extends State<Menu> {
     final scalingFactor = getScalingFactor(context);
     final isTabletDevice = isTablet(context);
 
+    return AppLayout(
+      // 🔹 No AppBar on this page (you didn’t have one before)
+      appBar: null,
 
-    return Scaffold(
-      body: SafeArea(
-        child: FutureBuilder<User>(
-          future: userData,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            } else if (snapshot.hasError) {
-              return Center(child: Text('Error: ${snapshot.error}'));
-            } else if (!snapshot.hasData) {
-              return const Center(child: Text('No data available'));
-            }
+      bottomNav: CustomBottomNavBar(
+        onHomeTap: () =>
+            _navigateTo(context, const MyHomePage()),
+        onLibraryTap: () =>
+            _navigateTo(context, ModuleLibrary()),
+        onTrackerTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  AuthGuard(child: CreditsTracker()),
+            ),
+          );
+        },
+        onMenuTap: () {},
+      ),
 
-            final user = snapshot.data!;
-            final int creditsEarned = user.creditsEarned ?? 0;
-            return Stack(
-              children: [
-                // Background Gradient
-                Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Color(0xFFFFF0DC),
-                        Color(0xFFF9EBD9),
-                        Color(0xFFFFC888),
-                      ],
-                    ),
-                  ),
+      // ❗ IMPORTANT: no Center()
+      child: FutureBuilder<User>(
+        future: userData,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          } else if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          } else if (!snapshot.hasData) {
+            return const Center(child: Text('No data available'));
+          }
+
+          final user = snapshot.data!;
+          final int creditsEarned = user.creditsEarned ?? 0;
+
+          return isLandscape
+              ? Row(
+            children: [
+              // 🧭 Side Nav
+              SizedBox(
+                width: screenSize.width * 0.12,
+                child: CustomSideNavBar(
+                  onHomeTap: () =>
+                      _navigateTo(context, const MyHomePage()),
+                  onLibraryTap: () =>
+                      _navigateTo(context, ModuleLibrary()),
+                  onTrackerTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            AuthGuard(child: CreditsTracker()),
+                      ),
+                    );
+                  },
+                  onMenuTap: () {},
                 ),
-                isLandscape
-                    ? Row(
+              ),
+
+              // 🧩 Content
+              Expanded(
+                child: Column(
                   children: [
-                    // Side Navigation Bar (Fixed Width)
-                    SizedBox(
-                      width: screenSize.width * 0.12,
-                      // Adjust width as needed
-                      child: CustomSideNavBar(
-                        onHomeTap: () =>
-                            _navigateTo(context, const MyHomePage()),
-                        onLibraryTap: () =>
-                            _navigateTo(context, ModuleLibrary()),
-                        onTrackerTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  AuthGuard(
-                                    child: CreditsTracker(),
-                                  ),
-                            ),
-                          );
-                        },
-                        onMenuTap: () {},
-                      ),
-                    ),
-                    // Right Content (Profile + Main Content)
-                    Expanded(
-                      child: Column(
-                        children: [
-                          LandscapeProfileSection(
-                            firstName: user.firstName ?? 'Guest',
-                            dateJoined: user.dateJoined ?? 'Unknown',
-                            creditsEarned: creditsEarned,
-                          ),
-                          SizedBox(height: screenSize.height *
-                              (isTabletDevice ? 0.05 : .05)),
-                          Expanded(
-                            child: Center(
-                              child: _buildLandscapeLayout(
-                                context,
-                                baseSize,
-                                scalingFactor,
-                                authProvider,
-                                user,
-                                creditsEarned,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                )
-                    : Column(
-                  children: [
-                    ProfileSection(
+                    LandscapeProfileSection(
                       firstName: user.firstName ?? 'Guest',
                       dateJoined: user.dateJoined ?? 'Unknown',
                       creditsEarned: creditsEarned,
                     ),
-                    Expanded(
-                      child: Center(
-                        child: _buildPortraitLayout(
-                          context,
-                          baseSize,
-                          scalingFactor,
-                          authProvider,
-                          user,
-                          creditsEarned,
-                        ),
-                      ),
+
+                    SizedBox(
+                      height: screenSize.height *
+                          (isTabletDevice ? 0.05 : 0.05),
                     ),
-                    CustomBottomNavBar(
-                      onHomeTap: () =>
-                          _navigateTo(context, const MyHomePage()),
-                      onLibraryTap: () =>
-                          _navigateTo(context, ModuleLibrary()),
-                      onTrackerTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                AuthGuard(
-                                  child: CreditsTracker(),
-                                ),
-                          ),
-                        );
-                      },
-                      onMenuTap: () {},
+
+                    Expanded(
+                      child: _buildLandscapeLayout(
+                        context,
+                        baseSize,
+                        scalingFactor,
+                        authProvider,
+                        user,
+                        creditsEarned,
+                      ),
                     ),
                   ],
                 ),
-              ],
-            );
-          },
-        ),
+              ),
+            ],
+          )
+              : Column(
+            children: [
+              ProfileSection(
+                firstName: user.firstName ?? 'Guest',
+                dateJoined: user.dateJoined ?? 'Unknown',
+                creditsEarned: creditsEarned,
+              ),
+
+              Expanded(
+                child: _buildPortraitLayout(
+                  context,
+                  baseSize,
+                  scalingFactor,
+                  authProvider,
+                  user,
+                  creditsEarned,
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

@@ -12,6 +12,7 @@ import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
 import '../../utils/side_nav_bar.dart';
+import '../../utils/app_layout.dart';
 import '../cme/cme_tracker.dart';
 import '../cme/submit_credits.dart';
 import '../home_page.dart';
@@ -69,119 +70,80 @@ class _CreditsTrackerState extends State<CreditsTracker> {
     bool isLandscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
 
-    return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // 🌅 Gradient background
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFFFFF0DC),
-                    Color(0xFFF9EBD9),
-                    Color(0xFFFFC888),
-                  ],
-                ),
-              ),
-            ),
-
-            Column(
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      // 🧭 Side nav (landscape only)
-                      if (isLandscape)
-                        CustomSideNavBar(
-                          onHomeTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => const MyHomePage()),
-                            );
-                          },
-                          onLibraryTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => ModuleLibrary()),
-                            );
-                          },
-                          onTrackerTap: () {}, // already here
-                          onMenuTap: () async {
-                            bool isLoggedIn = await checkIfUserIsLoggedIn();
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                isLoggedIn ? Menu() : GuestMenu(),
-                              ),
-                            );
-                          },
-                        ),
-
-                      // 🧩 Main content
-                      Expanded(
-                        child: Center(
-                          child: isLandscape
-                              ? _buildLandscapeLayout(baseSize)
-                              : _buildPortraitLayout(baseSize),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // 📱 Bottom nav (portrait only)
-                if (!isLandscape)
-                  CustomBottomNavBar(
-                    onHomeTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const MyHomePage()),
-                      );
-                    },
-                    onLibraryTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => ModuleLibrary()),
-                      );
-                    },
-                    onTrackerTap: () {},
-                    onMenuTap: () async {
-                      bool isLoggedIn = await checkIfUserIsLoggedIn();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                          isLoggedIn ? Menu() : GuestMenu(),
-                        ),
-                      );
-                    },
-                  ),
-              ],
-            ),
-
-            // 📍 Top bar
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: CustomAppBar(
-                onBackPressed: () {
-                  Navigator.pop(context);
-                },
-                requireAuth: false,
-              ),
-            ),
-          ],
-        ),
+    return AppLayout(
+      // 🔹 Move your AppBar here (no more Positioned)
+      appBar: CustomAppBar(
+        onBackPressed: () {
+          Navigator.pop(context);
+        },
+        requireAuth: false,
       ),
+
+      bottomNav: CustomBottomNavBar(
+        onHomeTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const MyHomePage()),
+          );
+        },
+        onLibraryTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => ModuleLibrary()),
+          );
+        },
+        onTrackerTap: () {},
+        onMenuTap: () async {
+          bool isLoggedIn = await checkIfUserIsLoggedIn();
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+              isLoggedIn ? Menu() : GuestMenu(),
+            ),
+          );
+        },
+      ),
+
+      // ❗ IMPORTANT: no Center()
+      child: isLandscape
+          ? Row(
+        children: [
+          // 🧭 Side nav
+          CustomSideNavBar(
+            onHomeTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const MyHomePage()),
+              );
+            },
+            onLibraryTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => ModuleLibrary()),
+              );
+            },
+            onTrackerTap: () {},
+            onMenuTap: () async {
+              bool isLoggedIn = await checkIfUserIsLoggedIn();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                  isLoggedIn ? Menu() : GuestMenu(),
+                ),
+              );
+            },
+          ),
+
+          Expanded(
+            child: _buildLandscapeLayout(baseSize),
+          ),
+        ],
+      )
+          : _buildPortraitLayout(baseSize),
     );
   }
 
