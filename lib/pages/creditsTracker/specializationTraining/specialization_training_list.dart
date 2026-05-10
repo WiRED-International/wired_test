@@ -3,6 +3,7 @@ import '../../../utils/custom_app_bar.dart';
 import '../../../utils/custom_nav_bar.dart';
 import '../../../utils/side_nav_bar.dart';
 import '../../../utils/functions.dart';
+import '../../../utils/app_layout.dart';
 import '../../home_page.dart';
 import '../../menu/guestMenu.dart';
 import '../../menu/menu.dart';
@@ -69,106 +70,82 @@ class _SpecializationTrainingListState
         ? (completedModules / totalModules * 100).clamp(0, 100)
         : 0;
 
-    return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // 🌅 Background Gradient
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFFFFF0DC),
-                    Color(0xFFF9EBD9),
-                    Color(0xFFFFC888),
-                  ],
-                ),
-              ),
+    return AppLayout(
+      appBar: CustomAppBar(
+        onBackPressed: () => Navigator.pop(context),
+        requireAuth: false,
+        scale: scale,
+      ),
+
+      bottomNav: CustomBottomNavBar(
+        onHomeTap: () {
+          Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const MyHomePage()));
+        },
+        onLibraryTap: () {
+          Navigator.push(context,
+              MaterialPageRoute(builder: (_) => ModuleLibrary()));
+        },
+        onTrackerTap: () {
+          Navigator.push(context,
+              MaterialPageRoute(builder: (_) => AuthGuard(child: CreditsTracker())));
+        },
+        onMenuTap: () async {
+          bool isLoggedIn = await checkIfUserIsLoggedIn();
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => isLoggedIn ? Menu() : GuestMenu(),
             ),
+          );
+        },
+        scale: scale,
+      ),
 
-            Column(
-              children: [
-                // 🔹 Custom App Bar
-                CustomAppBar(
-                  onBackPressed: () => Navigator.pop(context),
-                  requireAuth: false,
-                  scale: scale,
+      // ❗ IMPORTANT: no Center()
+      child: isLandscape
+          ? Row(
+        children: [
+          CustomSideNavBar(
+            onHomeTap: () {
+              Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const MyHomePage()));
+            },
+            onLibraryTap: () {
+              Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => ModuleLibrary()));
+            },
+            onTrackerTap: () {
+              Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => AuthGuard(child: CreditsTracker())));
+            },
+            onMenuTap: () async {
+              bool isLoggedIn = await checkIfUserIsLoggedIn();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => isLoggedIn ? Menu() : GuestMenu(),
                 ),
+              );
+            },
+            scale: scale,
+          ),
 
-                // 🔹 Main Page Content
-                Expanded(
-                  child: Row(
-                    children: [
-                      if (isLandscape)
-                        CustomSideNavBar(
-                          onHomeTap: () {
-                            Navigator.push(context,
-                                MaterialPageRoute(builder: (_) => const MyHomePage()));
-                          },
-                          onLibraryTap: () {
-                            Navigator.push(context,
-                                MaterialPageRoute(builder: (_) => ModuleLibrary()));
-                          },
-                          onTrackerTap: () {
-                            Navigator.push(context,
-                                MaterialPageRoute(builder: (_) => AuthGuard(child: CreditsTracker())));
-                          },
-                          onMenuTap: () async {
-                            bool isLoggedIn = await checkIfUserIsLoggedIn();
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => isLoggedIn ? Menu() : GuestMenu(),
-                              ),
-                            );
-                          },
-                          scale: scale,
-                        ),
-
-                      Expanded(
-                        child: Center(
-                          child: isLandscape
-                              ? _buildLandscapeLayout(
-                              screenWidth, screenHeight, baseSize, scale)
-                              : _buildPortraitLayout(
-                              screenWidth, screenHeight, baseSize, scale),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                if (!isLandscape)
-                  CustomBottomNavBar(
-                    onHomeTap: () {
-                      Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => const MyHomePage()));
-                    },
-                    onLibraryTap: () {
-                      Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => ModuleLibrary()));
-                    },
-                    onTrackerTap: () {
-                      Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => AuthGuard(child: CreditsTracker())));
-                    },
-                    onMenuTap: () async {
-                      bool isLoggedIn = await checkIfUserIsLoggedIn();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => isLoggedIn ? Menu() : GuestMenu(),
-                        ),
-                      );
-                    },
-                    scale: scale,
-                  ),
-              ],
+          Expanded(
+            child: _buildLandscapeLayout(
+              screenWidth,
+              screenHeight,
+              baseSize,
+              scale,
             ),
-          ],
-        ),
+          ),
+        ],
+      )
+          : _buildPortraitLayout(
+        screenWidth,
+        screenHeight,
+        baseSize,
+        scale,
       ),
     );
   }

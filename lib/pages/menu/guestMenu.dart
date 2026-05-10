@@ -5,6 +5,7 @@ import '../../providers/auth_guard.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
 import '../../utils/side_nav_bar.dart';
+import '../../utils/app_layout.dart';
 import 'package:http/http.dart' as http;
 import '../cme/cme_tracker.dart';
 import '../cme/login.dart';
@@ -40,110 +41,76 @@ class _GuestMenuState extends State<GuestMenu> {
     final isLandscape = mediaQuery.orientation == Orientation.landscape;
     final scalingFactor = getScalingFactor(context);
 
+    return AppLayout(
+      // 🔹 No AppBar on this page (matches your original)
+      appBar: null,
 
-    return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFFFFF0DC),
-                    Color(0xFFF9EBD9),
-                    Color(0xFFFFC888),
-                  ],
-                ),
-              ),
+      bottomNav: CustomBottomNavBar(
+        onHomeTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const MyHomePage()),
+          );
+        },
+        onLibraryTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => ModuleLibrary()),
+          );
+        },
+        onTrackerTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  AuthGuard(child: CreditsTracker()),
             ),
-            Column(
-              children: [
-                // Expanded layout for the main content
-                Expanded(
-                  child: Row(
-                    children: [
-                      if (isLandscape)
-                        CustomSideNavBar(
-                          onHomeTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => const MyHomePage()),
-                            );
-                          },
-                          onLibraryTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => ModuleLibrary()),
-                            );
-                          },
-                          onTrackerTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    AuthGuard(
-                                      child: CreditsTracker(),
-                                    ),
-                              ),
-                            );
-                          },
-                          onMenuTap: () {
-                            // This is purposefully left blank
-                          },
-                        ),
-
-                      // Main content area (expanded to fill remaining space)
-                      Expanded(
-                        child: Center(
-                          child: isLandscape
-                              ? _buildLandscapeLayout(scalingFactor)
-                              : _buildPortraitLayout(scalingFactor),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                if (!isLandscape)
-                  CustomBottomNavBar(
-                    onHomeTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const MyHomePage()),
-                      );
-                    },
-                    onLibraryTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => ModuleLibrary()),
-                      );
-                    },
-                    onTrackerTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              AuthGuard(
-                                child: CreditsTracker(),
-                              ),
-                        ),
-                      );
-                    },
-                    onMenuTap: () {
-                      // This is purposefully left blank
-                    },
-                  ),
-              ],
-            ),
-          ],
-        ),
+          );
+        },
+        onMenuTap: () {
+          // intentionally blank
+        },
       ),
+
+      // ❗ IMPORTANT: remove Center()
+      child: isLandscape
+          ? Row(
+        children: [
+          CustomSideNavBar(
+            onHomeTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const MyHomePage()),
+              );
+            },
+            onLibraryTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => ModuleLibrary()),
+              );
+            },
+            onTrackerTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      AuthGuard(child: CreditsTracker()),
+                ),
+              );
+            },
+            onMenuTap: () {
+              // intentionally blank
+            },
+          ),
+
+          Expanded(
+            child: _buildLandscapeLayout(scalingFactor),
+          ),
+        ],
+      )
+          : _buildPortraitLayout(scalingFactor),
     );
   }
 

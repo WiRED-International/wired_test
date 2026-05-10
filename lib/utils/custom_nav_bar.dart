@@ -26,62 +26,51 @@ class CustomBottomNavBar extends StatelessWidget {
 
     final double iconSize = baseSize * 0.08 * effectiveScale;
     final double fontSize = baseSize * 0.04 * effectiveScale;
-    final double bottomPadding = MediaQuery.of(context).padding.bottom;
-    final double baseHeight = baseSize * 0.2 * effectiveScale;
 
-    return SafeArea(
-      top: false, // ✅ critical: only protect bottom
-      child: Container(
-        color: Colors.transparent,
+    final double barHeight = baseSize * 0.2 * effectiveScale;
 
-        // ✅ IMPORTANT: height now includes system padding
-        height: baseHeight + bottomPadding,
-
-        padding: EdgeInsets.only(
-          top: baseSize * 0.01 * effectiveScale,
-          bottom: bottomPadding, // ✅ push content above nav bar
-        ),
-
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildIconNavItem(
-              context,
-              label: "Home",
-              icon: Icons.home,
-              onTap: onHomeTap,
-              iconSize: iconSize,
-              fontSize: fontSize,
-            ),
-
-            _buildIconNavItem(
-              context,
-              label: "My Library",
-              icon: Icons.library_books,
-              onTap: onLibraryTap,
-              iconSize: iconSize,
-              fontSize: fontSize,
-            ),
-
-            _buildSvgNavItem(
-              context,
-              label: "Tracker",
-              svgPath: 'assets/icons/credits.svg',
-              onTap: onTrackerTap,
-              iconSize: iconSize,
-              fontSize: fontSize,
-            ),
-
-            _buildSvgNavItem(
-              context,
-              label: "Menu",
-              svgPath: 'assets/icons/hamburger.svg',
-              onTap: onMenuTap,
-              iconSize: iconSize,
-              fontSize: fontSize,
-            ),
-          ],
-        ),
+    return Container(
+      color: Colors.transparent,
+      height: barHeight,
+      padding: EdgeInsets.symmetric(
+        vertical: baseSize * 0.01 * effectiveScale,
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _buildIconNavItem(
+            context,
+            label: "Home",
+            icon: Icons.home,
+            onTap: onHomeTap,
+            iconSize: iconSize,
+            fontSize: fontSize,
+          ),
+          _buildIconNavItem(
+            context,
+            label: "My Library",
+            icon: Icons.library_books,
+            onTap: onLibraryTap,
+            iconSize: iconSize,
+            fontSize: fontSize,
+          ),
+          _buildSvgNavItem(
+            context,
+            label: "Tracker",
+            svgPath: 'assets/icons/credits.svg',
+            onTap: onTrackerTap,
+            iconSize: iconSize,
+            fontSize: fontSize,
+          ),
+          _buildSvgNavItem(
+            context,
+            label: "Menu",
+            svgPath: 'assets/icons/hamburger.svg',
+            onTap: onMenuTap,
+            iconSize: iconSize,
+            fontSize: fontSize,
+          ),
+        ],
       ),
     );
   }

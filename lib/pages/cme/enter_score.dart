@@ -11,6 +11,7 @@ import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
 import '../../utils/side_nav_bar.dart';
+import '../../utils/app_layout.dart';
 import '../home_page.dart';
 import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
@@ -192,136 +193,101 @@ class _EnterScoreState extends State<EnterScore> {
 
   @override
   Widget build(BuildContext context) {
-    bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    bool isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
     double scalingFactor = getScalingFactor(context);
 
-    return Scaffold(
-      resizeToAvoidBottomInset: true,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFFFFF0DC),
-                    Color(0xFFF9EBD9),
-                    Color(0xFFFFC888),
-                  ],
-                ),
-              ),
-            ),
-            Column(
-              children: [
-                CustomAppBar(
-                  onBackPressed: () {
-                    Navigator.pop(context);
-                  },
-                  requireAuth: true,
-                ),
-                Expanded(
-                  child: Row(
-                    children: [
-                      if (isLandscape)
-                        CustomSideNavBar(
-                          onHomeTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => const MyHomePage()),
-                            );
-                          },
-                          onLibraryTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => ModuleLibrary()
-                              ),
-                            );
-                          },
-                          onTrackerTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => AuthGuard(child: CMETracker()),
-                              ),
-                            );
-                          },
-                          onMenuTap: () async {
-                            bool isLoggedIn = await checkIfUserIsLoggedIn();
-                            print("Navigating to menu. Logged in: $isLoggedIn");
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
-                              ),
-                            );
-                          },
-                        ),
-                      Expanded(
-                        child: Center(
-                          child: isLandscape
-                              ? _buildLandscapeLayout(scalingFactor,)
-                              : _buildPortraitLayout(scalingFactor,),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (!isLandscape)
-                  CustomBottomNavBar(
-                    onHomeTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const MyHomePage()),
-                      );
-                    },
-                    onLibraryTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => ModuleLibrary()),
-                      );
-                    },
-                    onTrackerTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              AuthGuard(
-                                child: CMETracker(),
-                              ),
-                        ),
-                      );
-                    },
-                    onMenuTap: () async {
-                      bool isLoggedIn = await checkIfUserIsLoggedIn();
-                      print("Navigating to menu. Logged in: $isLoggedIn");
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
-                        ),
-                      );
-                    },
-                  ),
-              ],
-            ),
-            Positioned(
-              top: 0,
-              left: 0,
-              child: CustomAppBar(
-                onBackPressed: () {
-                  Navigator.pop(context);
-                },
-              ),
-            ),
-          ],
-        ),
+    return AppLayout(
+      appBar: CustomAppBar(
+        onBackPressed: () {
+          Navigator.pop(context);
+        },
+        requireAuth: true, // ✅ keep this
       ),
+
+      bottomNav: CustomBottomNavBar(
+        onHomeTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const MyHomePage()),
+          );
+        },
+        onLibraryTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => ModuleLibrary()),
+          );
+        },
+        onTrackerTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AuthGuard(
+                child: CMETracker(),
+              ),
+            ),
+          );
+        },
+        onMenuTap: () async {
+          bool isLoggedIn = await checkIfUserIsLoggedIn();
+          print("Navigating to menu. Logged in: $isLoggedIn");
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+              isLoggedIn ? Menu() : GuestMenu(),
+            ),
+          );
+        },
+      ),
+
+      // ❗ IMPORTANT: no Center()
+      child: isLandscape
+          ? Row(
+        children: [
+          CustomSideNavBar(
+            onHomeTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const MyHomePage()),
+              );
+            },
+            onLibraryTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => ModuleLibrary()),
+              );
+            },
+            onTrackerTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      AuthGuard(child: CMETracker()),
+                ),
+              );
+            },
+            onMenuTap: () async {
+              bool isLoggedIn = await checkIfUserIsLoggedIn();
+              print("Navigating to menu. Logged in: $isLoggedIn");
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                  isLoggedIn ? Menu() : GuestMenu(),
+                ),
+              );
+            },
+          ),
+
+          Expanded(
+            child: _buildLandscapeLayout(scalingFactor),
+          ),
+        ],
+      )
+          : _buildPortraitLayout(scalingFactor),
     );
   }
 

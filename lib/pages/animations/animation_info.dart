@@ -16,6 +16,7 @@ import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
 import '../../utils/side_nav_bar.dart';
+import '../../utils/app_layout.dart';
 import '../cme/cme_tracker.dart';
 import '../creditsTracker/credits_tracker.dart';
 import '../download_confirm.dart';
@@ -239,193 +240,179 @@ class _AnimationInfoState extends State<AnimationInfo> {
     var screenWidth = MediaQuery.of(context).size.width;
     var screenHeight = MediaQuery.of(context).size.height;
     var baseSize = MediaQuery.of(context).size.shortestSide;
-    bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    bool isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
 
-    return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0xFFFFF0DC),
-                    Color(0xFFF9EBD9),
-                    Color(0xFFFFC888),
-                  ],
-                ),
+    return AppLayout(
+      appBar: CustomAppBar(
+        onBackPressed: () {
+          Navigator.pop(context);
+        },
+        requireAuth: false,
+      ),
+
+      bottomNav: CustomBottomNavBar(
+        onHomeTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const MyHomePage()),
+          );
+        },
+        onLibraryTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => ModuleLibrary()),
+          );
+        },
+        onTrackerTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AuthGuard(
+                child: CreditsTracker(),
               ),
             ),
-            Column(
-              children: [
-                // Custom AppBar
-                CustomAppBar(
-                  onBackPressed: () {
-                    Navigator.pop(context);
-                  },
-                  requireAuth: false,
-                ),
-                // Expanded layout for the main content
-                Expanded(
-                  child: Row(
-                    children: [
-                      if (isLandscape)
-                        CustomSideNavBar(
-                          onHomeTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => const MyHomePage()),
-                            );
-                          },
-                          onLibraryTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => ModuleLibrary()),
-                            );
-                          },
-                          onTrackerTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => AuthGuard(
-                                  child: CreditsTracker(),
-                                ),
-                              ),
-                            );
-                          },
-                          onMenuTap: () async {
-                            bool isLoggedIn = await checkIfUserIsLoggedIn();
-                            print("Navigating to menu. Logged in: $isLoggedIn");
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
-                              ),
-                            );
-                          },
-                        ),
-
-                      // Main content area (expanded to fill remaining space)
-                      Expanded(
-                        child: Center(
-                          child: isLandscape
-                              ? _buildLandscapeLayout(screenWidth, screenHeight, baseSize)
-                              : _buildPortraitLayout(screenWidth, screenHeight, baseSize),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                if (!isLandscape)
-                  CustomBottomNavBar(
-                    onHomeTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const MyHomePage()),
-                      );
-                    },
-                    onLibraryTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => ModuleLibrary()),
-                      );
-                    },
-                    onTrackerTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => AuthGuard(
-                            child: CreditsTracker(),
-                          ),
-                        ),
-                      );
-                    },
-                    onMenuTap: () async {
-                      bool isLoggedIn = await checkIfUserIsLoggedIn();
-                      print("Navigating to menu. Logged in: $isLoggedIn");
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
-                        ),
-                      );
-                    },
-                  ),
-              ],
+          );
+        },
+        onMenuTap: () async {
+          bool isLoggedIn = await checkIfUserIsLoggedIn();
+          print("Navigating to menu. Logged in: $isLoggedIn");
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+              isLoggedIn ? Menu() : GuestMenu(),
             ),
-            AnimatedOpacity(
-              opacity: _isDownloading ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 500),
-              curve: Curves.easeInOut,
-              child: IgnorePointer(
-                ignoring: !_isDownloading,
-                child: Container(
-                  color: Colors.black.withOpacity(0.4),
-                  child: Center(
-                    child: Container(
-                      width: isLandscape
-                          ? screenWidth * 0.6
-                          : screenWidth * 0.8,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: const [
-                          BoxShadow(
-                            color: Colors.black26,
-                            blurRadius: 10,
-                            offset: Offset(0, 4),
-                          ),
-                        ],
+          );
+        },
+      ),
+
+      // 🔶 THIS PAGE USES STACK (overlay)
+      child: Stack(
+        children: [
+          // 🧱 MAIN CONTENT
+          isLandscape
+              ? Row(
+            children: [
+              CustomSideNavBar(
+                onHomeTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => const MyHomePage()),
+                  );
+                },
+                onLibraryTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (context) => ModuleLibrary()),
+                  );
+                },
+                onTrackerTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => AuthGuard(
+                        child: CreditsTracker(),
                       ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            _progressText.startsWith("Extracting")
-                                ? "Extracting..."
-                                : "Downloading...",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF0070C0),
-                            ),
+                    ),
+                  );
+                },
+                onMenuTap: () async {
+                  bool isLoggedIn = await checkIfUserIsLoggedIn();
+                  print("Navigating to menu. Logged in: $isLoggedIn");
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                      isLoggedIn ? Menu() : GuestMenu(),
+                    ),
+                  );
+                },
+              ),
+
+              Expanded(
+                child: _buildLandscapeLayout(
+                  screenWidth,
+                  screenHeight,
+                  baseSize,
+                ),
+              ),
+            ],
+          )
+              : _buildPortraitLayout(
+            screenWidth,
+            screenHeight,
+            baseSize,
+          ),
+
+          // 🔶 DOWNLOAD OVERLAY (UNCHANGED)
+          AnimatedOpacity(
+            opacity: _isDownloading ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOut,
+            child: IgnorePointer(
+              ignoring: !_isDownloading,
+              child: Container(
+                color: Colors.black.withOpacity(0.4),
+                child: Center(
+                  child: Container(
+                    width: isLandscape
+                        ? screenWidth * 0.6
+                        : screenWidth * 0.8,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black26,
+                          blurRadius: 10,
+                          offset: Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _progressText.startsWith("Extracting")
+                              ? "Extracting..."
+                              : "Downloading...",
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF0070C0),
                           ),
-                          const SizedBox(height: 16),
-                          LinearProgressIndicator(
-                            value: _downloadProgress,
-                            minHeight: 8,
-                            backgroundColor: Colors.grey.shade300,
-                            valueColor:
-                            const AlwaysStoppedAnimation<Color>(
-                              Color(0xFF22C55E),
-                            ),
+                        ),
+                        const SizedBox(height: 16),
+                        LinearProgressIndicator(
+                          value: _downloadProgress,
+                          minHeight: 8,
+                          backgroundColor: Colors.grey.shade300,
+                          valueColor:
+                          const AlwaysStoppedAnimation<Color>(
+                            Color(0xFF22C55E),
                           ),
-                          const SizedBox(height: 10),
-                          Text(
-                            _progressText,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Colors.black87,
-                            ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          _progressText,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.black87,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

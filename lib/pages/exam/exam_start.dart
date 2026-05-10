@@ -8,6 +8,7 @@ import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
 import '../../utils/side_nav_bar.dart';
+import '../../utils/app_layout.dart';
 import '../cme/cme_tracker.dart';
 import '../home_page.dart';
 import '../menu/guestMenu.dart';
@@ -17,6 +18,7 @@ import '../../models/user.dart';
 import 'exam_page.dart';
 import 'package:intl/intl.dart';
 import '../../utils/screen_utils.dart';
+import '../creditsTracker/credits_tracker.dart';
 
 
 class ExamStart extends StatefulWidget {
@@ -171,43 +173,34 @@ class _ExamStartState extends State<ExamStart> {
 
     final body = _buildContent(context, baseSize);
 
-    return Scaffold(
-      body: SafeArea(
-        child: Stack(
-          children: [
-            _buildBackground(),
-            Column(
-              children: [
-                CustomAppBar(
-                  onBackPressed: () => Navigator.pop(context),
-                  requireAuth: false,
-                ),
-                Expanded(
-                  child: Row(
-                    children: [
-                      if (isLandscape)
-                        CustomSideNavBar(
-                          onHomeTap: () => _navigateTo(const MyHomePage()),
-                          onLibraryTap: () => _navigateTo(ModuleLibrary()),
-                          onTrackerTap: () => _navigateTo(CMETracker()),
-                          onMenuTap: _openMenu,
-                        ),
-                      Expanded(child: Center(child: body)),
-                    ],
-                  ),
-                ),
-                if (!isLandscape)
-                  CustomBottomNavBar(
-                    onHomeTap: () => _navigateTo(const MyHomePage()),
-                    onLibraryTap: () => _navigateTo(ModuleLibrary()),
-                    onTrackerTap: () => _navigateTo(CMETracker()),
-                    onMenuTap: _openMenu,
-                  ),
-              ],
-            ),
-          ],
-        ),
+    return AppLayout(
+      appBar: CustomAppBar(
+        onBackPressed: () => Navigator.pop(context),
+        requireAuth: false,
       ),
+
+      bottomNav: CustomBottomNavBar(
+        onHomeTap: () => _navigateTo(const MyHomePage()),
+        onLibraryTap: () => _navigateTo(ModuleLibrary()),
+        onTrackerTap: () => _navigateTo(CreditsTracker()),
+        onMenuTap: _openMenu,
+      ),
+
+      // ❗ IMPORTANT: no Center()
+      child: isLandscape
+          ? Row(
+        children: [
+          CustomSideNavBar(
+            onHomeTap: () => _navigateTo(const MyHomePage()),
+            onLibraryTap: () => _navigateTo(ModuleLibrary()),
+            onTrackerTap: () => _navigateTo(CMETracker()),
+            onMenuTap: _openMenu,
+          ),
+
+          Expanded(child: body),
+        ],
+      )
+          : body,
     );
   }
 
