@@ -219,7 +219,9 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
         requireAuth: false,
       ),
 
-      bottomNav: CustomBottomNavBar(
+      bottomNav: isLandscape
+          ? null
+          : CustomBottomNavBar(
         onHomeTap: () {
           Navigator.push(
             context,

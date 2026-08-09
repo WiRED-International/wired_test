@@ -45,7 +45,9 @@ class _GuestMenuState extends State<GuestMenu> {
       // 🔹 No AppBar on this page (matches your original)
       appBar: null,
 
-      bottomNav: CustomBottomNavBar(
+      bottomNav: isLandscape
+          ? null
+          : CustomBottomNavBar(
         onHomeTap: () {
           Navigator.push(
             context,

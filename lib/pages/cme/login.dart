@@ -22,6 +22,7 @@ import '../module_library.dart';
 import 'cme_tracker.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'forgot_password.dart';
 
 class Login extends StatefulWidget {
   @override
@@ -223,7 +224,9 @@ class _LoginState extends State<Login> {
         requireAuth: false,
       ),
 
-      bottomNav: CustomBottomNavBar(
+      bottomNav: isLandscape
+          ? null
+          : CustomBottomNavBar(
         onHomeTap: () {
           Navigator.push(
             context,
@@ -357,6 +360,20 @@ class _LoginState extends State<Login> {
                     }
                     return null;
                   },
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ForgotPassword(),
+                      ),
+                    );
+                  },
+                  child: const Text("Forgot Password?"),
                 ),
               ),
               SizedBox(
@@ -507,6 +524,20 @@ class _LoginState extends State<Login> {
                     }
                     return null;
                   },
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ForgotPassword(),
+                      ),
+                    );
+                  },
+                  child: const Text("Forgot Password?"),
                 ),
               ),
               SizedBox(

@@ -4,22 +4,23 @@ import '../../utils/functions.dart';
 class LandscapeProfileSection  extends StatelessWidget {
   final String firstName;
   final String dateJoined;
+  final String email;
   final int creditsEarned;
 
   LandscapeProfileSection({
     required this.firstName,
     required this.dateJoined,
+    required this.email,
     required this.creditsEarned,
   });
 
   @override
   Widget build(BuildContext context) {
     double scalingFactor = getScalingFactor(context);
-    final double circleDiameter = scalingFactor * (isTablet(context) ? 70 : 80);
-    final double circleDiameterSmall = scalingFactor * (isTablet(context) ? 64 : 73);
+    final double circleDiameter = scalingFactor * (isTablet(context) ? 65 : 70);
+    final double circleDiameterSmall = scalingFactor * (isTablet(context) ? 58 : 64);
 
     String badgeImage = getBadgeImage(creditsEarned);
-    String rankText = getRankText(creditsEarned);
 
     return Column(
       children: [
@@ -29,7 +30,7 @@ class LandscapeProfileSection  extends StatelessWidget {
           children: [
             Container(
               // height: scalingFactor * (isTablet(context) ? 0.05 : 125),
-              height: MediaQuery.of(context).size.height * (isTablet(context) ? 0.20 : 0.26),
+              height: MediaQuery.of(context).size.height * (isTablet(context) ? 0.18 : 0.20),
               width: MediaQuery.of(context).size.width,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -115,12 +116,12 @@ class LandscapeProfileSection  extends StatelessWidget {
               width: scalingFactor * (isTablet(context) ? 100 : 113),
             ),
             Text(
-              rankText,
+              email,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 fontSize: scalingFactor * (isTablet(context) ? 10 : 11),
                 fontWeight: FontWeight.w400,
-                color: Colors.black,
+                color: Colors.black54,
               ),
             ),
           ],

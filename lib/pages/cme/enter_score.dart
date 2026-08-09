@@ -205,7 +205,9 @@ class _EnterScoreState extends State<EnterScore> {
         requireAuth: true, // ✅ keep this
       ),
 
-      bottomNav: CustomBottomNavBar(
+      bottomNav: isLandscape
+          ? null
+          : CustomBottomNavBar(
         onHomeTap: () {
           Navigator.push(
             context,

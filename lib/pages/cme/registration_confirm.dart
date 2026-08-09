@@ -33,7 +33,9 @@ class _RegistrationConfirmState extends State<RegistrationConfirm> {
       // 🔹 No AppBar here (matches your original)
       appBar: null,
 
-      bottomNav: CustomBottomNavBar(
+      bottomNav: isLandscape
+          ? null
+          : CustomBottomNavBar(
         onHomeTap: () {
           Navigator.push(
             context,

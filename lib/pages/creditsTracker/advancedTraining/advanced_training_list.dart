@@ -75,7 +75,9 @@ class _AdvancedTrainingListState extends State<AdvancedTrainingList> {
         scale: scale,
       ),
 
-      bottomNav: CustomBottomNavBar(
+      bottomNav: isLandscape
+          ? null
+          : CustomBottomNavBar(
         onHomeTap: () {
           Navigator.push(context,
               MaterialPageRoute(builder: (_) => const MyHomePage()));

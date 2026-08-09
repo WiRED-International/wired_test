@@ -309,7 +309,9 @@ class _SubmitCreditsState extends State<SubmitCredits> {
         scale: scale,
       ),
 
-      bottomNav: CustomBottomNavBar(
+      bottomNav: isLandscape
+          ? null
+          : CustomBottomNavBar(
         onHomeTap: () {
           Navigator.push(
             context,

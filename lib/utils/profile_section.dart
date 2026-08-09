@@ -4,11 +4,13 @@ import '../../utils/functions.dart';
 class ProfileSection  extends StatelessWidget {
   final String firstName;
   final String dateJoined;
+  final String email;
   final int creditsEarned;
 
   ProfileSection({
     required this.firstName,
     required this.dateJoined,
+    required this.email,
     required this.creditsEarned,
   });
 
@@ -20,7 +22,6 @@ class ProfileSection  extends StatelessWidget {
 
     print("🏅 Calling getBadgeImage with creditsEarned: $creditsEarned");
     String badgeImage = getBadgeImage(creditsEarned);
-    String rankText = getRankText(creditsEarned);
 
     return Column(
       children: [
@@ -108,7 +109,7 @@ class ProfileSection  extends StatelessWidget {
           ],
         ),
         SizedBox(
-          height: scalingFactor * (isTablet(context) ? 6 : 8),
+          height: scalingFactor * (isTablet(context) ? 4 : 5),
         ),
         Row(
           children: [
@@ -116,12 +117,12 @@ class ProfileSection  extends StatelessWidget {
               width: scalingFactor * (isTablet(context) ? 100 : 125),
             ),
             Text(
-              rankText,
+              email,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: scalingFactor * (isTablet(context) ? 12 : 17),
+                fontSize: scalingFactor * (isTablet(context) ? 12 : 14),
                 fontWeight: FontWeight.w400,
-                color: Colors.black,
+                color: Colors.black54,
               ),
             ),
           ],
