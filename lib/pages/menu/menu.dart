@@ -153,7 +153,9 @@ class _MenuState extends State<Menu> {
       // 🔹 No AppBar on this page (you didn’t have one before)
       appBar: null,
 
-      bottomNav: CustomBottomNavBar(
+      bottomNav: isLandscape
+          ? null
+          : CustomBottomNavBar(
         onHomeTap: () =>
             _navigateTo(context, const MyHomePage()),
         onLibraryTap: () =>
@@ -216,6 +218,7 @@ class _MenuState extends State<Menu> {
                     LandscapeProfileSection(
                       firstName: user.firstName ?? 'Guest',
                       dateJoined: user.dateJoined ?? 'Unknown',
+                      email: user.email ?? '',
                       creditsEarned: creditsEarned,
                     ),
 
@@ -244,6 +247,7 @@ class _MenuState extends State<Menu> {
               ProfileSection(
                 firstName: user.firstName ?? 'Guest',
                 dateJoined: user.dateJoined ?? 'Unknown',
+                email: user.email ?? '',
                 creditsEarned: creditsEarned,
               ),
 
@@ -583,10 +587,10 @@ class _MenuState extends State<Menu> {
     final screenHeight = MediaQuery.of(context).size.height;
 
     // Responsive values
-    double fontBase = screenWidth * scaleForDevice(context, 0.03, 0.018);
-    double iconBase = screenWidth * scaleForDevice(context, 0.04, 0.025);
-    double cardPadding = screenWidth * scaleForDevice(context, 0.035, 0.022);
-    double titleSize = screenWidth * scaleForDevice(context, 0.035, 0.022);
+    double fontBase = screenWidth * scaleForDevice(context, 0.026, 0.016);
+    double iconBase = screenWidth * scaleForDevice(context, 0.034, 0.022);
+    double cardPadding = screenWidth * scaleForDevice(context, 0.026, 0.018);
+    double titleSize = screenWidth * scaleForDevice(context, 0.030, 0.020);
 
     return SingleChildScrollView(
       child: Align(

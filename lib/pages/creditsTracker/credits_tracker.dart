@@ -79,7 +79,9 @@ class _CreditsTrackerState extends State<CreditsTracker> {
         requireAuth: false,
       ),
 
-      bottomNav: CustomBottomNavBar(
+      bottomNav: isLandscape
+          ? null
+          : CustomBottomNavBar(
         onHomeTap: () {
           Navigator.push(
             context,
@@ -474,7 +476,12 @@ class _CreditsTrackerState extends State<CreditsTracker> {
                       ),
                     ),
                     onPressed: () {
-                      // TODO: Navigation or logic
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AuthGuard(child: SubmitCredits()),
+                        ),
+                      );
                     },
                   ),
                 ),

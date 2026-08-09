@@ -115,7 +115,9 @@ class _AnimationListState extends State<AnimationList> {
         requireAuth: false,
       ),
 
-      bottomNav: CustomBottomNavBar(
+      bottomNav: isLandscape
+          ? null
+          : CustomBottomNavBar(
         onHomeTap: () {
           Navigator.push(
             context,

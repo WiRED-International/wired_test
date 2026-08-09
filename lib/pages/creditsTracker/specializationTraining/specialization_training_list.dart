@@ -77,7 +77,9 @@ class _SpecializationTrainingListState
         scale: scale,
       ),
 
-      bottomNav: CustomBottomNavBar(
+      bottomNav: isLandscape
+          ? null
+          : CustomBottomNavBar(
         onHomeTap: () {
           Navigator.push(context,
               MaterialPageRoute(builder: (_) => const MyHomePage()));

@@ -136,7 +136,9 @@ class _BasicTrainingListState extends State<BasicTrainingList> {
         scale: scale,
       ),
 
-      bottomNav: CustomBottomNavBar(
+      bottomNav: isLandscape
+          ? null
+          : CustomBottomNavBar(
         onHomeTap: () {
           Navigator.push(
             context,

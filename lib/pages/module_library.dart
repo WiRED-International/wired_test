@@ -409,7 +409,9 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
         requireAuth: false,
       ),
 
-      bottomNav: CustomBottomNavBar(
+      bottomNav: isLandscape
+          ? null
+          : CustomBottomNavBar(
         onHomeTap: () {
           Navigator.push(
             context,

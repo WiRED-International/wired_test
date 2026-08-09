@@ -102,7 +102,9 @@ class _MyHomePageState extends State<MyHomePage> {
     return AppLayout(
       appBar: null,
 
-      bottomNav: CustomBottomNavBar(
+      bottomNav: isLandscape
+          ? null
+          : CustomBottomNavBar(
         onHomeTap: () {},
         onLibraryTap: () {
           Navigator.push(context, MaterialPageRoute(builder: (_) => ModuleLibrary()));
@@ -266,7 +268,10 @@ class _MyHomePageState extends State<MyHomePage> {
                               decorationColor: Colors.blue, // Blue underline
                               fontWeight: FontWeight.bold,
                             ),
-                            p: TextStyle(fontSize: baseSize * (isTablet(context) ? 0.035 : 0.04)),
+                            p: TextStyle(
+                              fontSize: baseSize * (isTablet(context) ? 0.035 : 0.04),
+                              color: isImportant ? Colors.red : Colors.black,
+                            ),
                           ),
                         ),
                       ),
@@ -461,7 +466,10 @@ class _MyHomePageState extends State<MyHomePage> {
                               decorationColor: Colors.blue, // Blue underline
                               fontWeight: FontWeight.bold,
                             ),
-                            p: TextStyle(fontSize: baseSize * (isTablet(context) ? 0.035 : 0.04)),
+                            p: TextStyle(
+                              fontSize: baseSize * (isTablet(context) ? 0.035 : 0.04),
+                              color: isImportant ? Colors.red : Colors.black,
+                            ),
                           ),
                         ),
                       ),

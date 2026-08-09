@@ -112,7 +112,9 @@ class _TopicListState extends State<TopicList> {
         requireAuth: false,
       ),
 
-      bottomNav: CustomBottomNavBar(
+      bottomNav: isLandscape
+          ? null
+          : CustomBottomNavBar(
         onHomeTap: () {
           Navigator.push(
             context,

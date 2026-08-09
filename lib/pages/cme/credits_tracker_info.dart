@@ -59,7 +59,9 @@ class _CreditsTrackerInfoState extends State<CreditsTrackerInfo>
         requireAuth: false,
       ),
 
-      bottomNav: CustomBottomNavBar(
+      bottomNav: isLandscape
+          ? null
+          : CustomBottomNavBar(
         onHomeTap: () =>
             Navigator.push(context,
                 MaterialPageRoute(builder: (_) => const MyHomePage())),

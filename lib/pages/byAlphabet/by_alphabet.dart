@@ -147,7 +147,9 @@ class _ByAlphabetState extends State<ByAlphabet> {
         requireAuth: false,
       ),
 
-      bottomNav: CustomBottomNavBar(
+      bottomNav: isLandscape
+          ? null
+          : CustomBottomNavBar(
         onHomeTap: () {
           Navigator.push(
             context,
@@ -403,9 +405,9 @@ class _ByAlphabetState extends State<ByAlphabet> {
                   albums = snapshot.data!;
 
                   /// Maintain dynamic grid sizing based on screen type
-                  final crossAxisCount = isTablet(context) ? 6 : 5;
+                  final crossAxisCount = isTablet(context) ? 6 : 6;
                   final buttonHeight = scalingFactor * (isTablet(context) ? 55 : 50); // Adjusted for tablets
-                  final childAspectRatio = isTablet(context) ? 1.9 : 2.2; // Adjusted for tablet scaling
+                  final childAspectRatio = isTablet(context) ? 1.9 : 2.6; // Adjusted for tablet scaling
 
                   return GridView.builder(
                     gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -493,7 +495,7 @@ class _ByAlphabetState extends State<ByAlphabet> {
           label,
           style: TextStyle(
             color: Colors.white,
-            fontSize: scalingFactor * (isTablet(context) ? 21 : 24),
+            fontSize: scalingFactor * (isTablet(context) ? 21 : 19),
             fontWeight: FontWeight.w500,
           ),
         ),

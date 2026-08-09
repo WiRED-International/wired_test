@@ -179,7 +179,9 @@ class _ExamStartState extends State<ExamStart> {
         requireAuth: false,
       ),
 
-      bottomNav: CustomBottomNavBar(
+      bottomNav: isLandscape
+          ? null
+          : CustomBottomNavBar(
         onHomeTap: () => _navigateTo(const MyHomePage()),
         onLibraryTap: () => _navigateTo(ModuleLibrary()),
         onTrackerTap: () => _navigateTo(CreditsTracker()),
