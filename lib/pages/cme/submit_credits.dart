@@ -18,7 +18,6 @@ import '../home_page.dart';
 import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
 import '../module_library.dart';
-import 'cme_tracker.dart';
 
 class SubmitCredits extends StatefulWidget {
   const SubmitCredits({super.key});
@@ -121,10 +120,9 @@ class _SubmitCreditsState extends State<SubmitCredits> {
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
     final token = authProvider.authToken;
-    final userId = authProvider.getUserIdFromToken();
 
-    if (token == null || userId == null) {
-      print('Token or user_id is missing');
+    if (token == null) {
+      print('Authentication token is missing');
       return;
     }
 
@@ -152,8 +150,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
           'Authorization': 'Bearer $token',
         },
         body: json.encode({
-          'module_id': finalId, // ✅ USE CLEAN ID HERE
-          'user_id': userId,
+          'module_id': finalId,
           'score': moduleFile.score ?? 0.0,
           'date_taken': DateTime.now().toIso8601String(),
         }),
@@ -183,7 +180,11 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                     Navigator.of(context).pop();
                     Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(builder: (context) => CMETracker()),
+                      MaterialPageRoute(
+                        builder: (context) => AuthGuard(
+                          child: CreditsTracker(),
+                        ),
+                      ),
                     );
                   },
                   child: Text('OK'),
@@ -193,9 +194,26 @@ class _SubmitCreditsState extends State<SubmitCredits> {
           },
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to submit score. Please try again.')),
-        );
+        String errorMessage = 'Failed to submit score. Please try again.';
+
+        try {
+          final responseData = jsonDecode(response.body);
+
+          if (responseData is Map<String, dynamic> &&
+              responseData['message'] != null) {
+            errorMessage = responseData['message'].toString();
+          }
+        } catch (e) {
+          print('Could not parse quiz submission error response: $e');
+        }
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMessage),
+            ),
+          );
+        }
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -670,18 +688,6 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  "CME Credits",
-                                  style: TextStyle(
-                                    fontSize: baseSize *
-                                        (isTabletDevice ? 0.030 : 0.035) *
-                                        textScale,
-                                    fontWeight: FontWeight.w700,
-                                    color: const Color(0xFF2E7D32),
-                                  ),
-                                ),
-                                SizedBox(height: baseSize * 0.015 * scale),
-
                                 _buildRow(
                                   context,
                                   label: "Module Name:",

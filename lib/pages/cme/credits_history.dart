@@ -121,7 +121,19 @@ class _CreditsHistoryState extends State<CreditsHistory> {
           }
 
           final user = snapshot.data!;
-          final quizScores = user.quizScores ?? [];
+
+          final allQuizScores = user.quizScores ?? [];
+
+          final quizScores = allQuizScores
+              .where(
+                (q) =>
+            q['module']?['credit_type']
+                ?.toString()
+                .toLowerCase() ==
+                'cme',
+          )
+              .toList();
+
           final creditsEarned = user.creditsEarned ?? 0;
 
           // ❗ IMPORTANT: no Center()
