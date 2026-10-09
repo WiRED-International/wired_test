@@ -3,21 +3,27 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
-import 'package:provider/provider.dart';
 import '../../../providers/auth_guard.dart';
 import '../../../utils/custom_app_bar.dart';
 import '../../../utils/custom_nav_bar.dart';
 import '../../../utils/functions.dart';
 import '../../../utils/side_nav_bar.dart';
 import '../../../utils/app_layout.dart';
-import '../../cme/cme_tracker.dart';
 import '../../home_page.dart';
 import '../../menu/guestMenu.dart';
 import '../../menu/menu.dart';
 import '../../module_library.dart';
-import '../../../data/basic_training_titles.dart';
-import '../../../providers/quiz_score_provider.dart';
 import '../credits_tracker.dart';
+
+class BasicTrainingProgressData {
+  final List<Map<String, dynamic>> modules;
+  final List<Map<String, dynamic>> quizScores;
+
+  BasicTrainingProgressData({
+    required this.modules,
+    required this.quizScores,
+  });
+}
 
 class BasicTrainingList extends StatefulWidget {
   const BasicTrainingList({super.key});
@@ -28,26 +34,30 @@ class BasicTrainingList extends StatefulWidget {
 
 class _BasicTrainingListState extends State<BasicTrainingList> {
   final _storage = const FlutterSecureStorage();
-  late Future<List<Map<String, dynamic>>> futureModules;
-  final bool _enableDebug = false; // Toggle for logs
+  late Future<BasicTrainingProgressData> futureModules;
 
   @override
   void initState() {
     super.initState();
     futureModules = fetchBasicModules();
-    final quizProvider = Provider.of<QuizScoreProvider>(context, listen: false);
-    quizProvider.fetchQuizScores();
   }
 
   // =====================================================
   // 🔹 Fetch modules from backend
   // =====================================================
-  Future<List<Map<String, dynamic>>> fetchBasicModules() async {
+  Future<BasicTrainingProgressData> fetchBasicModules() async {
     final token = await _storage.read(key: 'authToken');
-    if (token == null) throw Exception('User not logged in');
 
-    final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
-    final url = Uri.parse('$apiBaseUrl/modules');
+    if (token == null) {
+      throw Exception('User not logged in');
+    }
+
+    final apiBaseUrl =
+        dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
+
+    final url = Uri.parse(
+      '$apiBaseUrl/api/classes/progress/basic',
+    );
 
     final response = await http.get(
       url,
@@ -58,37 +68,25 @@ class _BasicTrainingListState extends State<BasicTrainingList> {
     );
 
     if (response.statusCode != 200) {
-      throw Exception('Failed to fetch modules: ${response.statusCode}');
+      throw Exception(
+        'Failed to fetch Basic Training progress: ${response.statusCode}',
+      );
     }
 
-    final allModules = (jsonDecode(response.body) as List).cast<Map<String, dynamic>>();
+    final responseData =
+    jsonDecode(response.body) as Map<String, dynamic>;
 
-    // Keep only those where categories contains "basic"
-    return _filterBasicModules(allModules);
-  }
+    final modules = responseData['modules'] as List? ?? [];
+    final quizScores = responseData['quizScores'] as List? ?? [];
 
-  // =====================================================
-  // 🔹 Helper: Filter only basic modules
-  // =====================================================
-  List<Map<String, dynamic>> _filterBasicModules(List<Map<String, dynamic>> modules) {
-    return modules.where((m) {
-      final rawCategories = m['categories'];
-      if (rawCategories == null) return false;
-
-      List<String> categories = [];
-      if (rawCategories is List) {
-        categories = rawCategories.map((e) => e.toString().toLowerCase()).toList();
-      } else if (rawCategories is String) {
-        try {
-          final decoded = jsonDecode(rawCategories);
-          if (decoded is List) {
-            categories = decoded.map((e) => e.toString().toLowerCase()).toList();
-          }
-        } catch (_) {}
-      }
-
-      return categories.contains('basic');
-    }).toList();
+    return BasicTrainingProgressData(
+      modules: modules
+          .map((module) => Map<String, dynamic>.from(module))
+          .toList(),
+      quizScores: quizScores
+          .map((score) => Map<String, dynamic>.from(score))
+          .toList(),
+    );
   }
 
   // =====================================================
@@ -163,6 +161,9 @@ class _BasicTrainingListState extends State<BasicTrainingList> {
         },
         onMenuTap: () async {
           bool isLoggedIn = await checkIfUserIsLoggedIn();
+
+          if (!context.mounted) return;
+
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -207,6 +208,9 @@ class _BasicTrainingListState extends State<BasicTrainingList> {
             },
             onMenuTap: () async {
               bool isLoggedIn = await checkIfUserIsLoggedIn();
+
+              if (!context.mounted) return;
+
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -241,10 +245,8 @@ class _BasicTrainingListState extends State<BasicTrainingList> {
   // 🧩 Portrait Layout
   // =====================================================
   Widget _buildPortraitLayout(double screenWidth, double screenHeight, double baseSize, double scale) {
-    final quizProvider = Provider.of<QuizScoreProvider>(context);
-    final quizScores = quizProvider.quizScores;
 
-    return FutureBuilder<List<Map<String, dynamic>>>(
+    return FutureBuilder<BasicTrainingProgressData>(
       future: futureModules,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -254,11 +256,26 @@ class _BasicTrainingListState extends State<BasicTrainingList> {
           return Center(child: Text('Error: ${snapshot.error}'));
         }
 
-        final modules = snapshot.data ?? [];
-        final basicModules = _filterBasicModules(modules);
-        int completedModules = _calculateCompletedModules(basicModules, quizScores);
+        final progressData = snapshot.data;
 
-        int totalModules = basicModules.length;
+        if (progressData == null) {
+          return const Center(
+            child: Text('No Basic Training progress data available.'),
+          );
+        }
+
+        final basicModules = progressData.modules;
+        final quizScores = progressData.quizScores;
+
+        final quizModules = basicModules
+            .where((module) => module['has_quiz'] == true)
+            .toList();
+
+        int completedModules =
+          _calculateCompletedModules(quizModules, quizScores);
+
+        int totalModules = quizModules.length;
+
         double completionPercent = totalModules > 0
             ? (completedModules / totalModules * 100).clamp(0, 100)
             : 0;
@@ -348,7 +365,13 @@ class _BasicTrainingListState extends State<BasicTrainingList> {
                   Column(
                     children: basicModules
                         .map((m) =>
-                        _buildModuleCard(baseSize, m, context, scale: scale))
+                        _buildModuleCard(
+                          baseSize,
+                          m,
+                          context,
+                          quizScores,
+                          scale: scale,
+                        ))
                         .toList(),
                   ),
                   SizedBox(height: baseSize * 0.15 * scale), // space above fade
@@ -365,10 +388,8 @@ class _BasicTrainingListState extends State<BasicTrainingList> {
   // 🧩 Landscape Layout
   // =====================================================
   Widget _buildLandscapeLayout(double screenWidth, double screenHeight, double baseSize, double scale) {
-    final quizProvider = Provider.of<QuizScoreProvider>(context);
-    final quizScores = quizProvider.quizScores;
 
-    return FutureBuilder<List<Map<String, dynamic>>>(
+    return FutureBuilder<BasicTrainingProgressData>(
       future: futureModules,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -378,11 +399,26 @@ class _BasicTrainingListState extends State<BasicTrainingList> {
           return Center(child: Text('Error: ${snapshot.error}'));
         }
 
-        final modules = snapshot.data ?? [];
-        final basicModules = _filterBasicModules(modules);
-        int completedModules = _calculateCompletedModules(basicModules, quizScores);
+        final progressData = snapshot.data;
 
-        int totalModules = basicModules.length;
+        if (progressData == null) {
+          return const Center(
+            child: Text('No Basic Training progress data available.'),
+          );
+        }
+
+        final basicModules = progressData.modules;
+        final quizScores = progressData.quizScores;
+
+        final quizModules = basicModules
+            .where((module) => module['has_quiz'] == true)
+            .toList();
+
+        int completedModules =
+        _calculateCompletedModules(quizModules, quizScores);
+
+        int totalModules = quizModules.length;
+
         double completionPercent = totalModules > 0
             ? (completedModules / totalModules * 100).clamp(0, 100)
             : 0;
@@ -484,7 +520,13 @@ class _BasicTrainingListState extends State<BasicTrainingList> {
                       child: Column(
                         children: basicModules
                             .map((m) =>
-                            _buildModuleCard(baseSize, m, context, scale: scale))
+                            _buildModuleCard(
+                              baseSize,
+                              m,
+                              context,
+                              quizScores,
+                              scale: scale,
+                            ))
                             .toList(),
                       ),
                     ),
@@ -501,14 +543,15 @@ class _BasicTrainingListState extends State<BasicTrainingList> {
   Widget _buildModuleCard(
       double baseSize,
       Map<String, dynamic> module,
-      BuildContext context, {
-        double scale = 1.0, // ✅ default 1.0 for backward compatibility
+      BuildContext context,
+      List<Map<String, dynamic>> quizScores, {
+        double scale = 1.0,
       }) {
-    final quizProvider = Provider.of<QuizScoreProvider>(context);
-    final quizScores = quizProvider.quizScores;
 
     final moduleId = module['id']?.toString();
     final moduleCustomId = module['module_id']?.toString();
+
+    final hasQuiz = module['has_quiz'] == true;
 
     // 🔍 Find matching score
     final matchedScore = quizScores.firstWhere(
@@ -564,7 +607,9 @@ class _BasicTrainingListState extends State<BasicTrainingList> {
       child: Row(
         children: [
           Icon(
-            passed
+            !hasQuiz
+                ? Icons.remove_circle_outline
+                : passed
                 ? Icons.check_circle_rounded
                 : (!attempted
                 ? Icons.radio_button_unchecked
@@ -607,7 +652,9 @@ class _BasicTrainingListState extends State<BasicTrainingList> {
                         BorderRadius.circular(baseSize * 0.02 * scale),
                       ),
                       child: Text(
-                        passed
+                        !hasQuiz
+                            ? "No Quiz"
+                            : passed
                             ? "Passed"
                             : (!attempted ? "Not Attempted" : "No Pass"),
                         style: TextStyle(
@@ -621,32 +668,35 @@ class _BasicTrainingListState extends State<BasicTrainingList> {
                         ),
                       ),
                     ),
-                    SizedBox(width: baseSize * 0.03 * scale),
-                    Text(
-                      "Passing: ${passing.toString()}%",
-                      style: TextStyle(
-                        fontSize: baseSize * 0.028 * scale,
-                        color: Colors.black54,
+                    if (hasQuiz) ...[
+                      SizedBox(width: baseSize * 0.03 * scale),
+                      Text(
+                        "Passing: ${passing.toString()}%",
+                        style: TextStyle(
+                          fontSize: baseSize * 0.028 * scale,
+                          color: Colors.black54,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ],
             ),
           ),
           SizedBox(width: baseSize * 0.03 * scale),
-          Text(
-            attempted ? "${score.toString()} / 100" : "--",
-            style: TextStyle(
-              fontSize: baseSize * 0.035 * scale,
-              fontWeight: FontWeight.bold,
-              color: attempted
-                  ? (passed
-                  ? const Color(0xFF22C55E)
-                  : const Color(0xFFE11D48))
-                  : Colors.black38,
+          if (hasQuiz)
+            Text(
+              attempted ? "${score.toString()} / 100" : "--",
+              style: TextStyle(
+                fontSize: baseSize * 0.035 * scale,
+                fontWeight: FontWeight.bold,
+                color: attempted
+                    ? (passed
+                    ? const Color(0xFF22C55E)
+                    : const Color(0xFFE11D48))
+                    : Colors.black38,
+              ),
             ),
-          ),
         ],
       ),
     );

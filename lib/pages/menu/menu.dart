@@ -22,6 +22,7 @@ import '../exam/exam_start.dart';
 import '../home_page.dart';
 import '../module_library.dart';
 import '../../models/user.dart';
+import '../classes/classes_page.dart';
 
 
 class Menu extends StatefulWidget {
@@ -346,13 +347,26 @@ class _MenuState extends State<Menu> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _buildInkWellButton(context, 'Meet The Team', scalingFactor, () async {
-              final Uri url = Uri.parse('https://sites.google.com/view/wired-international-team/home');
-              if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
-            }),
             _buildInkWellButton(context, 'About WiRED', scalingFactor, () async {
-              final Uri url = Uri.parse('https://sites.google.com/view/healthmap-about/home');
-              if (await canLaunchUrl(url)) await launchUrl(url, mode: LaunchMode.externalApplication);
+              final Uri url = Uri.parse(
+                'https://sites.google.com/view/healthmap-about/home',
+              );
+
+              if (await canLaunchUrl(url)) {
+                await launchUrl(
+                  url,
+                  mode: LaunchMode.externalApplication,
+                );
+              }
+            }),
+
+            _buildInkWellButton(context, 'Classes', scalingFactor, () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const ClassesPage(),
+                ),
+              );
             }),
           ],
         ),
