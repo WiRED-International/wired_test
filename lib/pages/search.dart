@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:wired_test/pages/home_page.dart';
+
 import '../providers/auth_guard.dart';
 import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
@@ -9,455 +10,278 @@ import '../utils/app_layout.dart';
 import 'byAlphabet/by_alphabet.dart';
 import 'byPackage/by_packages.dart';
 import 'byTopic/by_topic.dart';
-import 'cme/cme_tracker.dart';
 import 'creditsTracker/credits_tracker.dart';
 import 'menu/guestMenu.dart';
 import 'menu/menu.dart';
 import 'module_library.dart';
 import 'animations/animation_list.dart';
-
+import 'module_search_results.dart';
 
 class Search extends StatefulWidget {
   const Search({super.key});
 
   @override
-  _SearchState createState() => _SearchState();
+  State<Search> createState() => _SearchState();
 }
 
 class _SearchState extends State<Search> {
-  final Map<String, double> _buttonScales = {
-    'By Alphabet': 1.0,
-    'By Topic': 1.0,
-    'By Package': 1.0,
-    'Animations': 1.0,
-  };
+  final TextEditingController _searchController = TextEditingController();
 
-  final Map<String, List<Color>> _buttonColors = {
-    'By Alphabet': [
-      Color(0xFF0070C0), // Normal
-      Color(0xFF00C1FF),
-      Color(0xFF0070C0),
-    ],
-    'By Topic': [
-      // Color(0xFF519921), // Normal
-      // Color(0xFF93D221),
-      // Color(0xFF519921),
-      Color(0xFF0070C0),
-      Color(0xFF00C1FF),
-      Color(0xFF0070C0),
-    ],
-    'By Package': [
-      Color(0xFF0070C0), // Normal
-      Color(0xFF00C1FF),
-      Color(0xFF0070C0),
-    ],
-    'Animations': [
-      Color(0xFF519921),
-      Color(0xFF93D221),
-      Color(0xFF519921),
-    ],
-  };
-
-  void _onTapDown(String label) {
-    setState(() {
-      _buttonScales[label] = 0.95; // Shrink effect
-      _buttonColors[label] = [
-        _buttonColors[label]![0].withValues(alpha: 0.7), // Darker effect
-        _buttonColors[label]![1].withValues(alpha: 0.7),
-        _buttonColors[label]![2].withValues(alpha: 0.7),
-      ];
-    });
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
-  void _onTapUp(String label, VoidCallback onTap) {
-    Future.delayed(Duration(milliseconds: 100), () {
-      setState(() {
-        _buttonScales[label] = 1.0; // Restore size
-        _buttonColors[label] = [
-          _buttonColors[label]![0].withValues(alpha: 1.0), // Restore original color
-          _buttonColors[label]![1].withValues(alpha: 1.0),
-          _buttonColors[label]![2].withValues(alpha: 1.0),
-        ];
-      });
-      onTap(); // Execute navigation
-    });
+  void _open(Widget page) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  }
+
+  void _submitSearch(String value) {
+    final query = value.trim();
+    if (query.isEmpty) return;
+    FocusScope.of(context).unfocus();
+    _open(ModuleSearchResults(initialQuery: query));
+  }
+
+  Future<void> _openMenu() async {
+    final loggedIn = await checkIfUserIsLoggedIn();
+    if (!mounted) return;
+    _open(loggedIn ? Menu() : GuestMenu());
   }
 
   @override
   Widget build(BuildContext context) {
-    bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-    double scalingFactor = getScalingFactor(context);
-
+    final landscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
     return AppLayout(
       appBar: CustomAppBar(
         onBackPressed: () => Navigator.pop(context),
         requireAuth: false,
       ),
-
-      bottomNav: isLandscape
+      bottomNav: landscape
           ? null
           : CustomBottomNavBar(
-        onHomeTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const MyHomePage()));
-        },
-        onLibraryTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => ModuleLibrary()));
-        },
-        onTrackerTap: () {
-          Navigator.push(context, MaterialPageRoute(
-            builder: (_) => AuthGuard(child: CreditsTracker()),
-          ));
-        },
-        onMenuTap: () async {
-          bool isLoggedIn = await checkIfUserIsLoggedIn();
-          Navigator.push(context, MaterialPageRoute(
-            builder: (_) => isLoggedIn ? Menu() : GuestMenu(),
-          ));
-        },
+        onHomeTap: () => _open(const MyHomePage()),
+        onLibraryTap: () => _open(ModuleLibrary()),
+        onTrackerTap: () => _open(AuthGuard(child: CreditsTracker())),
+        onMenuTap: _openMenu,
       ),
-
-      // ❗ NO Center here
-      child: isLandscape
+      child: landscape
           ? Row(
         children: [
           CustomSideNavBar(
-            onHomeTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const MyHomePage()));
-            },
-            onLibraryTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => ModuleLibrary()));
-            },
-            onTrackerTap: () {
-              Navigator.push(context, MaterialPageRoute(
-                builder: (_) => AuthGuard(child: CreditsTracker()),
-              ));
-            },
-            onMenuTap: () async {
-              bool isLoggedIn = await checkIfUserIsLoggedIn();
-              Navigator.push(context, MaterialPageRoute(
-                builder: (_) => isLoggedIn ? Menu() : GuestMenu(),
-              ));
-            },
+            onHomeTap: () => _open(const MyHomePage()),
+            onLibraryTap: () => _open(ModuleLibrary()),
+            onTrackerTap: () =>
+                _open(AuthGuard(child: CreditsTracker())),
+            onMenuTap: _openMenu,
           ),
-          Expanded(child: _buildLandscapeLayout(scalingFactor)),
+          Expanded(child: _content()),
         ],
       )
-          : _buildPortraitLayout(scalingFactor),
+          : _content(),
     );
   }
 
-  Widget _buildPortraitLayout(double scalingFactor) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        Hero(
-          tag: 'modules',
-          child: Text(
-            'Search Modules',
-            style: TextStyle(
-              fontSize: scalingFactor * (isTablet(context) ? 30 : 35),
-              fontWeight: FontWeight.w500,
-              color: Color(0xFF0070C0),
-            ),
-          ),
-        ),
-        _buildSearchButton(
-          label: 'By Alphabet',
-          gradientColors: [
-            Color(0xFF0070C0),
-            Color(0xFF00C1FF),
-            Color(0xFF0070C0),
-          ],
-          onTap: () {
-            Navigator.push(
-                context, MaterialPageRoute(builder: (context) => ByAlphabet()));
-          },
-          scalingFactor: scalingFactor,
-        ),
-        _buildSearchButton(
-          label: 'By Topic',
-          gradientColors: [
-            // Color(0xFF519921),
-            // Color(0xFF93D221),
-            // Color(0xFF519921),
-            // Color(0xFF0070C0),
-            // Color(0xFF00C1FF),
-            // Color(0xFF0070C0),
-          ],
-          onTap: () {
-            Navigator.push(
-                context, MaterialPageRoute(builder: (context) => ByTopic()));
-          },
-          scalingFactor: scalingFactor,
-        ),
-        _buildSearchButton(
-          label: 'By Package',
-          gradientColors: [
-            Color(0xFF0070C0),
-            Color(0xFF00C1FF),
-            Color(0xFF0070C0),
-          ],
-          onTap: () {
-            Navigator.push(
-                context, MaterialPageRoute(builder: (context) => ByPackages()));
-          },
-          scalingFactor: scalingFactor,
-        ),
-        _buildSearchButton(
-          label: 'Animations',
-          gradientColors: [
-            Color(0xFF519921),
-            Color(0xFF93D221),
-            Color(0xFF519921),
-          ],
-          onTap: () {
-            Navigator.push(
-                context, MaterialPageRoute(builder: (context) => AnimationList()));
-          },
-          scalingFactor: scalingFactor,
-        ),
-        SizedBox(
-          height: scalingFactor * (isTablet(context) ? 20 : 20),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSearchButton({
-    required String label,
-    required List<Color> gradientColors,
-    required VoidCallback onTap,
-    required double scalingFactor,
-  }) {
-    return Semantics(
-      label: '$label Search Button',
-      hint: 'Tap to search for modules by $label',
-      child: FractionallySizedBox(
-        widthFactor: isTablet(context) ? 0.45 : 0.6,
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(30),
-          child: GestureDetector(
-            onTapDown: (_) => _onTapDown(label),
-            onTapUp: (_) => _onTapUp(label, onTap),
-            onTapCancel: () {
-              setState(() {
-                _buttonScales[label] = 1.0;
-                _buttonColors[label] = [
-                  _buttonColors[label]![0].withValues(alpha: 1.0), // Restore original
-                  _buttonColors[label]![1].withValues(alpha: 1.0),
-                  _buttonColors[label]![2].withValues(alpha: 1.0),
-                ];
-              });
-            },
-            child: AnimatedContainer(
-              duration: Duration(milliseconds: 100),
-              curve: Curves.easeOut,
-              transform: Matrix4.diagonal3Values(
-                  _buttonScales[label] ?? 1.0, _buttonScales[label] ?? 1.0,
-                  1.0),
-              child: InkWell(
-                onTap: onTap,
-                borderRadius: BorderRadius.circular(30),
-                splashColor: Colors.white.withValues(alpha: 0.3),
-                child: Container(
-                  height: scalingFactor * (isTablet(context) ? 35 : 45),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: _buttonColors[label] ?? [
-                        Color(0xFF0070C0),
-                        Color(0xFF00C1FF),
-                        Color(0xFF0070C0),
-                      ],
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
+  Widget _content() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 350;
+        return SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 740),
+              child: Column(
+                children: [
+                  Container(
+                    width: 92,
+                    height: 92,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Color(0xFF0070C0),
                     ),
-                    borderRadius: BorderRadius.circular(30),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.5),
-                        spreadRadius: 1,
-                        blurRadius: 5,
-                        offset: Offset(1, 3),
+                    child: const Icon(Icons.menu_book_rounded,
+                        size: 46, color: Colors.white),
+                  ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Explore Learning',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF183E59),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Find health education modules, training materials, and animations.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 15,
+                      height: 1.45,
+                      color: Color(0xFF4C5660),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Material(
+                    color: Colors.white.withValues(alpha: 0.92),
+                    borderRadius: BorderRadius.circular(14),
+                    child: TextField(
+                      controller: _searchController,
+                      onSubmitted: _submitSearch,
+                      textInputAction: TextInputAction.search,
+                      style: const TextStyle(fontSize: 16),
+                      decoration: InputDecoration(
+                        hintText: 'Search health education modules',
+                        hintStyle: const TextStyle(
+                          color: Color(0xFF536B7C),
+                          fontSize: 14,
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.search,
+                          color: Color(0xFF0070C0),
+                        ),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.arrow_forward_rounded),
+                          color: const Color(0xFF0070C0),
+                          tooltip: 'Search modules',
+                          onPressed: () =>
+                              _submitSearch(_searchController.text),
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide:
+                          const BorderSide(color: Color(0xFF97BDD4)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide:
+                          const BorderSide(color: Color(0xFF97BDD4)),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          borderSide: const BorderSide(
+                            color: Color(0xFF0070C0),
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 26),
+                  const Row(
+                    children: [
+                      Expanded(
+                          child: Divider(color: Color(0xFFC8B8A7))),
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          'Browse Modules',
+                          style: TextStyle(
+                            color: Color(0xFF365C6C),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                          child: Divider(color: Color(0xFFC8B8A7))),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  GridView.count(
+                    crossAxisCount: compact ? 1 : 2,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisSpacing: 14,
+                    mainAxisSpacing: 14,
+                    childAspectRatio: compact ? 3.0 : 1.42,
+                    children: [
+                      _tile('By Alphabet', 'Browse modules A–Z',
+                          const Color(0xFF0876D6),
+                              () => _open(ByAlphabet())),
+                      _tile('By Topic', 'Explore health topics',
+                          const Color(0xFF22B85C),
+                              () => _open(ByTopic())),
+                      _tile('By Package', 'Existing training packages',
+                          const Color(0xFF0876D6),
+                              () => _open(ByPackages())),
+                      _tile('Animations', 'Visual learning materials',
+                          const Color(0xFF22B85C),
+                              () => _open(AnimationList())),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.offline_pin_outlined,
+                          color: Color(0xFF397D4C), size: 19),
+                      SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          'Downloaded modules work offline',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Color(0xFF526B58),
+                            fontSize: 13,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                  child: Center(
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: scalingFactor * (isTablet(context) ? 17 : 20),
-                        fontWeight: FontWeight.w500,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
+                ],
               ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
-  Widget _buildLandscapeLayout(double scalingFactor) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Hero(
-          tag: 'modules',
-          child: Text(
-            'Search Modules',
-            style: TextStyle(
-              fontSize: scalingFactor * (isTablet(context) ? 25 : 25),
-              fontWeight: FontWeight.w500,
-              color: Color(0xFF0070C0),
-            ),
-          ),
-        ),
-
-        _buildSearchButtonLandscape(
-          label: 'By Alphabet',
-          gradientColors: [
-            Color(0xFF0070C0),
-            Color(0xFF00C1FF),
-            Color(0xFF0070C0),
-          ],
-          onTap: () {
-
-            Navigator.push(
-                context, MaterialPageRoute(builder: (context) => ByAlphabet()));
-          },
-          width: scalingFactor * (isTablet(context) ? 40 : 40),
-          scalingFactor: scalingFactor,
-        ),
-
-        _buildSearchButtonLandscape(
-          label: 'By Topic',
-          gradientColors: [
-            Color(0xFF519921),
-            Color(0xFF93D221),
-            Color(0xFF519921),
-          ],
-          onTap: () {
-            Navigator.push(
-                context, MaterialPageRoute(builder: (context) => ByTopic()));
-          },
-          width: scalingFactor * (isTablet(context) ? 40 : 40),
-          scalingFactor: scalingFactor,
-        ),
-
-        _buildSearchButtonLandscape(
-          label: 'By Package',
-          gradientColors: [
-            Color(0xFF0070C0),
-            Color(0xFF00C1FF),
-            Color(0xFF0070C0),
-          ],
-          onTap: () {
-            Navigator.push(
-                context, MaterialPageRoute(builder: (context) => ByPackages()));
-          },
-          width: scalingFactor * (isTablet(context) ? 40 : 40),
-          scalingFactor: scalingFactor,
-        ),
-        _buildSearchButtonLandscape(
-          label: 'Animations',
-          gradientColors: [
-            Color(0xFF519921),
-            Color(0xFF93D221),
-            Color(0xFF519921),
-          ],
-          onTap: () {
-            Navigator.push(
-                context, MaterialPageRoute(builder: (context) => AnimationList()));
-          },
-          width: scalingFactor * (isTablet(context) ? 40 : 40),
-          scalingFactor: scalingFactor,
-        ),
-        SizedBox(
-          height: scalingFactor * (isTablet(context) ? 20 : 20),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSearchButtonLandscape({
-    required String label,
-    required List<Color> gradientColors,
-    required VoidCallback onTap,
-    required double width,
-    required double scalingFactor,
-  }) {
-    return Semantics(
-      label: '$label Search Button',
-      hint: 'Tap to search for modules by $label',
-      child: FractionallySizedBox(
-        widthFactor: isTablet(context) ? 0.3 : 0.3,
-        child: Material(
-          color: Colors.transparent,
-          borderRadius: BorderRadius.circular(30),
-          child: GestureDetector(
-            onTapDown: (_) => _onTapDown(label),
-            onTapUp: (_) => _onTapUp(label, onTap),
-            onTapCancel: () {
-              setState(() {
-                _buttonScales[label] = 1.0;
-                _buttonColors[label] = [
-                  _buttonColors[label]![0].withValues(alpha: 1.0), // Restore original
-                  _buttonColors[label]![1].withValues(alpha: 1.0),
-                  _buttonColors[label]![2].withValues(alpha: 1.0),
-                ];
-              });
-            },
-            child: AnimatedContainer(
-              duration: Duration(milliseconds: 100),
-              curve: Curves.easeOut,
-              transform: Matrix4.diagonal3Values(
-                _buttonScales[label] ?? 1.0,
-                _buttonScales[label] ?? 1.0,
-                1.0,
-              ),
-              child: InkWell(
-                onTap: onTap,
-                borderRadius: BorderRadius.circular(30),
-                splashColor: Colors.white.withValues(alpha: 0.3),
-                child: Container(
-                  width: width,
-                  height: scalingFactor * (isTablet(context) ? 30 : 30),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: _buttonColors[label] ?? gradientColors,
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                    ),
-                    borderRadius: BorderRadius.circular(30),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.5),
-                        spreadRadius: 1,
-                        blurRadius: 5,
-                        offset: Offset(1, 3),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: scalingFactor * (isTablet(context) ? 17 : 17),
-                        fontWeight: FontWeight.w500,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
+  Widget _tile(String title, String subtitle, Color color, VoidCallback onTap) {
+    return Material(
+      color: color,
+      elevation: 3,
+      shadowColor: Colors.black26,
+      borderRadius: BorderRadius.circular(15),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(15),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                title,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 19,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
-            ),
+              const SizedBox(height: 9),
+              Text(
+                subtitle,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 }
+
