@@ -5,7 +5,6 @@ import 'package:flutter_svg/svg.dart';
 import 'package:path_provider/path_provider.dart';
 
 import 'package:archive/archive_io.dart';
-import 'package:http/http.dart' as http;
 
 import 'package:wired_test/pages/home_page.dart';
 import '../providers/auth_guard.dart';
@@ -20,6 +19,7 @@ import 'menu/guestMenu.dart';
 import 'menu/menu.dart';
 import 'module_library.dart';
 import '../services/location_service.dart';
+import '../services/module_download_service.dart';
 
 import '../utils/app_layout.dart';
 import 'dart:isolate';
@@ -114,7 +114,7 @@ class _ModuleInfoState extends State<ModuleInfo> {
   }
 
 // ✅ STREAMED LARGE-FILE DOWNLOAD WITH PROGRESS + EXTRACTION
-  Future<void> downloadModule(String url, String fileName) async {
+  Future<bool> downloadModule(String url, String fileName) async {
     try {
       final storagePath = await getStoragePath();
       print('DEBUG: Storage path -> $storagePath');
@@ -145,51 +145,20 @@ class _ModuleInfoState extends State<ModuleInfo> {
 
       print('DEBUG: Downloading to ${zipFile.path}');
 
-      // 🔽 Streamed download (efficient for 100MB+ files)
-      final request = await HttpClient().getUrl(Uri.parse(url));
-      final response = await request.close();
-
-      if (response.statusCode != 200) {
-        throw Exception('Download failed with ${response.statusCode}');
-      }
-
-      final sink = zipFile.openWrite();
-      int received = 0;
-      final total = response.contentLength;
-      final startTime = DateTime.now();
-      DateTime lastUpdate = DateTime.now();
-
-      await for (final chunk in response) {
-        received += chunk.length;
-        sink.add(chunk);
-
-        if (total > 0) {
-          final now = DateTime.now();
-          final elapsed = now.difference(startTime).inMilliseconds / 1000.0;
-          final speed = received / elapsed; // bytes/sec
-          final progress = received / total;
-          final remainingBytes = total - received;
-          final etaSeconds = remainingBytes / (speed > 0 ? speed : 1);
-          final percent = (progress * 100).toStringAsFixed(1);
-          final mbSpeed = (speed / (1024 * 1024)).toStringAsFixed(2);
-          final eta = etaSeconds < 60
-              ? '${etaSeconds.toStringAsFixed(0)}s'
-              : '${(etaSeconds / 60).toStringAsFixed(1)}m';
-
-          // 🔄 Throttle updates every 250ms
-          if (now.difference(lastUpdate).inMilliseconds > 250) {
-            lastUpdate = now;
-            if (mounted) {
-              setState(() {
-                _downloadProgress = progress;
-                _progressText = '$percent% • $mbSpeed MB/s • $eta left';
-              });
-            }
-          }
-        }
-      }
-
-      await sink.close();
+      // Download to the dedicated resumable cache first. The existing
+      // Storyline/compiler extraction and installation paths remain unchanged.
+      final cachedZip = await ModuleDownloadService().downloadModuleZip(
+        moduleId: widget.moduleId.toString(),
+        downloadUrl: url,
+        onProgress: (progress) {
+          if (!mounted) return;
+          setState(() {
+            _downloadProgress = progress;
+            _progressText = '${(progress * 100).toStringAsFixed(1)}% downloaded';
+          });
+        },
+      );
+      await cachedZip.copy(zipFile.path);
       print('✅ Download complete: ${zipFile.path}');
 
       // 🧩 Prepare extraction
@@ -301,15 +270,26 @@ class _ModuleInfoState extends State<ModuleInfo> {
             SnackBar(content: Text('Downloaded and extracted $fileName')),
           );
           receivePort.close();
-          break;
+          // Remove the completed cached ZIP only after installation finishes.
+          final cachedZip = File(
+            '${(await ModuleDownloadService().getDownloadsDirectory()).path}/${widget.moduleId}.zip',
+          );
+          if (await cachedZip.exists()) await cachedZip.delete();
+          return true;
         }
       }
     } catch (e) {
       print('❌ Download error: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error downloading $fileName: $e')),
-      );
+      if (mounted) {
+        setState(() => _isDownloading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error downloading $fileName: $e')),
+        );
+      }
+      return false;
     }
+
+    return false;
   }
 
   @override
@@ -558,7 +538,16 @@ class _ModuleInfoState extends State<ModuleInfo> {
                       });
 
                       String fileName = "${widget.moduleName}.zip";
-                      await downloadModule(widget.downloadLink!, fileName);
+                      final success = await downloadModule(widget.downloadLink!, fileName);
+                      if (!success || !mounted) {
+                        if (mounted) {
+                          setState(() {
+                            _isLoading = false;
+                            _isDownloading = false;
+                          });
+                        }
+                        return;
+                      }
 
                       // 🔹 Show explanation FIRST
                       final savedChoice = await getSavedLocationPreference();
@@ -829,7 +818,16 @@ class _ModuleInfoState extends State<ModuleInfo> {
                       });
 
                       String fileName = "${widget.moduleName}.zip";
-                      await downloadModule(widget.downloadLink!, fileName);
+                      final success = await downloadModule(widget.downloadLink!, fileName);
+                      if (!success || !mounted) {
+                        if (mounted) {
+                          setState(() {
+                            _isLoading = false;
+                            _isDownloading = false;
+                          });
+                        }
+                        return;
+                      }
 
                       // 🔹 Show explanation FIRST
                       bool allowLocation = await showLocationExplanationDialog(context);
@@ -1017,3 +1015,4 @@ Future<void> _extractZipWithProgress(Map<String, dynamic> args) async {
   print('✅ Extraction complete to $outputDir');
   sendPort.send('done');
 }
+

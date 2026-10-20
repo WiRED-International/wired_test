@@ -55,60 +55,150 @@ class ModuleDownloadService {
     return Directory('${modulesDirectory.path}/$moduleId');
   }
 
-  /// Downloads a module ZIP to temporary storage.
-  ///
-  /// This method does not extract or install the module.
+  /// Downloads a ZIP into temporary storage, resuming a partial download when
+  /// the server supports HTTP byte ranges. Installation is not changed.
   Future<File> downloadModuleZip({
     required String moduleId,
     required String downloadUrl,
     void Function(double progress)? onProgress,
     CancelToken? cancelToken,
   }) async {
-    // Validate the module identifier.
     if (!RegExp(r'^[0-9]+$').hasMatch(moduleId)) {
       throw ArgumentError('Invalid module ID: $moduleId');
     }
 
     final uri = Uri.tryParse(downloadUrl);
-    if (uri == null ||
-        uri.scheme != 'https' ||
-        uri.host.isEmpty) {
+    if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
       throw ArgumentError('Invalid HTTPS download URL');
     }
 
     final downloadsDirectory = await getDownloadsDirectory();
-    final zipFile = File(
-      '${downloadsDirectory.path}/$moduleId.zip',
-    );
+    final zipFile = File('${downloadsDirectory.path}/$moduleId.zip');
+    final partialFile = File('${downloadsDirectory.path}/$moduleId.zip.part');
+    final sourceFile = File('${downloadsDirectory.path}/$moduleId.zip.source');
+    final etagFile = File('${downloadsDirectory.path}/$moduleId.zip.etag');
 
-    final dio = Dio();
+    // Never append bytes from a different download URL to an old partial ZIP.
+    if (await partialFile.exists()) {
+      if (!await sourceFile.exists() ||
+          await sourceFile.readAsString() != downloadUrl) {
+        await partialFile.delete();
+        if (await etagFile.exists()) await etagFile.delete();
+      }
+    }
+    if (!await partialFile.exists() && await etagFile.exists()) {
+      await etagFile.delete();
+    }
+    await sourceFile.writeAsString(downloadUrl, flush: true);
+
+    final dio = Dio(BaseOptions(
+      followRedirects: true,
+      validateStatus: (status) => status == 200 || status == 206 || status == 416,
+    ));
 
     try {
-      await dio.download(
+      var existingBytes = await partialFile.exists() ? await partialFile.length() : 0;
+      final savedEtag = existingBytes > 0 && await etagFile.exists()
+          ? (await etagFile.readAsString()).trim()
+          : '';
+      final requestHeaders = <String, String>{};
+      if (existingBytes > 0) {
+        requestHeaders['Range'] = 'bytes=$existingBytes-';
+        // S3 returns 200 with the complete new object if its ETag changed.
+        if (savedEtag.isNotEmpty) requestHeaders['If-Range'] = savedEtag;
+      }
+      print('DEBUG: Dio download URL -> $downloadUrl');
+      final response = await dio.get<ResponseBody>(
         downloadUrl,
-        zipFile.path,
+        options: Options(
+          responseType: ResponseType.stream,
+          headers: requestHeaders.isEmpty ? null : requestHeaders,
+        ),
         cancelToken: cancelToken,
-        onReceiveProgress: (received, total) {
-          if (total > 0) {
-            onProgress?.call(received / total);
-          }
-        },
       );
 
-      if (!await zipFile.exists() ||
-          await zipFile.length() == 0) {
-        throw StateError('Downloaded ZIP is missing or empty');
+      final status = response.statusCode;
+      if (status == 416) {
+        // The partial file may be complete, but do not assume so without
+        // verifying the advertised total length. Retry from zero instead.
+        if (await partialFile.exists()) await partialFile.delete();
+        if (await etagFile.exists()) await etagFile.delete();
+        throw StateError('Server rejected resume range; retry the download');
       }
 
-      return zipFile;
-    } catch (_) {
-      // Remove incomplete downloads for now.
-      // We'll retain partial files when resume support is added.
-      if (await zipFile.exists()) {
-        await zipFile.delete();
+      if (status != 200 && status != 206) {
+        throw HttpException('Unexpected download status: $status');
       }
-      rethrow;
+
+      final responseEtag = response.headers.value('etag')?.trim() ?? '';
+      if (status == 206 && savedEtag.isNotEmpty &&
+          responseEtag != savedEtag) {
+        throw const FormatException('Module ZIP changed during download');
+      }
+
+      if (status == 206) {
+        final contentRange = response.headers.value('content-range');
+        final match = contentRange == null
+            ? null
+            : RegExp(r'^bytes (\d+)-(\d+)/(\d+)$').firstMatch(contentRange);
+        if (match == null || int.parse(match.group(1)!) != existingBytes) {
+          throw const FormatException('Invalid HTTP resume response');
+        }
+        final lastByte = int.parse(match.group(2)!);
+        final totalBytes = int.parse(match.group(3)!);
+        if (lastByte != totalBytes - 1 || totalBytes <= existingBytes) {
+          throw const FormatException('Invalid HTTP resume total');
+        }
+      } else {
+        // A 200 response means the server ignored Range (or this is a fresh
+        // download). Start from zero instead of appending duplicate content.
+        existingBytes = 0;
+      }
+
+      // Persist the validator before streaming so interrupted downloads retain
+      // the ETag needed to safely resume. No ETag means legacy range behavior.
+      if (responseEtag.isNotEmpty) {
+        await etagFile.writeAsString(responseEtag, flush: true);
+      } else if (await etagFile.exists()) {
+        await etagFile.delete();
+      }
+
+      final advertisedLength = int.tryParse(
+          response.headers.value('content-length') ?? '') ?? -1;
+      final expectedTotal = advertisedLength >= 0
+          ? existingBytes + advertisedLength
+          : null;
+      var received = existingBytes;
+      final sink = partialFile.openWrite(
+        mode: existingBytes > 0 ? FileMode.append : FileMode.write,
+      );
+      try {
+        await for (final chunk in response.data!.stream) {
+          sink.add(chunk);
+          received += chunk.length;
+          if (expectedTotal != null && expectedTotal > 0) {
+            onProgress?.call((received / expectedTotal).clamp(0.0, 1.0));
+          }
+        }
+      } finally {
+        await sink.flush();
+        await sink.close();
+      }
+
+      if (received == 0 ||
+          (expectedTotal != null && received != expectedTotal)) {
+        throw StateError('Module download is incomplete');
+      }
+
+      // Promote the complete download only after the stream finishes.
+      if (await zipFile.exists()) await zipFile.delete();
+      await partialFile.rename(zipFile.path);
+      if (await sourceFile.exists()) await sourceFile.delete();
+      if (await etagFile.exists()) await etagFile.delete();
+      onProgress?.call(1.0);
+      return zipFile;
     } finally {
+      // Keep .part and .source after interruption so a later attempt resumes.
       dio.close();
     }
   }
