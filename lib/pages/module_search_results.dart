@@ -12,7 +12,7 @@ import '../utils/side_nav_bar.dart';
 import 'creditsTracker/credits_tracker.dart';
 import 'menu/guestMenu.dart';
 import 'menu/menu.dart';
-import 'module_info.dart';
+import 'module_details_page.dart';
 import 'module_library.dart';
 
 class ModuleSearchResults extends StatefulWidget {
@@ -63,19 +63,7 @@ class _ModuleSearchResultsState extends State<ModuleSearchResults> {
   }
 
   void _openModule(DownloadableModule module) {
-    final id = module.id;
-    if (id == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('This module cannot be opened yet.')),
-      );
-      return;
-    }
-    _open(ModuleInfo(
-      moduleId: id,
-      moduleName: module.name,
-      moduleDescription: module.description ?? '',
-      downloadLink: module.downloadLink,
-    ));
+    _open(ModuleDetailsPage(module: module));
   }
 
   @override
