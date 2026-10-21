@@ -1,502 +1,178 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
+
 import '../../providers/auth_guard.dart';
+import '../../utils/app_layout.dart';
 import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
 import '../../utils/side_nav_bar.dart';
-import '../../utils/app_layout.dart';
-import '../cme/cme_tracker.dart';
 import '../creditsTracker/credits_tracker.dart';
 import '../home_page.dart';
 import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
-import 'module_by_alphabet.dart';
 import '../module_library.dart';
+import 'module_by_alphabet.dart';
 
+/// Letter picker for the alphabetical module catalog.
 class ByAlphabet extends StatefulWidget {
+  const ByAlphabet({super.key});
+
   @override
-  _ByAlphabetState createState() => _ByAlphabetState();
-}
-
-class Album {
-  final String name;
-
-  Album({
-    required this.name
-  });
-
-  Album.fromJson(Map<String, dynamic> json)
-      :name = json['name'] as String;
-
-  Map<String, dynamic> toJson() => {
-    'name': name,
-  };
+  State<ByAlphabet> createState() => _ByAlphabetState();
 }
 
 class _ByAlphabetState extends State<ByAlphabet> {
-  late Future<List<Album>> futureAlbums;
-  late List<Album> albums = [];
+  static const Color _blue = Color(0xFF16466A);
+  static const Color _border = Color(0xFFD7E4EA);
 
-  Future<List<Album>> fetchAlbums() async {
-    // Hardcoded list of albums from A to W and X-Y-Z. Some letters have been removed because we don't have any modules for them at the moment.
-    albums = [
-      Album(name: 'A'),
-      Album(name: 'B'),
-      Album(name: 'C'),
-      Album(name: 'D'),
-      Album(name: 'E'),
-      Album(name: 'F'),
-      Album(name: 'G'),
-      Album(name: 'H'),
-      Album(name: 'I'),
-      Album(name: 'J'),
-      Album(name: 'K'),
-      Album(name: 'L'),
-      Album(name: 'M'),
-      Album(name: 'N'),
-      Album(name: 'O'),
-      Album(name: 'P'),
-      Album(name: 'Q'),
-      Album(name: 'R'),
-      Album(name: 'S'),
-      Album(name: 'T'),
-      Album(name: 'U'),
-      Album(name: 'V'),
-      Album(name: 'W'),
-      Album(name: 'X-Y-Z'),
-    ];
+  static const List<String> _letters = [
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L',
+    'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X-Y-Z',
+  ];
 
-    // Sorting alphabetically if needed
-    albums.sort((a, b) => a.name.compareTo(b.name));
-
-    return albums;
-  }
-  final Map<String, double> _buttonScales = {};
-  final Map<String, List<Color>> _buttonColors = {};
-
-  void _onTapDown(String label) {
-    setState(() {
-      _buttonScales.putIfAbsent(label, () => 1.0);
-      _buttonColors.putIfAbsent(label, () => [
-        const Color(0xFF548235),
-        const Color(0xFF6BA644),
-        const Color(0xFF93C573),
-      ]);
-
-      _buttonScales[label] = 0.95; // Shrink effect
-
-      // Use new colors on tap down
-      _buttonColors[label] = [
-        Colors.green[900]!, // Change to a darker shade
-        Colors.green[700]!,
-        Colors.green[500]!,
-      ];
-    });
+  void _open(Widget page) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
   }
 
-
-  void _onTapUp(String label, VoidCallback onTap) {
-    Future.delayed(const Duration(milliseconds: 100), () {
-      setState(() {
-        _buttonScales.putIfAbsent(label, () => 1.0);
-        _buttonColors.putIfAbsent(label, () => [
-          const Color(0xFF548235),
-          const Color(0xFF6BA644),
-          const Color(0xFF93C573),
-        ]);
-
-        _buttonScales[label] = 1.0; // Restore size
-
-        // Restore original color
-        _buttonColors[label] = [
-          const Color(0xFF548235),
-          const Color(0xFF6BA644),
-          const Color(0xFF93C573),
-        ];
-      });
-      onTap(); // Execute navigation
-    });
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    futureAlbums = fetchAlbums();
+  Future<void> _openMenu() async {
+    final loggedIn = await checkIfUserIsLoggedIn();
+    if (!mounted) return;
+    _open(loggedIn ? Menu() : GuestMenu());
   }
 
   @override
   Widget build(BuildContext context) {
-    var screenWidth = MediaQuery.of(context).size.width;
-    var screenHeight = MediaQuery.of(context).size.height;
-    var baseSize = MediaQuery.of(context).size.shortestSide;
-    double scalingFactor = getScalingFactor(context);
-
-    // ⚠️ These can stay if used inside your layout methods
-    final appBarHeight = screenHeight * 0.055;
-    final bottomNavBarHeight = screenHeight * 0.09;
-
-    bool isLandscape =
+    final landscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
 
     return AppLayout(
       appBar: CustomAppBar(
-        onBackPressed: () {
-          Navigator.pop(context);
-        },
+        onBackPressed: () => Navigator.pop(context),
         requireAuth: false,
       ),
-
-      bottomNav: isLandscape
+      bottomNav: landscape
           ? null
           : CustomBottomNavBar(
-        onHomeTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const MyHomePage()),
-          );
-        },
-        onLibraryTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => ModuleLibrary()),
-          );
-        },
-        onTrackerTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AuthGuard(
-                child: CreditsTracker(),
-              ),
-            ),
-          );
-        },
-        onMenuTap: () async {
-          bool isLoggedIn = await checkIfUserIsLoggedIn();
-          print("Navigating to menu. Logged in: $isLoggedIn");
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) =>
-              isLoggedIn ? Menu() : GuestMenu(),
-            ),
-          );
-        },
+        onHomeTap: () => _open(const MyHomePage()),
+        onLibraryTap: () => _open(ModuleLibrary()),
+        onTrackerTap: () => _open(AuthGuard(child: CreditsTracker())),
+        onMenuTap: _openMenu,
       ),
-
-      // ❗ IMPORTANT: remove Center()
-      child: isLandscape
+      child: landscape
           ? Row(
         children: [
           CustomSideNavBar(
-            onHomeTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const MyHomePage()),
-              );
-            },
-            onLibraryTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => ModuleLibrary()),
-              );
-            },
-            onTrackerTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AuthGuard(
-                    child: CreditsTracker(),
-                  ),
-                ),
-              );
-            },
-            onMenuTap: () async {
-              bool isLoggedIn = await checkIfUserIsLoggedIn();
-              print("Navigating to menu. Logged in: $isLoggedIn");
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                  isLoggedIn ? Menu() : GuestMenu(),
-                ),
-              );
-            },
+            onHomeTap: () => _open(const MyHomePage()),
+            onLibraryTap: () => _open(ModuleLibrary()),
+            onTrackerTap: () => _open(AuthGuard(child: CreditsTracker())),
+            onMenuTap: _openMenu,
           ),
-
-          Expanded(
-            child: _buildLandscapeLayout(
-              screenWidth,
-              screenHeight,
-              scalingFactor,
-            ),
-          ),
+          Expanded(child: _buildContent()),
         ],
       )
-          : _buildPortraitLayout(
-        screenWidth,
-        screenHeight,
-        scalingFactor,
-      ),
+          : _buildContent(),
     );
   }
 
-  Widget _buildPortraitLayout(screenWidth, screenHeight, scalingFactor) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        Text(
-          "Search by Alphabet",
-          style: TextStyle(
-            fontSize: scalingFactor * (isTablet(context) ? 30 : 30),
-            fontWeight: FontWeight.w500,
-            color: const Color(0xFF0070C0),
-          ),
-        ),
-        SizedBox(height: scalingFactor * (isTablet(context) ? 20 : 20)),
-        Expanded(
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: scalingFactor * (isTablet(context) ? 10 : 10),
-            ),
-            child: FutureBuilder<List<Album>>(
-              future: futureAlbums,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                } else if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(child: Text('No Albums Found'));
-                } else {
-                  albums = snapshot.data!;
-
-                  /// Maintain dynamic grid sizing based on screen type
-                  final crossAxisCount = isTablet(context) ? 4 : 4;
-                  final buttonHeight = scalingFactor * (isTablet(context) ? 60 : 50); // Adjusted for tablets
-                  final childAspectRatio = isTablet(context) ? 1.6 : 1.5; // Adjusted for tablet scaling
-
-                  return GridView.builder(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      mainAxisSpacing: scalingFactor * (isTablet(context) ? 9 : 8),
-                      crossAxisSpacing: scalingFactor * (isTablet(context) ? 9 : 8),
-                      childAspectRatio: childAspectRatio,
+  Widget _buildContent() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final columns = width >= 720 ? 6 : width >= 520 ? 5 : 4;
+        return CustomScrollView(
+          slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 30, 20, 25),
+                child: Column(
+                  children: const [
+                    Text(
+                      'Browse by Alphabet',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 27,
+                        fontWeight: FontWeight.w700,
+                        color: _blue,
+                      ),
                     ),
-                    itemCount: albums.length,
-                    itemBuilder: (context, index) {
-                      return _buildAnimatedGridButton(
-                        label: albums[index].name,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ModuleByAlphabet(
-                                letter: albums[index].name,
-                              ),
-                            ),
-                          );
-                        },
-                        scalingFactor: scalingFactor,
-                      );
-                    },
-                  );
-                }
-              },
+                    SizedBox(height: 10),
+                    Text(
+                      'Select a letter to explore modules',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: Color(0xFF607889),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildAnimatedGridButton({
-    required String label,
-    required VoidCallback onTap,
-    required double scalingFactor,
-  }) {
-    return GestureDetector(
-      onTapDown: (_) => _onTapDown(label),
-      onTapUp: (_) => _onTapUp(label, onTap),
-      onTapCancel: () {
-        setState(() {
-          _buttonScales[label] = 1.0;
-          _buttonColors[label] = [
-            const Color(0xFF548235),
-            const Color(0xFF6BA644),
-            const Color(0xFF93C573),
-          ];
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 100),
-        curve: Curves.easeOut,
-        transform: Matrix4.diagonal3Values(
-          _buttonScales[label] ?? 1.0,
-          _buttonScales[label] ?? 1.0,
-          1.0,
-        ),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: _buttonColors[label] ?? [
-              const Color(0xFF548235),
-              const Color(0xFF6BA644),
-              const Color(0xFF93C573),
-            ],
-          ),
-          borderRadius: BorderRadius.circular(isTablet(context) ? 12 : 8),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              spreadRadius: 1,
-              blurRadius: 5,
-              offset: const Offset(1, 3),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 85),
+              sliver: SliverGrid(
+                delegate: SliverChildBuilderDelegate(
+                      (context, index) => _letterTile(_letters[index]),
+                  childCount: _letters.length,
+                ),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: columns,
+                  mainAxisSpacing: 13,
+                  crossAxisSpacing: 13,
+                  childAspectRatio: columns >= 5 ? 1.35 : 1.12,
+                ),
+              ),
             ),
           ],
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: scalingFactor * (isTablet(context) ? 24 : 24),
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ),
-    );
-  }
-
-
-
-  Widget _buildLandscapeLayout(screenWidth, screenHeight, scalingFactor) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        Text(
-          "Search by Alphabet",
-          style: TextStyle(
-            fontSize: scalingFactor * (isTablet(context) ? 24 : 24),
-            fontWeight: FontWeight.w500,
-            color: const Color(0xFF0070C0),
-          ),
-        ),
-        SizedBox(height: scalingFactor * (isTablet(context) ? 10 : 10)),
-        Expanded(
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: scalingFactor * (isTablet(context) ? 15 : 10),
-            ),
-            child: FutureBuilder<List<Album>>(
-              future: futureAlbums,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                } else if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(child: Text('No Albums Found'));
-                } else {
-                  albums = snapshot.data!;
-
-                  /// Maintain dynamic grid sizing based on screen type
-                  final crossAxisCount = isTablet(context) ? 6 : 6;
-                  final buttonHeight = scalingFactor * (isTablet(context) ? 55 : 50); // Adjusted for tablets
-                  final childAspectRatio = isTablet(context) ? 1.9 : 2.6; // Adjusted for tablet scaling
-
-                  return GridView.builder(
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      mainAxisSpacing: scalingFactor * (isTablet(context) ? 10 : 8),
-                      crossAxisSpacing: scalingFactor * (isTablet(context) ? 10 : 8),
-                      childAspectRatio: childAspectRatio,
-                    ),
-                    itemCount: albums.length,
-                    itemBuilder: (context, index) {
-                      return _buildAnimatedGridButtonLandscape(
-                        label: albums[index].name,
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ModuleByAlphabet(
-                                letter: albums[index].name,
-                              ),
-                            ),
-                          );
-                        },
-                        scalingFactor: scalingFactor,
-                      );
-                    },
-                  );
-                }
-              },
-            ),
-          ),
-        ),
-        SizedBox(height: scalingFactor * (isTablet(context) ? 10 : 10)),
-      ],
-    );
-  }
-
-  Widget _buildAnimatedGridButtonLandscape({
-    required String label,
-    required VoidCallback onTap,
-    required double scalingFactor,
-  }) {
-    return GestureDetector(
-      onTapDown: (_) => _onTapDown(label),
-      onTapUp: (_) => _onTapUp(label, onTap),
-      onTapCancel: () {
-        setState(() {
-          _buttonScales[label] = 1.0;
-          _buttonColors[label] = [
-            const Color(0xFF548235),
-            const Color(0xFF6BA644),
-            const Color(0xFF93C573),
-          ];
-        });
+        );
       },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 100),
-        curve: Curves.easeOut,
-        transform: Matrix4.diagonal3Values(
-          _buttonScales[label] ?? 1.0,
-          _buttonScales[label] ?? 1.0,
-          1.0,
-        ),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: _buttonColors[label] ?? [
-              const Color(0xFF548235),
-              const Color(0xFF6BA644),
-              const Color(0xFF93C573),
+    );
+  }
+
+  Widget _letterTile(String letter) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(15),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(15),
+        onTap: () => _open(ModuleByAlphabet(letter: letter)),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                Color(0xFFF0F8FF),
+                Color(0xFFD9ECFC),
+                Color(0xFFBBDDF5),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(
+              color: const Color(0xFFA8CFEA),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF16466A).withValues(alpha: 0.08),
+                blurRadius: 5,
+                offset: const Offset(0, 2),
+              ),
             ],
           ),
-          borderRadius: BorderRadius.circular(isTablet(context) ? 12 : 8),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.3),
-              spreadRadius: 1,
-              blurRadius: 5,
-              offset: const Offset(1, 3),
+          alignment: Alignment.center,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                letter,
+                style: TextStyle(
+                  fontSize: letter.length > 1 ? 19 : 28,
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF3479A8),
+                ),
+              ),
             ),
-          ],
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: scalingFactor * (isTablet(context) ? 21 : 19),
-            fontWeight: FontWeight.w500,
           ),
         ),
       ),

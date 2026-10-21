@@ -38,6 +38,7 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
   bool _checking = true;
   bool _busy = false;
   bool _installed = false;
+  bool _justInstalled = false;
   double? _progress;
   String _phase = '';
   String? _error;
@@ -178,9 +179,7 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
       });
       await _refreshInstallation();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Module installed successfully.')),
-      );
+      setState(() => _justInstalled = true);
     } catch (error) {
       debugPrint('Module installation failed: $error');
       if (!mounted) return;
@@ -339,32 +338,97 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
                         ),
                       ),
                     ],
-                    const SizedBox(height: 22),
-                    SizedBox(
-                      height: 54,
-                      child: ElevatedButton(
-                        onPressed: canDownload ? _install : null,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0876D6),
-                          foregroundColor: Colors.white,
-                          disabledBackgroundColor: const Color(0xFF9FB5C3),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(13),
-                          ),
+                    if (_justInstalled && _installed) ...[
+                      const SizedBox(height: 22),
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0F8F2),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFB9DFC5)),
                         ),
-                        child: Text(
-                          _busy
-                              ? 'Installing...'
-                              : _installed
-                              ? 'Installed'
-                              : 'Download Module',
-                          style: const TextStyle(
-                            fontSize: 17,
-                            fontWeight: FontWeight.w700,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.check_circle_rounded,
+                                    color: Color(0xFF25834A), size: 28),
+                                SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    'Module downloaded successfully!',
+                                    style: TextStyle(
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF205D38),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            const Text(
+                              'Your module is ready to use offline.',
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: Color(0xFF345A43),
+                              ),
+                            ),
+                            const SizedBox(height: 18),
+                            SizedBox(
+                              height: 50,
+                              child: ElevatedButton.icon(
+                                onPressed: () => _open(ModuleLibrary()),
+                                icon: const Icon(Icons.library_books_outlined),
+                                label: const Text('Open My Library'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF0876D6),
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              height: 48,
+                              child: OutlinedButton.icon(
+                                onPressed: () => Navigator.pop(context),
+                                icon: const Icon(Icons.search_rounded),
+                                label: const Text('Browse More Modules'),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (!_justInstalled || !_installed) ...[
+                      const SizedBox(height: 22),
+                      SizedBox(
+                        height: 54,
+                        child: ElevatedButton(
+                          onPressed: canDownload ? _install : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0876D6),
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: const Color(0xFF9FB5C3),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(13),
+                            ),
+                          ),
+                          child: Text(
+                            _busy
+                                ? 'Installing...'
+                                : _installed
+                                ? 'Installed'
+                                : 'Download Module',
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
 
                   ],
                 ),

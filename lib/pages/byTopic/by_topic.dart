@@ -1,93 +1,51 @@
-import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-import 'package:wired_test/pages/byTopic/topic_list.dart';
+
 import '../../providers/auth_guard.dart';
+import '../../utils/app_layout.dart';
 import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
 import '../../utils/side_nav_bar.dart';
-import '../../utils/app_layout.dart';
-import '../cme/cme_tracker.dart';
 import '../creditsTracker/credits_tracker.dart';
 import '../home_page.dart';
 import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
 import '../module_library.dart';
+import 'topic_list.dart';
 
 class ByTopic extends StatefulWidget {
+  const ByTopic({super.key});
+
   @override
-  _ByTopicState createState() => _ByTopicState();
+  State<ByTopic> createState() => _ByTopicState();
 }
 
 class Category {
-  String? name;
-  int? id;
+  final String? name;
+  final int? id;
 
-  Category({
-    this.name,
-    this.id,
-  });
+  const Category({this.name, this.id});
 
-  Category.fromJson(Map<String, dynamic> json)
-      : name = json['name'] as String?,
-        id = json['id'] is int ? json['id'] : int.tryParse(json['id'].toString() ?? '');
+  factory Category.fromJson(Map<String, dynamic> json) {
+    final rawId = json['id'];
+    return Category(
+      name: json['name']?.toString(),
+      id: rawId is int ? rawId : int.tryParse(rawId?.toString() ?? ''),
+    );
+  }
 
-  Map<String, dynamic> toJson() => {
-    'name': name,
-    'id': id,
-  };
+  Map<String, dynamic> toJson() => {'name': name, 'id': id};
 }
 
 class _ByTopicState extends State<ByTopic> {
+  static const _blue = Color(0xFF16466A);
+  static const _green = Color(0xFF358347);
+
   late Future<List<Category>> futureCategories;
-
-  Future<List<Category>> fetchCategories() async {
-    final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
-    final apiEndpoint = '/categories';
-    try {
-      final response = await http.get(Uri.parse('$apiBaseUrl$apiEndpoint'));
-
-      debugPrint("Response body: ${response.body}");
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-
-        debugPrint("Fetched Data: $data");
-
-        if (data is List) {
-          print("Data is a List");
-          List<Category> categories = data.map<Category>((e) =>
-              Category.fromJson(e)).toList();
-
-          // Filter out categories with null or empty names
-          categories = categories.where((c) => c.name != null && c.name!.isNotEmpty).toList();
-
-          // Sort the list by category name
-          categories.sort((a, b) => a.name!.toLowerCase().compareTo(b.name!.toLowerCase()));
-
-          // Remove duplicates by converting to a Set and back to a List
-          categories = categories.toSet().toList();
-
-          // This is a temporary fix for the issue where some categories contain subcategories that are empty. Remove each subcategory name from the list if there is a module associated with it.
-          categories.removeWhere((category) => category.name!.contains('Diagnosis and Therapy'));
-
-          debugPrint("Parsed Categories Length: ${categories.length}");
-          return categories;
-        } else {
-          debugPrint("Data is not a list");
-        }
-      } else {
-        debugPrint(
-            "Failed to load categories, status code: ${response.statusCode}");
-      }
-    } catch (e) {
-      debugPrint("Error fetching categories: $e");
-    }
-    return [];
-  }
 
   @override
   void initState() {
@@ -95,399 +53,274 @@ class _ByTopicState extends State<ByTopic> {
     futureCategories = fetchCategories();
   }
 
+  Future<List<Category>> fetchCategories() async {
+    final baseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
+    final uri = Uri.parse('${baseUrl.replaceAll(RegExp(r"/+$"), "")}/categories');
+    final response = await http.get(uri).timeout(const Duration(seconds: 25));
+    if (response.statusCode != 200) {
+      throw Exception('Unable to load topics (HTTP ${response.statusCode}).');
+    }
+
+    final decoded = jsonDecode(response.body);
+    if (decoded is! List) {
+      throw const FormatException('Unexpected categories response.');
+    }
+
+    final categories = decoded
+        .whereType<Map>()
+        .map((item) => Category.fromJson(Map<String, dynamic>.from(item)))
+        .where((category) =>
+    category.name != null &&
+        category.name!.trim().isNotEmpty)
+        .toList();
+
+    // Deduplicate by category ID, not object identity.
+    final seenIds = <int>{};
+    final seenNames = <String>{};
+    categories.retainWhere((category) {
+      if (category.id != null) return seenIds.add(category.id!);
+      return seenNames.add(category.name!.trim().toLowerCase());
+    });
+    categories.sort((a, b) =>
+        a.name!.toLowerCase().compareTo(b.name!.toLowerCase()));
+    return categories;
+  }
+
+  void _reload() {
+    setState(() => futureCategories = fetchCategories());
+  }
+
+  void _open(Widget page) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  }
+
+  Future<void> _openMenu() async {
+    final loggedIn = await checkIfUserIsLoggedIn();
+    if (!mounted) return;
+    _open(loggedIn ? Menu() : GuestMenu());
+  }
+
   @override
   Widget build(BuildContext context) {
-    var screenWidth = MediaQuery.of(context).size.width;
-    var screenHeight = MediaQuery.of(context).size.height;
-    bool isLandscape =
+    final landscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
 
     return AppLayout(
       appBar: CustomAppBar(
-        onBackPressed: () {
-          Navigator.pop(context);
-        },
+        onBackPressed: () => Navigator.pop(context),
         requireAuth: false,
       ),
-
-      bottomNav: isLandscape
+      bottomNav: landscape
           ? null
           : CustomBottomNavBar(
-        onHomeTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const MyHomePage()),
-          );
-        },
-        onLibraryTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => ModuleLibrary()),
-          );
-        },
-        onTrackerTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AuthGuard(
-                child: CreditsTracker(),
-              ),
-            ),
-          );
-        },
-        onMenuTap: () async {
-          bool isLoggedIn = await checkIfUserIsLoggedIn();
-          print("Navigating to menu. Logged in: $isLoggedIn");
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) =>
-              isLoggedIn ? Menu() : GuestMenu(),
-            ),
-          );
-        },
+        onHomeTap: () => _open(const MyHomePage()),
+        onLibraryTap: () => _open(ModuleLibrary()),
+        onTrackerTap: () => _open(AuthGuard(child: CreditsTracker())),
+        onMenuTap: _openMenu,
       ),
-
-      // ❗ IMPORTANT: remove Center()
-      child: isLandscape
+      child: landscape
           ? Row(
         children: [
           CustomSideNavBar(
-            onHomeTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const MyHomePage()),
-              );
-            },
-            onLibraryTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => ModuleLibrary()),
-              );
-            },
-            onTrackerTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AuthGuard(
-                    child: CreditsTracker(),
-                  ),
-                ),
-              );
-            },
-            onMenuTap: () async {
-              bool isLoggedIn = await checkIfUserIsLoggedIn();
-              print("Navigating to menu. Logged in: $isLoggedIn");
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                  isLoggedIn ? Menu() : GuestMenu(),
-                ),
-              );
-            },
+            onHomeTap: () => _open(const MyHomePage()),
+            onLibraryTap: () => _open(ModuleLibrary()),
+            onTrackerTap: () =>
+                _open(AuthGuard(child: CreditsTracker())),
+            onMenuTap: _openMenu,
           ),
-
-          Expanded(
-            child: _buildLandscapeLayout(
-              screenWidth,
-              screenHeight,
-            ),
-          ),
+          Expanded(child: _content()),
         ],
       )
-          : _buildPortraitLayout(
-        screenWidth,
-        screenHeight,
+          : _content(),
+    );
+  }
+
+  Widget _content() {
+    return RefreshIndicator(
+      onRefresh: () async {
+        _reload();
+        try {
+          await futureCategories;
+        } catch (_) {
+          // The error state displays a retry button.
+        }
+      },
+      child: FutureBuilder<List<Category>>(
+        future: futureCategories,
+        builder: (context, snapshot) {
+          return CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 760),
+                    child: const Padding(
+                      padding: EdgeInsets.fromLTRB(20, 26, 20, 20),
+                      child: Column(
+                        children: [
+                          Text(
+                            'Browse by Topic',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 27,
+                              fontWeight: FontWeight.w700,
+                              color: _blue,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            'Select a health topic to explore modules',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: Color(0xFF607889),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              if (snapshot.connectionState != ConnectionState.done)
+                const SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else if (snapshot.hasError)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _message(
+                    Icons.wifi_off_rounded,
+                    'Unable to load topics',
+                    'Check your connection and try again.',
+                    retry: true,
+                  ),
+                )
+              else if ((snapshot.data ?? []).isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: _message(
+                      Icons.search_off_rounded,
+                      'No topics available',
+                      'There are no topics to display right now.',
+                    ),
+                  )
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                    sliver: SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                            (context, index) => Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 760),
+                            child: Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _topicCard(snapshot.data![index]),
+                            ),
+                          ),
+                        ),
+                        childCount: snapshot.data!.length,
+                      ),
+                    ),
+                  ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  Widget _buildPortraitLayout(screenWidth, screenHeight) {
-    var baseSize = MediaQuery.of(context).size.shortestSide;
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        SizedBox(height: 10),
-        Container(
-          child: Column(
-            children: [
-              Text(
-                "Search by Topic",
-                style: TextStyle(
-                  fontSize: baseSize * (isTablet(context) ? 0.08 : 0.08),
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF548235),
-                ),
-              ),
-            ],
+  Widget _topicCard(Category category) {
+    return Material(
+      color: Colors.white,
+      elevation: 1.5,
+      shadowColor: const Color(0x33000000),
+      borderRadius: BorderRadius.circular(15),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(15),
+        onTap: () => _open(TopicList(
+          category: category.name!,
+          categoryId: category.id ?? 0,
+        )),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 86),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(color: const Color(0xFFD7E4EA)),
           ),
-        ),
-        const SizedBox(height: 10),
-        // List of topics container
-        Flexible(
-          flex: 3,
-          child: Stack(
+          child: Row(
             children: [
               Container(
-                height: baseSize * (isTablet(context) ? 1.5 : 1.5),
-                //height: screenHeight * 0.65,
-                width: double.infinity,
+                width: 43,
+                height: 43,
                 decoration: BoxDecoration(
-                  color: Colors.transparent,
+                  color: const Color(0xFFEAF5EC),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: FutureBuilder<List<Category>>(
-                  future: futureCategories,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const CircularProgressIndicator();
-                    } else if (snapshot.hasError) {
-                      return Text('Error: ${snapshot.error}');
-                    } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                      return const Text('No categories available');
-                    } else {
-                      final categories = snapshot.data!;
-                      debugPrint("Number of Categories: ${categories.length}");
-                      return ListView.builder(
-                        itemCount: categories.length + 1,
-                        itemBuilder: (context, index) {
-                          if (index == categories.length) {
-                            return const SizedBox(
-                              height: 160,
-                            );
-                          }
-                          final topic = categories[index];
-                          final topicName = topic.name ?? "Unknown Module";
-                          final categoryId = topic.id ?? 0;
-                          return Column(
-                            children: [
-                              InkWell(
-                                onTap: () async {
-                                  //print("Downloading ${moduleData[index].downloadLink}");
-                                  if (topicName.isNotEmpty) {
-                                    // String fileName = "$moduleName.zip";
-                                    // await downloadModule(downloadLink, fileName);
-                                    Navigator.push(context, MaterialPageRoute(
-                                        builder: (context) => TopicList(
-                                            category: topicName,
-                                            categoryId: categoryId)));
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(
-                                          'No category found for ${categories[index]
-                                              .name}')),
-                                    );
-                                  }
-                                },
-                                child: Center(
-                                  child: ListTile(
-                                    title: Padding(
-                                      padding: const EdgeInsets.only(
-                                          top: 5, bottom: 5),
-                                      child: Text(
-                                        topicName,
-                                        style: TextStyle(
-                                          fontSize: baseSize * (isTablet(context) ? 0.054 : 0.054),
-                                          fontWeight: FontWeight.w500,
-                                          color: Color(0xFF0070C0),
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Container(
-                                color: Colors.grey,
-                                height: 1,
-                                width: baseSize * (isTablet(context) ? 0.75 : 0.7),
-                              ),
-                            ],
-                          );
-                        },
-                      );
-                    }
-                  },
-                ),
+                child: const Icon(Icons.category_outlined, color: _green),
               ),
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: IgnorePointer(
-                  child: Container(
-                    height: 150,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        stops: [0.0, 1.0],
-                        colors: [
-                          // Colors.transparent,
-                          // Color(0xFFFFF0DC),
-                          //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                          Color(0xFFFED09A).withOpacity(0.0),
-                          Color(0xFFFED09A),
-                        ],
-                      ),
-                    )
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  category.name!,
+                  style: const TextStyle(
+                    color: _blue,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    height: 1.4,
                   ),
                 ),
               ),
+              const SizedBox(width: 12),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: Color(0xFF0876D6),
+              ),
             ],
           ),
         ),
-      ],
+      ),
     );
   }
 
-  Widget _buildLandscapeLayout(screenWidth, screenHeight) {
-    var baseSize = MediaQuery.of(context).size.shortestSide;
-    return Column(
-      children: [
-        // SizedBox(
-        //   height: baseSize * (isTablet(context) ? 0.03 : 0.03),
-        // ),
-        Container(
-          child: Column(
-            children: [
-              Text(
-                "Search by Topic",
-                style: TextStyle(
-                  fontSize: baseSize * (isTablet(context) ? 0.08 : 0.08),
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF548235),
-                ),
+  Widget _message(IconData icon, String title, String detail,
+      {bool retry = false}) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: _green, size: 48),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 19,
+                fontWeight: FontWeight.w700,
+                color: _blue,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              detail,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF607889)),
+            ),
+            if (retry) ...[
+              const SizedBox(height: 18),
+              ElevatedButton.icon(
+                onPressed: _reload,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Try Again'),
               ),
             ],
-          ),
+          ],
         ),
-        SizedBox(
-          height: baseSize * (isTablet(context) ? 0.015 : 0.015),
-        ),
-        // List of topics container
-        Flexible(
-          flex: 3,
-          child: Stack(
-            children: [
-              Container(
-                height: baseSize * (isTablet(context) ? 0.68 : 0.68),
-                width: baseSize * (isTablet(context) ? 1.25 : 1.25),
-                decoration: BoxDecoration(
-                  color: Colors.transparent,
-                ),
-                child: FutureBuilder<List<Category>>(
-                  future: futureCategories,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const CircularProgressIndicator();
-                    } else if (snapshot.hasError) {
-                      return Text('Error: ${snapshot.error}');
-                    } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                      return const Text('No categories available');
-                    } else {
-                      final categories = snapshot.data!;
-                      debugPrint("Number of Categories: ${categories.length}");
-                      return ListView.builder(
-                        itemCount: categories.length + 1,
-                        itemBuilder: (context, index) {
-                          if (index == categories.length) {
-                            return const SizedBox(
-                              height: 160,
-                            );
-                          }
-                          final topic = categories[index];
-                          final topicName = topic.name ?? "Unknown Module";
-                          final categoryId = topic.id ?? 0;
-                          return Column(
-                            children: [
-                              InkWell(
-                                onTap: () async {
-                                  //print("Downloading ${moduleData[index].downloadLink}");
-                                  if (topicName.isNotEmpty) {
-                                    // String fileName = "$moduleName.zip";
-                                    // await downloadModule(downloadLink, fileName);
-                                    Navigator.push(context, MaterialPageRoute(
-                                        builder: (context) => TopicList(
-                                            category: topicName,
-                                            categoryId: categoryId)));
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text(
-                                          'No category found for ${categories[index]
-                                              .name}')),
-                                    );
-                                  }
-                                },
-                                child: Center(
-                                  child: ListTile(
-                                    title: Padding(
-                                      padding: const EdgeInsets.only(
-                                          top: 10, bottom: 10),
-                                      child: Text(
-                                        topicName,
-                                        style: TextStyle(
-                                          fontSize: baseSize * (isTablet(context) ? 0.054 : 0.054),
-                                          fontFamilyFallback: [
-                                            'NotoSans',
-                                            'NotoSerif',
-                                            'Roboto',
-                                            'sans-serif'
-                                          ],
-                                          fontWeight: FontWeight.w500,
-                                          color: Color(0xFF0070C0),
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Container(
-                                height: 1,
-                                width: 500,
-                                color: Colors.grey,
-                              ),
-                            ],
-                          );
-                        },
-                      );
-                    }
-                  },
-                ),
-              ),
-              Positioned(
-                bottom: 0,
-                left: 0,
-                right: 0,
-                child: IgnorePointer(
-                  child: Container(
-                      height: 150,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          stops: [0.0, 1.0],
-                          colors: [
-                            // Colors.transparent,
-                            // Color(0xFFFFF0DC),
-                            //Theme.of(context).scaffoldBackgroundColor.withOpacity(0.0),
-                            Color(0xFFFED09A).withOpacity(0.0),
-                            Color(0xFFFED09A),
-                          ],
-                        ),
-                      )
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
-
-
