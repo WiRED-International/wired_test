@@ -63,6 +63,7 @@ dependencies:
   printing: ^5.14.2
   syncfusion_flutter_pdfviewer: ^31.1.22
   pub_semver: ^2.2.0
+  path: ^1.9.1
 
 dev_dependencies:
   flutter_test:
