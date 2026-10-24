@@ -1,25 +1,19 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+
 import 'package:archive/archive.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter_svg/svg.dart';
-import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
-import 'package:permission_handler/permission_handler.dart';
-import 'package:wired_test/pages/animations/animation_info.dart';
+
 import '../../providers/auth_guard.dart';
 import '../../services/location_service.dart';
+import '../../utils/app_layout.dart';
 import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
 import '../../utils/side_nav_bar.dart';
-import '../../utils/app_layout.dart';
-import '../cme/cme_tracker.dart';
 import '../creditsTracker/credits_tracker.dart';
-import '../download_confirm.dart';
 import '../home_page.dart';
 import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
@@ -31,943 +25,390 @@ class AnimationInfo extends StatefulWidget {
   final String animationDescription;
   final String downloadLink;
 
-  LocationService locationService = LocationService();
-
-  AnimationInfo({
-    Key? key,
+  const AnimationInfo({
+    super.key,
     required this.animationId,
     required this.animationName,
     required this.animationDescription,
     required this.downloadLink,
-  }) : super(key: key);
+  });
 
   @override
   State<AnimationInfo> createState() => _AnimationInfoState();
 }
 
-class Animations {
-  String? name;
-  String? description;
-  String? downloadLink;
-
-  Animations({
-    this.name,
-    this.description,
-    this.downloadLink,
-  });
-
-  Animations.fromJson(Map<String, dynamic> json)
-      : name = json['name'] as String,
-        description = json['description'] as String,
-        downloadLink = json['downloadLink'] as String;
-
-
-  Map<String, dynamic> toJson() => {
-    'name': name,
-    'description': description,
-    'downloadLink': downloadLink,
-  };
-}
-
 class _AnimationInfoState extends State<AnimationInfo> {
-  late Future<List<Animation>> futureAnimations;
-  double topPadding = 0;
-  bool _isLoading = false;
-  bool _isDownloading = false;
-  double _downloadProgress = 0.0;
-  String _progressText = "";
-  Map<String, double?>? _location;
+  static const _heading = Color(0xFF183E59);
+  static const _blue = Color(0xFF16466A);
+  static const _brandBlue = Color(0xFF0070C0);
+  static const _green = Color(0xFF358347);
+  static const _border = Color(0xFFD7E4EA);
 
-  // ✅ Safe storage path
-  Future<String> getStoragePath() async {
-    Directory? baseDir;
+  bool _busy = false;
+  bool _completed = false;
+  double? _progress;
+  String _phase = '';
+  String? _error;
 
+  void _open(Widget page) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  }
+
+  Future<void> _openMenu() async {
+    final loggedIn = await checkIfUserIsLoggedIn();
+    if (!mounted) return;
+    _open(loggedIn ? Menu() : GuestMenu());
+  }
+
+  void _setProgress(String phase, double? progress) {
+    if (!mounted) return;
+    setState(() {
+      _phase = phase;
+      _progress = progress?.clamp(0.0, 1.0);
+    });
+  }
+
+  Future<String> _storagePath() async {
+    Directory? base;
     try {
-      // Use app-private external directory (visible via Files app)
-      baseDir = await getExternalStorageDirectory();
-    } catch (_) {}
+      base = await getExternalStorageDirectory();
+    } catch (_) {
+      // Use the internal application documents directory instead.
+    }
+    base ??= await getApplicationDocumentsDirectory();
+    final directory = Directory('${base.path}/modules');
+    await directory.create(recursive: true);
+    return directory.path;
+  }
 
-    // Fallback: internal app documents directory
-    baseDir ??= await getApplicationDocumentsDirectory();
-
-    // Create /modules folder if missing
-    final Directory modulesDir = Directory('${baseDir.path}/modules');
-    if (!await modulesDir.exists()) {
-      await modulesDir.create(recursive: true);
-      // Give Android a short moment to register the new folder
-      await Future.delayed(const Duration(milliseconds: 150));
+  Future<void> _download() async {
+    if (_busy || _completed) return;
+    final uri = Uri.tryParse(widget.downloadLink);
+    if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
+      setState(() => _error = 'A valid HTTPS download link is not available.');
+      return;
     }
 
-    return modulesDir.path;
-  }
-  // Download the Animation
-  Future<void> downloadAnimation(String url, String fileName) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+      _phase = 'Preparing download';
+      _progress = null;
+    });
+
+    File? zipFile;
+    HttpClient? client;
     try {
-      final storagePath = await getStoragePath();
-      final animationsDir = Directory(storagePath);
-
-      // Ensure folder exists (fixes PathNotFoundException)
-      if (!animationsDir.existsSync()) {
-        animationsDir.createSync(recursive: true);
-        print('Created animations directory: ${animationsDir.path}');
+      final path = await _storagePath();
+      // Temporary archive name is independent of the animation's display name.
+      zipFile = File('$path/.animation_${widget.animationId}_${DateTime.now().microsecondsSinceEpoch}.zip');
+      client = HttpClient()..connectionTimeout = const Duration(seconds: 30);
+      final request = await client.getUrl(uri).timeout(const Duration(seconds: 30));
+      final response = await request.close().timeout(const Duration(seconds: 30));
+      if (response.statusCode != HttpStatus.ok) {
+        throw HttpException('HTTP ${response.statusCode}', uri: uri);
       }
 
-      final zipFile = File('${animationsDir.path}/$fileName');
-
-      // Ensure parent directories exist and are writable
-      if (!await zipFile.parent.exists()) {
-        await zipFile.parent.create(recursive: true);
-        await Future.delayed(const Duration(milliseconds: 100));
-      }
-
-      print('DEBUG: Downloading to ${zipFile.path}');
-
-      final request = await HttpClient().getUrl(Uri.parse(url));
-      final response = await request.close();
-
-      if (response.statusCode != 200) {
-        throw Exception('Download failed with ${response.statusCode}');
-      }
-
-      final sink = zipFile.openWrite();
-      int received = 0;
+      var received = 0;
       final total = response.contentLength;
-      final startTime = DateTime.now();
-      DateTime lastUpdate = DateTime.now();
-
-      if (mounted) {
-        setState(() {
-          _isDownloading = true;
-          _progressText = "Starting download...";
-          _downloadProgress = 0.0;
-        });
+      final sink = zipFile.openWrite();
+      try {
+        await for (final chunk in response.timeout(const Duration(seconds: 45))) {
+          sink.add(chunk);
+          received += chunk.length;
+          _setProgress('Downloading animation', total > 0 ? received / total : null);
+        }
+        await sink.flush();
+      } finally {
+        await sink.close();
+      }
+      if (total >= 0 && received != total) {
+        throw const FormatException('The download was incomplete.');
       }
 
-      await for (final chunk in response) {
-        received += chunk.length;
-        sink.add(chunk);
-
-        if (total > 0) {
-          final now = DateTime.now();
-          if (now.difference(lastUpdate).inMilliseconds > 250) {
-            final progress = received / total;
-            final percent = (progress * 100).toStringAsFixed(1);
-            final elapsed = now.difference(startTime).inSeconds;
-            final speed = received / (elapsed > 0 ? elapsed : 1);
-            final mbSpeed = (speed / (1024 * 1024)).toStringAsFixed(2);
-
-            if (mounted) {
-              setState(() {
-                _downloadProgress = progress;
-                _progressText = "$percent% • $mbSpeed MB/s";
-              });
-            }
-            lastUpdate = now;
+      _setProgress('Extracting animation', 0);
+      final port = ReceivePort();
+      try {
+        await Isolate.spawn(_extractAnimationArchive, {
+          'zipPath': zipFile.path,
+          'outputDir': path,
+          'sendPort': port.sendPort,
+        });
+        await for (final message in port) {
+          if (message is double) {
+            _setProgress('Extracting animation', message);
+          } else if (message == 'done') {
+            break;
+          } else if (message is String && message.startsWith('error:')) {
+            throw FormatException(message.substring(6));
           }
         }
+      } finally {
+        port.close();
       }
 
-      await sink.close();
-      print('✅ Download complete: ${zipFile.path}');
-
-      if (mounted) {
-        setState(() {
-          _progressText = "Download complete — extracting files…";
-        });
-      }
-
-      // 🧩 Extract in background isolate (non-blocking)
-      final receivePort = ReceivePort();
-      await Isolate.spawn(_extractZipWithProgress, {
-        'zipPath': zipFile.path,
-        'outputDir': animationsDir.path,
-        'sendPort': receivePort.sendPort,
-      });
-
-      await for (final message in receivePort) {
-        if (message is double) {
-          final percent = (message * 100).toStringAsFixed(0);
-          if (mounted) {
-            setState(() {
-              _downloadProgress = message;
-              _progressText = "Extracting… $percent%";
-            });
-          }
-        } else if (message == 'done') {
-          await zipFile.delete();
-          print('🗑️ Deleted ZIP after extraction.');
-
-          if (mounted) {
-            setState(() {
-              _isDownloading = false;
-              _progressText = "Extraction complete!";
-            });
-          }
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Downloaded and extracted $fileName')),
-          );
-          receivePort.close();
+      // A completed extraction is not sufficient: My Library needs an MP4.
+      final installedVideos = await Directory(path)
+          .list(recursive: true, followLinks: false)
+          .where((entity) => entity is File && entity.path.toLowerCase().endsWith('.mp4'))
+          .cast<File>()
+          .toList();
+      var hasPlayableFile = false;
+      for (final video in installedVideos) {
+        if (await video.length() > 0) {
+          hasPlayableFile = true;
           break;
         }
       }
-    } catch (e) {
-      print('❌ Animation download error: $e');
-      if (mounted) {
-        setState(() => _isDownloading = false);
+      if (!hasPlayableFile) {
+        throw const FormatException('The ZIP did not install a playable MP4 animation.');
       }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error downloading $fileName: $e')),
-      );
+      if (!mounted) return;
+      setState(() {
+        _completed = true;
+        _phase = 'Download complete';
+        _progress = 1;
+      });
+
+      // Statistics are best-effort and must not turn a successful download
+      // into a failure. This retains the previous animation tracking behavior.
+      try {
+        final locationService = LocationService();
+        final location = await locationService.getLocation(context);
+        await locationService.saveDownload(widget.animationId, location);
+      } catch (error) {
+        debugPrint('Animation download tracking unavailable: $error');
+      }
+    } catch (error) {
+      debugPrint('Animation download failed: $error');
+      if (mounted) {
+        setState(() {
+          _error = 'Download could not be completed. Please try again.';
+          _phase = '';
+          _progress = null;
+        });
+      }
+    } finally {
+      client?.close(force: true);
+      if (zipFile != null) {
+        try {
+          if (await zipFile.exists()) await zipFile.delete();
+        } catch (_) {}
+      }
+      if (mounted) setState(() => _busy = false);
     }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-  }
-
-  Future<void> getLocationAndSaveDownload() async {
-    var location = await widget.locationService.getLocation(context);
-    setState(() {
-      _location = location;  // Store the location in state
-    });
-    await widget.locationService.saveDownload(widget.animationId, location);
   }
 
   @override
   Widget build(BuildContext context) {
-    var screenWidth = MediaQuery.of(context).size.width;
-    var screenHeight = MediaQuery.of(context).size.height;
-    var baseSize = MediaQuery.of(context).size.shortestSide;
-    bool isLandscape =
-        MediaQuery.of(context).orientation == Orientation.landscape;
-
+    final landscape = MediaQuery.of(context).orientation == Orientation.landscape;
     return AppLayout(
       appBar: CustomAppBar(
-        onBackPressed: () {
-          Navigator.pop(context);
-        },
+        onBackPressed: () => Navigator.pop(context),
         requireAuth: false,
       ),
-
-      bottomNav: isLandscape
+      bottomNav: landscape
           ? null
           : CustomBottomNavBar(
-        onHomeTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const MyHomePage()),
-          );
-        },
-        onLibraryTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => ModuleLibrary()),
-          );
-        },
-        onTrackerTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AuthGuard(
-                child: CreditsTracker(),
-              ),
-            ),
-          );
-        },
-        onMenuTap: () async {
-          bool isLoggedIn = await checkIfUserIsLoggedIn();
-          print("Navigating to menu. Logged in: $isLoggedIn");
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) =>
-              isLoggedIn ? Menu() : GuestMenu(),
-            ),
-          );
-        },
+        onHomeTap: () => _open(const MyHomePage()),
+        onLibraryTap: () => _open(ModuleLibrary()),
+        onTrackerTap: () => _open(AuthGuard(child: CreditsTracker())),
+        onMenuTap: _openMenu,
       ),
+      child: landscape
+          ? Row(children: [
+        CustomSideNavBar(
+          onHomeTap: () => _open(const MyHomePage()),
+          onLibraryTap: () => _open(ModuleLibrary()),
+          onTrackerTap: () => _open(AuthGuard(child: CreditsTracker())),
+          onMenuTap: _openMenu,
+        ),
+        Expanded(child: _content()),
+      ])
+          : _content(),
+    );
+  }
 
-      // 🔶 THIS PAGE USES STACK (overlay)
-      child: Stack(
-        children: [
-          // 🧱 MAIN CONTENT
-          isLandscape
-              ? Row(
+  Widget _content() {
+    final description = widget.animationDescription.trim();
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(20, 24, 20, 36),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 680),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              CustomSideNavBar(
-                onHomeTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => const MyHomePage()),
-                  );
-                },
-                onLibraryTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (context) => ModuleLibrary()),
-                  );
-                },
-                onTrackerTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => AuthGuard(
-                        child: CreditsTracker(),
+              const Text('Animation Details',
+                  style: TextStyle(fontSize: 27, fontWeight: FontWeight.w700, color: _heading)),
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(22),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: _border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(widget.animationName,
+                        style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w700, color: _blue)),
+                    const SizedBox(height: 12),
+                    const Text('Health Education Animation',
+                        style: TextStyle(fontSize: 14, color: _green, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 18),
+                    const Divider(),
+                    const SizedBox(height: 12),
+                    Text(description.isEmpty
+                        ? 'No description is available for this animation.'
+                        : description,
+                        style: const TextStyle(fontSize: 16, height: 1.55, color: Color(0xFF455D6C))),
+                    const SizedBox(height: 24),
+                    Text(_completed ? 'Downloaded' : 'Not downloaded',
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _green)),
+                    if (_busy) ...[
+                      const SizedBox(height: 18),
+                      Text(_phase, style: const TextStyle(fontSize: 15)),
+                      const SizedBox(height: 10),
+                      LinearProgressIndicator(value: _progress),
+                    ],
+                    if (_error != null) ...[
+                      const SizedBox(height: 16),
+                      Text(_error!, style: const TextStyle(fontSize: 14, color: Color(0xFF9C3C2E))),
+                    ],
+                    if (_completed) ...[
+                      const SizedBox(height: 22),
+                      Container(
+                        padding: const EdgeInsets.all(18),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF0F8F2),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: const Color(0xFFB9DFC5)),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Row(
+                              children: [
+                                Icon(Icons.check_circle_rounded,
+                                    color: Color(0xFF25834A), size: 28),
+                                SizedBox(width: 10),
+                                Expanded(
+                                    child: Text('Animation downloaded successfully!',
+                                        style: TextStyle(fontSize: 17,
+                                            fontWeight: FontWeight.w700,
+                                            color: Color(0xFF205D38)))),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            const Text('Your animation is ready to use offline.',
+                                style: TextStyle(fontSize: 14, color: Color(0xFF345A43))),
+                            const SizedBox(height: 18),
+                            SizedBox(
+                              height: 50,
+                              child: ElevatedButton.icon(
+                                onPressed: () => _open(ModuleLibrary()),
+                                icon: const Icon(Icons.library_books_outlined),
+                                label: const Text('Open My Library'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF0876D6),
+                                  foregroundColor: Colors.white,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            SizedBox(
+                              height: 48,
+                              child: OutlinedButton.icon(
+                                onPressed: () => Navigator.pop(context),
+                                icon: const Icon(Icons.arrow_back_rounded),
+                                label: const Text('Browse More Animations'),
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  );
-                },
-                onMenuTap: () async {
-                  bool isLoggedIn = await checkIfUserIsLoggedIn();
-                  print("Navigating to menu. Logged in: $isLoggedIn");
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                      isLoggedIn ? Menu() : GuestMenu(),
-                    ),
-                  );
-                },
-              ),
-
-              Expanded(
-                child: _buildLandscapeLayout(
-                  screenWidth,
-                  screenHeight,
-                  baseSize,
+                    ] else ...[
+                      const SizedBox(height: 22),
+                      SizedBox(
+                        height: 54,
+                        child: ElevatedButton(
+                          onPressed: _busy ? null : _download,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _brandBlue,
+                            foregroundColor: Colors.white,
+                            disabledBackgroundColor: const Color(0xFF9FB5C3),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(13)),
+                          ),
+                          child: Text(_busy ? 'Downloading...' : 'Download Animation',
+                              style: const TextStyle(fontSize: 17,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ],
-          )
-              : _buildPortraitLayout(
-            screenWidth,
-            screenHeight,
-            baseSize,
           ),
-
-          // 🔶 DOWNLOAD OVERLAY (UNCHANGED)
-          AnimatedOpacity(
-            opacity: _isDownloading ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 500),
-            curve: Curves.easeInOut,
-            child: IgnorePointer(
-              ignoring: !_isDownloading,
-              child: Container(
-                color: Colors.black.withOpacity(0.4),
-                child: Center(
-                  child: Container(
-                    width: isLandscape
-                        ? screenWidth * 0.6
-                        : screenWidth * 0.8,
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black26,
-                          blurRadius: 10,
-                          offset: Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _progressText.startsWith("Extracting")
-                              ? "Extracting..."
-                              : "Downloading...",
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF0070C0),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        LinearProgressIndicator(
-                          value: _downloadProgress,
-                          minHeight: 8,
-                          backgroundColor: Colors.grey.shade300,
-                          valueColor:
-                          const AlwaysStoppedAnimation<Color>(
-                            Color(0xFF22C55E),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          _progressText,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.black87,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
+}
 
-  Widget _buildPortraitLayout(screenWidth, screenHeight, baseSize) {
-    return Stack(
-      children: [
-        // 🟢 Main vertical content
-        Column(
-          children: [
-            SizedBox(
-              height: baseSize * (isTablet(context) ? 0.03 : 0.03),
-            ),
+// Keep the animation ZIP layout compatible with existing offline playback.
+// Reject unsafe entries before writing any extracted files.
+Future<void> _extractAnimationArchive(Map<String, dynamic> args) async {
+  final port = args['sendPort'] as SendPort;
+  try {
+    final zipPath = args['zipPath'] as String;
+    final outputDir = args['outputDir'] as String;
+    final input = InputFileStream(zipPath);
+    final archive = ZipDecoder().decodeStream(input);
 
-            // 📘 Animation description
-            Flexible(
-              flex: 6,
-              child: Stack(
-                children: [
-                  Container(
-                    height: baseSize * (isTablet(context) ? 60 : 60),
-                    decoration: const BoxDecoration(
-                      color: Colors.transparent,
-                    ),
-                    child: SingleChildScrollView(
-                      child: Padding(
-                        padding: const EdgeInsets.only(
-                          bottom: 50,
-                          left: 10,
-                          right: 10,
-                        ),
-                        child: RichText(
-                          textAlign: TextAlign.center,
-                          text: TextSpan(
-                            children: [
-                              TextSpan(
-                                text: '${widget.animationName}\n',
-                                style: TextStyle(
-                                  fontSize: baseSize *
-                                      (isTablet(context) ? 0.06 : 0.065),
-                                  fontWeight: FontWeight.w500,
-                                  color: const Color(0xFF0070C0),
-                                ),
-                              ),
-                              WidgetSpan(
-                                child: SizedBox(
-                                  height: baseSize *
-                                      (isTablet(context) ? 0.08 : 0.08),
-                                ),
-                              ),
-                              TextSpan(
-                                text: '${widget.animationDescription}\n',
-                                style: TextStyle(
-                                  fontSize: baseSize *
-                                      (isTablet(context) ? 0.04 : 0.045),
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
+    final root = Directory(outputDir).absolute.path;
+    final normalizedRoot = root.replaceAll('\\', '/');
+    for (final entry in archive) {
+      final name = entry.name.replaceAll('\\', '/');
+      final parts = name.split('/');
+      if (name.startsWith('/') || name.contains(':') ||
+          parts.contains('..') || parts.contains('.') ||
+          parts.any((part) => part.isEmpty && part != parts.last) ||
+          entry.isSymbolicLink) {
+        throw const FormatException('Unsafe archive entry.');
+      }
+      final target = File('$root/$name').absolute.path.replaceAll('\\', '/');
+      if (!target.startsWith('$normalizedRoot/')) {
+        throw const FormatException('Archive entry escapes the storage directory.');
+      }
+    }
 
-                  // 🎨 Gradient fade at bottom of description
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: IgnorePointer(
-                      child: Container(
-                        height: 80,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            stops: const [0.0, 5.0],
-                            colors: [
-                              const Color(0xFFFCDBB3).withOpacity(0.0),
-                              const Color(0xFFFDD8AD),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // ⬇️ Download button
-            Flexible(
-              flex: 1,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: GestureDetector(
-                  onTap: _isLoading
-                      ? null
-                      : () async {
-                    if (widget.downloadLink.isNotEmpty) {
-                      setState(() {
-                        _isLoading = true;
-                        _isDownloading = true;
-                        _downloadProgress = 0;
-                        _progressText = "Preparing download...";
-                      });
-
-                      String fileName = "${widget.animationName}.zip";
-                      await downloadAnimation(
-                          widget.downloadLink, fileName);
-                      await getLocationAndSaveDownload();
-
-                      setState(() {
-                        _isLoading = false;
-                        _isDownloading = false;
-                      });
-
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => DownloadConfirm(
-                              packageName: widget.animationName),
-                        ),
-                      );
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                              'No download link found for ${widget.animationName}'),
-                        ),
-                      );
-                    }
-                  },
-                  child: Container(
-                    width: baseSize * (isTablet(context) ? 0.5 : 0.55),
-                    height: baseSize * (isTablet(context) ? 0.10 : 0.12),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [
-                          Color(0xFF0070C0),
-                          Color(0xFF00C1FF),
-                          Color(0xFF0070C0),
-                        ],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                      borderRadius: BorderRadius.circular(35),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.5),
-                          spreadRadius: 1,
-                          blurRadius: 5,
-                          offset: const Offset(1, 3),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          _isLoading
-                              ? const CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 3,
-                          )
-                              : Text(
-                            "Download",
-                            style: TextStyle(
-                              fontSize: baseSize *
-                                  (isTablet(context) ? 0.071 : 0.071),
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(width: 7),
-                          SvgPicture.asset(
-                            'assets/icons/download_icon.svg',
-                            height: baseSize *
-                                (isTablet(context) ? 0.0675 : 0.0675),
-                            width: baseSize *
-                                (isTablet(context) ? 0.0675 : 0.0675),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-
-        // 🔵 Smooth overlay progress (centered on screen)
-        AnimatedOpacity(
-          opacity: _isDownloading ? 1.0 : 0.0,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeInOut,
-          child: IgnorePointer(
-            ignoring: !_isDownloading,
-            child: Container(
-              color: Colors.black.withOpacity(0.45),
-              child: Center(
-                child: Container(
-                  width: screenWidth * 0.8,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black26,
-                        blurRadius: 8,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _progressText.startsWith("Extracting")
-                            ? "Extracting..."
-                            : "Downloading...",
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0070C0),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      LinearProgressIndicator(
-                        value: _downloadProgress,
-                        minHeight: 8,
-                        backgroundColor: Colors.grey.shade300,
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                          Color(0xFF22C55E),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        _progressText,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
-    return Stack(
-      children: [
-        // 🟢 Main horizontal layout content
-        Column(
-          children: [
-            SizedBox(
-              height: baseSize * (isTablet(context) ? 0.05 : 0.03),
-            ),
-
-            // 🎬 Animation description
-            Flexible(
-              flex: 6,
-              child: Stack(
-                children: [
-                  Container(
-                    height: baseSize * (isTablet(context) ? 0.65 : 0.65),
-                    decoration: const BoxDecoration(
-                      color: Colors.transparent,
-                    ),
-                    child: SingleChildScrollView(
-                      child: Padding(
-                        padding: const EdgeInsets.only(
-                          bottom: 50,
-                          left: 20,
-                          right: 20,
-                        ),
-                        child: RichText(
-                          textAlign: TextAlign.center,
-                          text: TextSpan(
-                            children: [
-                              TextSpan(
-                                text: '${widget.animationName}\n',
-                                style: TextStyle(
-                                  fontSize: baseSize *
-                                      (isTablet(context) ? 0.06 : 0.065),
-                                  fontWeight: FontWeight.w500,
-                                  color: const Color(0xFF0070C0),
-                                ),
-                              ),
-                              WidgetSpan(
-                                child: SizedBox(
-                                  height: baseSize *
-                                      (isTablet(context) ? 0.08 : 0.08),
-                                ),
-                              ),
-                              TextSpan(
-                                text: '${widget.animationDescription}\n',
-                                style: TextStyle(
-                                  fontSize: screenHeight *
-                                      (isTablet(context) ? 0.04 : 0.045),
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.black,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  // 🎨 Gradient fade at bottom of text
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: IgnorePointer(
-                      child: Container(
-                        height: 80,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            stops: const [0.0, 5.0],
-                            colors: [
-                              const Color(0xFFFCDBB3).withOpacity(0.0),
-                              const Color(0xFFFDD8AD),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // ⬇️ Download button
-            Flexible(
-              flex: 1,
-              child: Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: GestureDetector(
-                  onTap: _isLoading
-                      ? null
-                      : () async {
-                    if (widget.downloadLink.isNotEmpty) {
-                      setState(() {
-                        _isLoading = true;
-                        _isDownloading = true;
-                        _downloadProgress = 0;
-                        _progressText = "Preparing download...";
-                      });
-
-                      String fileName = "${widget.animationName}.zip";
-                      await downloadAnimation(
-                          widget.downloadLink, fileName);
-                      await getLocationAndSaveDownload();
-
-                      setState(() {
-                        _isLoading = false;
-                        _isDownloading = false;
-                      });
-
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => DownloadConfirm(
-                            packageName: widget.animationName,
-                          ),
-                        ),
-                      );
-                      print("Animation Id: ${widget.animationId}");
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                              'No download link found for ${widget.animationName}'),
-                        ),
-                      );
-                    }
-                  },
-                  child: Container(
-                    width: baseSize * (isTablet(context) ? 0.5 : 0.55),
-                    height: baseSize * (isTablet(context) ? 0.10 : 0.12),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [
-                          Color(0xFF0070C0),
-                          Color(0xFF00C1FF),
-                          Color(0xFF0070C0),
-                        ],
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                      borderRadius: BorderRadius.circular(35),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.5),
-                          spreadRadius: 1,
-                          blurRadius: 5,
-                          offset: const Offset(1, 3),
-                        ),
-                      ],
-                    ),
-                    child: Center(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          _isLoading
-                              ? const CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 3,
-                          )
-                              : Text(
-                            "Download",
-                            style: TextStyle(
-                              fontSize: baseSize *
-                                  (isTablet(context) ? 0.07 : 0.07),
-                              fontWeight: FontWeight.w500,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(width: 7),
-                          SvgPicture.asset(
-                            'assets/icons/download_icon.svg',
-                            height: baseSize *
-                                (isTablet(context) ? 0.0675 : 0.0675),
-                            width: baseSize *
-                                (isTablet(context) ? 0.0675 : 0.0675),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-
-        // 🔵 Smooth overlay progress (centered)
-        AnimatedOpacity(
-          opacity: _isDownloading ? 1.0 : 0.0,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeInOut,
-          child: IgnorePointer(
-            ignoring: !_isDownloading,
-            child: Container(
-              color: Colors.black.withOpacity(0.45),
-              child: Center(
-                child: Container(
-                  width: screenWidth * 0.6,
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: const [
-                      BoxShadow(
-                        color: Colors.black26,
-                        blurRadius: 8,
-                        offset: Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _progressText.startsWith("Extracting")
-                            ? "Extracting..."
-                            : "Downloading...",
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF0070C0),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      LinearProgressIndicator(
-                        value: _downloadProgress,
-                        minHeight: 8,
-                        backgroundColor: Colors.grey.shade300,
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                          Color(0xFF22C55E),
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      Text(
-                        _progressText,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.black87,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
+    var count = 0;
+    for (final entry in archive) {
+      final target = '$root/${entry.name.replaceAll('\\', '/')}';
+      if (entry.isFile) {
+        await Directory(File(target).parent.path).create(recursive: true);
+        final output = OutputFileStream(target);
+        try {
+          entry.writeContent(output);
+        } finally {
+          await output.close();
+        }
+      } else {
+        await Directory(target).create(recursive: true);
+      }
+      count++;
+      port.send(count / archive.length);
+    }
+    await input.close();
+    port.send('done');
+  } catch (error) {
+    port.send('error:$error');
   }
 }
 
-Future<void> _extractZipWithProgress(Map<String, dynamic> args) async {
-  final zipFile = File(args['zipPath']!);
-  final outputDir = args['outputDir']!;
-  final sendPort = args['sendPort'] as SendPort;
 
-  print('📦 Background extraction started for ${zipFile.path}');
-  final inputStream = InputFileStream(zipFile.path);
-  final archive = ZipDecoder().decodeStream(inputStream);
 
-  int extracted = 0;
-  final total = archive.length;
-
-  for (final file in archive) {
-    final outPath = '$outputDir/${file.name}';
-
-    if (file.isFile) {
-      final output = OutputFileStream(outPath);
-      file.writeContent(output);
-      await output.close();
-    } else {
-      Directory(outPath).createSync(recursive: true);
-    }
-
-    extracted++;
-    // 🔹 Send progress every few files to avoid flooding UI
-    if (extracted % 5 == 0 || extracted == total) {
-      final progress = extracted / total;
-      sendPort.send(progress);
-    }
-  }
-
-  await inputStream.close();
-  print('✅ Extraction complete to $outputDir');
-  sendPort.send('done');
-}

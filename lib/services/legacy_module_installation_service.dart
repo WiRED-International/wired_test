@@ -25,7 +25,38 @@ class LegacyModuleInstallationService {
 
   final ModuleDownloadService _downloads;
 
+  // Shared across every LegacyModuleInstallationService instance.
+  static bool _installationInProgress = false;
+
   Future<void> downloadAndInstall({
+    required String moduleId,
+    required String moduleName,
+    required String downloadUrl,
+    void Function(double)? onDownloadProgress,
+    void Function(double)? onExtractionProgress,
+  }) async {
+    if (_installationInProgress) {
+      throw StateError(
+        'Another module installation is already in progress.',
+      );
+    }
+
+    _installationInProgress = true;
+
+    try {
+      await _performDownloadAndInstall(
+        moduleId: moduleId,
+        moduleName: moduleName,
+        downloadUrl: downloadUrl,
+        onDownloadProgress: onDownloadProgress,
+        onExtractionProgress: onExtractionProgress,
+      );
+    } finally {
+      _installationInProgress = false;
+    }
+  }
+
+  Future<void> _performDownloadAndInstall({
     required String moduleId,
     required String moduleName,
     required String downloadUrl,
@@ -50,14 +81,19 @@ class LegacyModuleInstallationService {
     // ModuleDownloadService.extractModuleZip currently captures Flutter state
     // in its isolate closure on device; avoid that runtime failure here.
     final staging = await _downloads.getStagingDirectory(moduleId);
+
     if (await staging.exists()) {
-      throw StateError('Staging directory already exists for module $moduleId');
+      // The shared installation lock is held.
+      // Remove temporary files left by an interrupted extraction.
+      // This does not touch permanent installed modules or partial ZIPs.
+      await staging.delete(recursive: true);
     }
+
     await staging.create(recursive: true);
     try {
       final result = ReceivePort();
-      await Isolate.spawn(_legacyExtractWorker,
-          [zip.path, staging.path, result.sendPort]);
+      await Isolate.spawn(
+          _legacyExtractWorker, [zip.path, staging.path, result.sendPort]);
       final outcome = await result.first;
       result.close();
       if (outcome != 'ok') {
@@ -65,9 +101,9 @@ class LegacyModuleInstallationService {
       }
       onExtractionProgress?.call(1.0);
 
-
       File? story;
-      await for (final entity in staging.list(recursive: true, followLinks: false)) {
+      await for (final entity
+          in staging.list(recursive: true, followLinks: false)) {
         if (entity is File && p.basename(entity.path) == 'story.html') {
           story = entity;
           break;
@@ -83,7 +119,8 @@ class LegacyModuleInstallationService {
 
         // Existing offline modules must never be overwritten silently.
         if (await destination.exists() || await launcher.exists()) {
-          throw StateError('Storyline module "$folderName" is already installed.');
+          throw StateError(
+              'Storyline module "$folderName" is already installed.');
         }
         await filesDir.create(recursive: true);
         await storyFolder.rename(destination.path);
@@ -110,7 +147,8 @@ class LegacyModuleInstallationService {
           rethrow;
         }
       } else if (await File(p.join(staging.path, 'index.html')).exists()) {
-        final destination = Directory(p.join(modulesDir.path, folderNameForCompiler));
+        final destination =
+            Directory(p.join(modulesDir.path, folderNameForCompiler));
         if (await destination.exists()) {
           throw StateError('Compiler module "$name" is already installed.');
         }
@@ -128,7 +166,6 @@ class LegacyModuleInstallationService {
   }
 }
 
-
 /// Top-level worker: accepts paths only and does not capture Flutter objects.
 void _extractLegacyZip(String zipPath, String outputPath) {
   final input = InputFileStream(zipPath);
@@ -145,7 +182,9 @@ void _extractLegacyZip(String zipPath, String outputPath) {
       }
       final name = entry.name.replaceAll('\\', '/');
       final parts = name.split('/');
-      if (name.isEmpty || name.startsWith('/') || name.contains(':') ||
+      if (name.isEmpty ||
+          name.startsWith('/') ||
+          name.contains(':') ||
           parts.any((part) => part == '..' || part == '.')) {
         throw const FormatException('Unsafe ZIP entry path');
       }
@@ -183,4 +222,3 @@ void _legacyExtractWorker(List<dynamic> args) {
     port.send(error.toString());
   }
 }
-

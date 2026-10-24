@@ -47,10 +47,24 @@ class DownloadableModule {
     this.specializations = const [],
   });
 
+  bool belongsToTrainingType(String trainingType) {
+    return programs.any(
+      (program) => program.trainingType == trainingType,
+    );
+  }
+
+  bool belongsToSpecialization(String specializationName) {
+    final target = specializationName.trim().toLowerCase();
+
+    return specializations.any(
+      (name) => name.trim().toLowerCase() == target,
+    );
+  }
+
   bool get isDownloadable =>
       moduleId.isNotEmpty &&
-          downloadLink != null &&
-          downloadLink!.trim().isNotEmpty;
+      downloadLink != null &&
+      downloadLink!.trim().isNotEmpty;
 
   /// Matches a phrase against the module's searchable catalog metadata.
   bool matchesSearch(String query) {
@@ -93,8 +107,8 @@ class DownloadableModule {
       packageSize: json['packageSize']?.toString(),
       programs: (json['programs'] as List<dynamic>? ?? [])
           .map((item) => DownloadableProgram.fromJson(
-        Map<String, dynamic>.from(item as Map),
-      ))
+                Map<String, dynamic>.from(item as Map),
+              ))
           .toList(),
       keywords: _names(json['keywords']),
       subcategories: _names(subcategoryItems),
@@ -109,4 +123,3 @@ class DownloadableModule {
     );
   }
 }
-

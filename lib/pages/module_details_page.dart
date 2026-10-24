@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:wired_test/pages/home_page.dart';
 import '../providers/auth_guard.dart';
 import '../utils/custom_nav_bar.dart';
@@ -15,6 +13,7 @@ import 'package:flutter/material.dart';
 import '../models/downloadable_module.dart';
 import '../services/module_download_service.dart';
 import '../services/legacy_module_installation_service.dart';
+import '../services/module_installation_status_service.dart';
 import '../services/location_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_layout.dart';
@@ -32,8 +31,10 @@ class ModuleDetailsPage extends StatefulWidget {
 
 class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
   final ModuleDownloadService _downloads = ModuleDownloadService();
+  late final ModuleInstallationStatusService _installationStatus =
+      ModuleInstallationStatusService(downloadService: _downloads);
   late final LegacyModuleInstallationService _installer =
-  LegacyModuleInstallationService(downloadService: _downloads);
+      LegacyModuleInstallationService(downloadService: _downloads);
 
   bool _checking = true;
   bool _busy = false;
@@ -51,54 +52,24 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
 
   Future<void> _refreshInstallation() async {
     if (mounted) setState(() => _checking = true);
-    try {
-      final name = widget.module.name.trim();
-      final safeName = legacyModuleFolderName(name);
-      final modules = await _downloads.getModulesDirectory();
-      final base = await _downloads.getBaseDirectory();
-      // Compiler modules use the module name as their directory.
-      final compiler = File('${modules.path}/$safeName/index.html');
-      var installed = await compiler.exists();
-      // Also recognize older compiler installs that used the original title.
-      if (!installed && safeName != name && !name.contains('/') && !name.contains('\\')) {
-        installed = await File('${modules.path}/$name/index.html').exists();
-      }
 
-      // Legacy Storyline launchers carry the module title in their HTML.
-      // Match the title, not the Storyline folder name, which can differ.
-      if (!installed) {
-        await for (final entity in modules.list(followLinks: false)) {
-          if (entity is! File || !entity.path.toLowerCase().endsWith('.htm')) {
-            continue;
-          }
-          final content = await entity.readAsString();
-          final titleMatch = RegExp(
-            r'<meta\s+name="module-title"\s+content="([^"]*)"',
-            caseSensitive: false,
-          ).firstMatch(content);
-          if (titleMatch == null) continue;
-          final title = titleMatch.group(1)!
-              .replaceAll('&quot;', '"')
-              .replaceAll('&lt;', '<')
-              .replaceAll('&gt;', '>')
-              .replaceAll('&amp;', '&');
-          if (title != name) continue;
-          final launcherName = entity.uri.pathSegments.last;
-          final folderName = launcherName.substring(0, launcherName.length - 4);
-          if (await File('${base.path}/files/$folderName/story.html').exists()) {
-            installed = true;
-            break;
-          }
-        }
-      }
+    try {
+      final installed = await _installationStatus.isInstalled(
+        moduleName: widget.module.name,
+      );
+
       if (!mounted) return;
+
       setState(() {
         _installed = installed;
         _error = null;
       });
     } catch (error) {
       if (!mounted) return;
-      setState(() => _error = 'Unable to check installation: $error');
+
+      setState(() {
+        _error = 'Unable to check installation: $error';
+      });
     } finally {
       if (mounted) setState(() => _checking = false);
     }
@@ -110,33 +81,43 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
     if (choice == null) {
       if (!mounted) return;
       choice = await showDialog<bool>(
-        context: context,
-        barrierDismissible: false,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Share Location to Support Public Health'),
-          content: const Text(
-            'Would you like to share your location (including precise GPS-level data) '
+            context: context,
+            barrierDismissible: false,
+            builder: (dialogContext) => AlertDialog(
+              title: const Text('Share Location to Support Public Health'),
+              content: const Text(
+                'Would you like to share your location (including precise GPS-level data) '
                 'to help us understand where health education modules are being used? '
                 'This is optional.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('Not Now'),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('Not Now'),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: const Text('Allow Location'),
+                ),
+              ],
             ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('Allow Location'),
-            ),
-          ],
-        ),
-      ) ?? false;
+          ) ??
+          false;
       await prefs.setBool('location_permission_choice', choice);
     }
     if (choice && mounted) {
       final locationService = LocationService();
       final location = await locationService.getLocation(context);
-      await locationService.saveDownload(int.parse(widget.module.moduleId), location);
+      final databaseModuleId = widget.module.id;
+
+      if (databaseModuleId != null) {
+        await locationService.saveDownload(databaseModuleId, location);
+      } else {
+        debugPrint(
+          'Download statistics skipped: missing database ID '
+          'for module ${widget.module.moduleId}',
+        );
+      }
     }
   }
 
@@ -218,12 +199,15 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
   Widget build(BuildContext context) {
     final module = widget.module;
     final description = module.description?.trim() ?? '';
-    final canDownload = !_checking && !_busy && !_installed &&
+    final canDownload = !_checking &&
+        !_busy &&
+        !_installed &&
         module.isDownloadable &&
         RegExp(r'^[0-9]+$').hasMatch(module.moduleId) &&
         Uri.tryParse(module.downloadLink ?? '')?.scheme == 'https';
 
-    final landscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final landscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
     return AppLayout(
       appBar: CustomAppBar(
         onBackPressed: () => Navigator.pop(context),
@@ -232,21 +216,21 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
       bottomNav: landscape
           ? null
           : CustomBottomNavBar(
-        onHomeTap: () => _open(const MyHomePage()),
-        onLibraryTap: () => _open(ModuleLibrary()),
-        onTrackerTap: () => _open(AuthGuard(child: CreditsTracker())),
-        onMenuTap: _openMenu,
-      ),
+              onHomeTap: () => _open(const MyHomePage()),
+              onLibraryTap: () => _open(ModuleLibrary()),
+              onTrackerTap: () => _open(AuthGuard(child: CreditsTracker())),
+              onMenuTap: _openMenu,
+            ),
       child: landscape
           ? Row(children: [
-        CustomSideNavBar(
-          onHomeTap: () => _open(const MyHomePage()),
-          onLibraryTap: () => _open(ModuleLibrary()),
-          onTrackerTap: () => _open(AuthGuard(child: CreditsTracker())),
-          onMenuTap: _openMenu,
-        ),
-        Expanded(child: _detailsContent(description, canDownload)),
-      ])
+              CustomSideNavBar(
+                onHomeTap: () => _open(const MyHomePage()),
+                onLibraryTap: () => _open(ModuleLibrary()),
+                onTrackerTap: () => _open(AuthGuard(child: CreditsTracker())),
+                onMenuTap: _openMenu,
+              ),
+              Expanded(child: _detailsContent(description, canDownload)),
+            ])
           : _detailsContent(description, canDownload),
     );
   }
@@ -419,8 +403,8 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
                             _busy
                                 ? 'Installing...'
                                 : _installed
-                                ? 'Installed'
-                                : 'Download Module',
+                                    ? 'Installed'
+                                    : 'Download Module',
                             style: const TextStyle(
                               fontSize: 17,
                               fontWeight: FontWeight.w700,
@@ -429,7 +413,6 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
                         ),
                       ),
                     ],
-
                   ],
                 ),
               ),

@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:archive/archive_io.dart';
 import 'dart:convert';
 import 'dart:isolate';
+import 'package:flutter/foundation.dart';
 
 /// Manages storage locations for HealthMAP modules.
 ///
@@ -91,13 +92,19 @@ class ModuleDownloadService {
     }
     await sourceFile.writeAsString(downloadUrl, flush: true);
 
-    final dio = Dio(BaseOptions(
-      followRedirects: true,
-      validateStatus: (status) => status == 200 || status == 206 || status == 416,
-    ));
+    final dio = Dio(
+      BaseOptions(
+        followRedirects: true,
+        connectTimeout: const Duration(seconds: 30),
+        receiveTimeout: const Duration(seconds: 30),
+        validateStatus: (status) =>
+            status == 200 || status == 206 || status == 416,
+      ),
+    );
 
     try {
-      var existingBytes = await partialFile.exists() ? await partialFile.length() : 0;
+      var existingBytes =
+          await partialFile.exists() ? await partialFile.length() : 0;
       final savedEtag = existingBytes > 0 && await etagFile.exists()
           ? (await etagFile.readAsString()).trim()
           : '';
@@ -107,7 +114,10 @@ class ModuleDownloadService {
         // S3 returns 200 with the complete new object if its ETag changed.
         if (savedEtag.isNotEmpty) requestHeaders['If-Range'] = savedEtag;
       }
-      print('DEBUG: Dio download URL -> $downloadUrl');
+      debugPrint('DEBUG: Module $moduleId download starting');
+      debugPrint('DEBUG: Existing partial bytes: $existingBytes');
+      debugPrint(
+          'DEBUG: Requested Range: ${requestHeaders['Range'] ?? 'none'}');
       final response = await dio.get<ResponseBody>(
         downloadUrl,
         options: Options(
@@ -118,6 +128,11 @@ class ModuleDownloadService {
       );
 
       final status = response.statusCode;
+      debugPrint('DEBUG: Module $moduleId HTTP status: $status');
+      debugPrint(
+        'DEBUG: Content-Range: '
+        '${response.headers.value('content-range') ?? 'none'}',
+      );
       if (status == 416) {
         // The partial file may be complete, but do not assume so without
         // verifying the advertised total length. Retry from zero instead.
@@ -131,8 +146,7 @@ class ModuleDownloadService {
       }
 
       final responseEtag = response.headers.value('etag')?.trim() ?? '';
-      if (status == 206 && savedEtag.isNotEmpty &&
-          responseEtag != savedEtag) {
+      if (status == 206 && savedEtag.isNotEmpty && responseEtag != savedEtag) {
         throw const FormatException('Module ZIP changed during download');
       }
 
@@ -163,11 +177,10 @@ class ModuleDownloadService {
         await etagFile.delete();
       }
 
-      final advertisedLength = int.tryParse(
-          response.headers.value('content-length') ?? '') ?? -1;
-      final expectedTotal = advertisedLength >= 0
-          ? existingBytes + advertisedLength
-          : null;
+      final advertisedLength =
+          int.tryParse(response.headers.value('content-length') ?? '') ?? -1;
+      final expectedTotal =
+          advertisedLength >= 0 ? existingBytes + advertisedLength : null;
       var received = existingBytes;
       final sink = partialFile.openWrite(
         mode: existingBytes > 0 ? FileMode.append : FileMode.write,
@@ -271,7 +284,7 @@ class ModuleDownloadService {
     if (await moduleDirectory.exists()) {
       throw StateError(
         'Cannot restore module $moduleId: '
-            'installation directory already exists',
+        'installation directory already exists',
       );
     }
 
@@ -445,11 +458,10 @@ class ModuleDownloadService {
             final segments = entryName.split('/');
 
             final invalidSegments = segments.any(
-                  (segment) =>
-              segment == '..' ||
+              (segment) =>
+                  segment == '..' ||
                   segment == '.' ||
-                  (segment.isEmpty &&
-                      segment != segments.last),
+                  (segment.isEmpty && segment != segments.last),
             );
 
             if (entryName.isEmpty ||
@@ -497,8 +509,7 @@ class ModuleDownloadService {
 
             extracted++;
 
-            if (extracted % 5 == 0 ||
-                extracted == archive.length) {
+            if (extracted % 5 == 0 || extracted == archive.length) {
               progressSendPort.send(
                 extracted / archive.length,
               );
@@ -546,8 +557,7 @@ class ModuleDownloadService {
       '${stagingDirectory.path}/module.json',
     );
 
-    if (!await indexFile.exists() ||
-        await indexFile.length() == 0) {
+    if (!await indexFile.exists() || await indexFile.length() == 0) {
       throw FormatException(
         'Module $moduleId is missing a valid index.html',
       );
@@ -577,13 +587,12 @@ class ModuleDownloadService {
       );
     }
 
-    final manifestModuleId =
-    manifest['module_id']?.toString().trim();
+    final manifestModuleId = manifest['module_id']?.toString().trim();
 
     if (manifestModuleId != moduleId) {
       throw FormatException(
         'Module ID mismatch: expected $moduleId, '
-            'found $manifestModuleId',
+        'found $manifestModuleId',
       );
     }
   }

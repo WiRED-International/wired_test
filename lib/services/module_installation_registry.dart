@@ -1,4 +1,3 @@
-
 import 'package:hive/hive.dart';
 
 /// Stores information about modules installed by the new downloader.

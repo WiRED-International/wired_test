@@ -1,30 +1,32 @@
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import 'package:wired_test/providers/auth_guard.dart';
-import 'package:wired_test/utils/functions.dart';
-import '../l10n/app_localizations.dart';
-import '../pages/search.dart';
-import '../providers/auth_provider.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
+
+import '../providers/auth_guard.dart';
+import '../utils/app_layout.dart';
 import '../utils/custom_nav_bar.dart';
+import '../utils/functions.dart';
+import '../utils/side_nav_bar.dart';
 import '../utils/updateChecker.dart';
-import 'cme/cme_tracker.dart';
 import 'creditsTracker/credits_tracker.dart';
 import 'menu/guestMenu.dart';
 import 'menu/menu.dart';
-import 'module_info.dart';
+import 'module_details_page.dart';
+import '../services/module_catalog_service.dart';
 import 'module_library.dart';
-import 'package:wired_test/utils/side_nav_bar.dart';
-import 'package:http/http.dart' as http;
-import 'package:flutter_markdown/flutter_markdown.dart';
-import 'package:url_launcher/url_launcher.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:wired_test/utils/app_layout.dart';
-// import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'search.dart';
 
+const _ink = Color(0xFF16466A);
+const _blue = Color(0xFF0070C0);
+const _green = Color(0xFF358347);
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, this.title, this.onLocaleChange});
+
   final String? title;
   final void Function(Locale)? onLocaleChange;
 
@@ -36,14 +38,11 @@ class Alert {
   String? alert;
   bool? important;
 
-  Alert({
-    this.alert,
-    this.important,
-  });
+  Alert({this.alert, this.important});
 
   Alert.fromJson(Map<String, dynamic> json)
-      : alert = json['alert'] as String,
-        important = json['important'] as bool;
+      : alert = json['alert'] as String?,
+        important = json['important'] as bool?;
 
   Map<String, dynamic> toJson() => {
     'alert': alert,
@@ -52,510 +51,309 @@ class Alert {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  late Future<Alert> futureAlert;
-  String alert = "";
+  String alert = '';
+  bool isImportant = false;
+  bool _loadingAlert = true;
 
   Future<Alert?> getAlert() async {
     final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
-
-    final apiEndpoint = '/alerts/latest';
     try {
-      final response = await http.get(Uri.parse('$apiBaseUrl$apiEndpoint'));
-
+      final response = await http.get(Uri.parse('$apiBaseUrl/alerts/latest'));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-
-        return Alert.fromJson(data);
+        if (data is Map<String, dynamic>) return Alert.fromJson(data);
       } else {
-        debugPrint("Failed to load alert, status code: ${response.statusCode}");
+        debugPrint('Failed to load alert: ${response.statusCode}');
       }
     } catch (e) {
-      debugPrint("Error fetching alert: $e");
+      debugPrint('Error fetching alert: $e');
     }
     return null;
   }
 
-  bool isImportant = false;
   @override
   void initState() {
     super.initState();
-    getAlert().then((alertObj) {
-      if (alertObj != null) {
-        setState(() {
-          alert = alertObj.alert ?? "No alert available";
-          isImportant = alertObj.important ?? false;
-        });
-      }
-    });
+    _refreshAlert();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      UpdateChecker.checkForUpdate(context);
+      if (mounted) UpdateChecker.checkForUpdate(context);
     });
+  }
+
+  Future<void> _refreshAlert() async {
+    final result = await getAlert();
+    if (!mounted) return;
+    setState(() {
+      alert = result?.alert ?? '';
+      isImportant = result?.important ?? false;
+      _loadingAlert = false;
+    });
+  }
+
+  void _openModules() {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => Search()));
+  }
+
+  void _openLibrary() {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => const ModuleLibrary()));
+  }
+
+  void _openTracker() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => AuthGuard(child: CreditsTracker())),
+    );
+  }
+
+  Future<void> _openMenu() async {
+    final loggedIn = await checkIfUserIsLoggedIn();
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => loggedIn ? Menu() : GuestMenu()),
+    );
+  }
+
+  Future<void> _handleAlertLink(String? url) async {
+    if (url == null) return;
+    final uri = Uri.tryParse(url);
+    if (uri == null) return;
+
+    if (uri.scheme == 'app') {
+      if (uri.host != 'module' || uri.pathSegments.length != 1) {
+        _showAlertMessage('This module link is not supported.');
+        return;
+      }
+
+      final id = int.tryParse(uri.pathSegments.single);
+      if (id == null || id <= 0) {
+        _showAlertMessage('Invalid module link.');
+        return;
+      }
+
+      try {
+        final modules = await ModuleCatalogService().fetchModules();
+        if (!mounted) return;
+
+        final matches = modules.where((module) => module.id == id);
+        if (matches.isEmpty) {
+          _showAlertMessage('This module is currently unavailable.');
+          return;
+        }
+
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ModuleDetailsPage(module: matches.first),
+          ),
+        );
+      } catch (error) {
+        debugPrint('Unable to open module from alert: $error');
+        if (mounted) {
+          _showAlertMessage(
+            'Unable to load the module. Check your internet connection and try again.',
+          );
+        }
+      }
+      return;
+    }
+
+    if (uri.scheme != 'https' && uri.scheme != 'http') {
+      _showAlertMessage('This link type is not supported.');
+      return;
+    }
+
+    try {
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        debugPrint('Could not launch $url');
+        if (mounted) _showAlertMessage('Unable to open this link.');
+      }
+    } catch (error) {
+      debugPrint('Error opening alert link: $error');
+      if (mounted) _showAlertMessage('Unable to open this link.');
+    }
+  }
+
+  void _showAlertMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    var screenWidth = MediaQuery.of(context).size.width;
-    var screenHeight = MediaQuery.of(context).size.height;
-    var baseSize = MediaQuery.of(context).size.shortestSide;
-    bool isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final landscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
 
     return AppLayout(
-      appBar: null,
-
-      bottomNav: isLandscape
+      bottomNav: landscape
           ? null
           : CustomBottomNavBar(
         onHomeTap: () {},
-        onLibraryTap: () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => ModuleLibrary()));
-        },
-        onTrackerTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => AuthGuard(child: CreditsTracker()),
-            ),
-          );
-        },
-        onMenuTap: () async {
-          bool isLoggedIn = await checkIfUserIsLoggedIn();
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => isLoggedIn ? Menu() : GuestMenu(),
-            ),
-          );
-        },
+        onLibraryTap: _openLibrary,
+        onTrackerTap: _openTracker,
+        onMenuTap: _openMenu,
       ),
-
-      child: isLandscape
+      child: landscape
           ? Row(
         children: [
           CustomSideNavBar(
             onHomeTap: () {},
-            onLibraryTap: () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => ModuleLibrary()));
-            },
-            onTrackerTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => AuthGuard(child: CreditsTracker()),
-                ),
-              );
-            },
-            onMenuTap: () async {
-              bool isLoggedIn = await checkIfUserIsLoggedIn();
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => isLoggedIn ? Menu() : GuestMenu(),
-                ),
-              );
-            },
+            onLibraryTap: _openLibrary,
+            onTrackerTap: _openTracker,
+            onMenuTap: _openMenu,
           ),
-          Expanded(
-            child: _buildLandscapeLayout(screenWidth, screenHeight, baseSize),
-          ),
+          Expanded(child: _page()),
         ],
       )
-          : _buildPortraitLayout(screenWidth, screenHeight, baseSize),
+          : _page(),
     );
   }
 
-
-  Widget _buildPortraitLayout(double screenWidth, double screenHeight, double baseSize) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: <Widget>[
-        Semantics(
-          label: 'Wired Logo',
-          child: Image.asset(
-            'assets/images/wired-logo-optimized.webp',
-            height: baseSize * (isTablet(context) ? 0.3 : 0.3),
-          ),
-        ),
-        Text(
-          AppLocalizations.of(context)!.homeTitle,
-          style: TextStyle(
-            fontSize: baseSize * (isTablet(context) ? 0.07 : 0.08),
-            fontWeight: FontWeight.w500,
-            color: const Color.fromRGBO(0, 102, 179, 1),
-          ),
-        ),
-
-        Flexible(
-          flex: 3,
-          child: Padding(
-            padding: EdgeInsets.only(
-              top: baseSize * (isTablet(context) ? 0.015 : 0.015),
-              bottom: baseSize * (isTablet(context) ? 0.0 : 0.04),
-              left: baseSize * (isTablet(context) ? 0.04 : 0.04),
-              right: baseSize * (isTablet(context) ? 0.04 : 0.04),
-
-            ),
-            child: Container(
-              height: baseSize * (isTablet(context) ? 0.6 : 0.9),
-              decoration: BoxDecoration(
-                color: Color(0xFFF9EBD9),
-                borderRadius: BorderRadius.circular(7),
-                border: Border.all(
-                  color: Color(0xFF0070C0),
-                  width: 2,
-                ),
-              ),
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    vertical: baseSize * (isTablet(context) ? 0.02 : 0.01),
-                    horizontal: baseSize * (isTablet(context) ? 0.03 : 0.03),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        'News and Updates',
-                        style: TextStyle(
-                          fontSize: baseSize * (isTablet(context) ? 0.06 : 0.07),
-                          fontWeight: FontWeight.w500,
-                          color: Color.fromRGBO(84, 130, 53, 1),
-                        ),
+  Widget _page() {
+    return RefreshIndicator(
+      color: _green,
+      onRefresh: _refreshAlert,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final wide = constraints.maxWidth >= 680;
+          return SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(wide ? 32 : 22, 20, wide ? 32 : 22, 46),
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 680),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(height: wide ? 16 : 25),
+                    Semantics(
+                      label: 'WiRED International Community Health Education',
+                      child: Image.asset(
+                        'assets/images/wired-logo-home.webp',
+                        width: double.infinity,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) =>
+                        const Center(child: Text('WiRED INTERNATIONAL',
+                            style: TextStyle(color: _ink, fontSize: 26,
+                                fontWeight: FontWeight.bold))),
                       ),
-                      SizedBox(
-                        height: baseSize * (isTablet(context) ? 0.01 : 0.01),
+                    ),
+                    SizedBox(height: wide ? 42 : 54),
+                    const Text(
+                      'HealthMAP',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _ink,
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.35,
                       ),
-                      Container(
-                        padding: EdgeInsets.all(baseSize * 0.02),
-                        child: MarkdownBody(
-                          data: alert.isNotEmpty ? alert : "No alerts available",
-                          onTapLink: (text, url, title) async {
-                            if (url != null) {
-                              final Uri uri = Uri.parse(url);
-                              if (uri.scheme == 'app' && uri.host == 'download') {
-                                final moduleIdString = uri.queryParameters['id'];
-                                final moduleId = int.tryParse(moduleIdString ?? '');
-                                final moduleName = uri.queryParameters['name'];
-                                final downloadLink = uri.queryParameters['link'];
-                                final moduleDescription = uri.queryParameters['description'] ?? 'No Description available';
-
-                                if (moduleName != null && downloadLink != null && moduleId != null) {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => ModuleInfo(
-                                        moduleId: moduleId,
-                                        moduleName: moduleName,
-                                        downloadLink: downloadLink,
-                                        moduleDescription: moduleDescription,
-                                      ),
-                                    ),
-                                  );
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Invalid module data provided.')),
-                                  );
-                                }
-                              } else if (await canLaunchUrl(uri)) {
-                                await launchUrl(uri, mode: LaunchMode.externalApplication);
-                              } else {
-                                debugPrint('Could not launch $url');
-                              }
-                            }
-                          },
-                          styleSheet: MarkdownStyleSheet(
-                            a: TextStyle(
-                              color: Colors.blue,
-                              decoration: TextDecoration.underline,
-                              decorationColor: Colors.blue, // Blue underline
-                              fontWeight: FontWeight.bold,
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Community Health Worker Training & Continuing Medical Education',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: _ink,
+                        fontSize: 14,
+                        height: 1.45,
+                      ),
+                    ),
+                    const SizedBox(height: 28),
+                    Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 300),
+                        child: FilledButton(
+                          onPressed: _openModules,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: _blue,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(double.infinity, 54),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
                             ),
-                            p: TextStyle(
-                              fontSize: baseSize * (isTablet(context) ? 0.035 : 0.04),
-                              color: isImportant ? Colors.red : Colors.black,
-                            ),
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text('Explore Modules',
+                                  style: TextStyle(fontSize: 16,
+                                      fontWeight: FontWeight.w600)),
+                              SizedBox(width: 12),
+                              Icon(Icons.arrow_forward_rounded, size: 19),
+                            ],
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        SizedBox(
-          height: baseSize * (isTablet(context) ? 0.02 : 0.015),
-        ),
-        Flexible(
-          flex: 1,
-          child: Semantics(
-            label: 'Modules Search Button',
-            hint: 'Tap to search for modules',
-            child: GestureDetector(
-              onTap: () async {
-                Navigator.push(
-                    context, MaterialPageRoute(builder: (context) => Search()));
-              },
-              child: Hero(
-                tag: 'modules',
-                child: FractionallySizedBox(
-                  widthFactor: isTablet(context) ? 0.33 : 0.4,
-                  child: Container(
-                    height: baseSize * (isTablet(context) ? 0.09 : 0.13),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [
-                          Color(0xFF0070C0),
-                          Color(0xFF00C1FF),
-                          Color(0xFF0070C0),
-                        ], // Your gradient colors
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                      borderRadius: BorderRadius.circular(30),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.5),
-                          spreadRadius: 1,
-                          blurRadius: 5,
-                          offset: const Offset(
-                              1, 3), // changes position of shadow
+                    ),
+                    const SizedBox(height: 52),
+                    const Divider(color: Color(0xFFB9D9E9), thickness: 1),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text('News & Updates',
+                              style: TextStyle(color: _ink, fontSize: 19,
+                                  fontWeight: FontWeight.w700)),
+                        ),
+                        IconButton(
+                          tooltip: 'Refresh news',
+                          onPressed: _refreshAlert,
+                          icon: const Icon(Icons.refresh_rounded, color: _ink),
                         ),
                       ],
                     ),
-                    child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          double buttonWidth = constraints.maxWidth;
-                          double fontSize = buttonWidth * 0.2;
-                          double padding = buttonWidth * 0.02;
-                          return Padding(
-                            padding: EdgeInsets.all(padding),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Flexible(
-                                  child: FittedBox(
-                                    fit: BoxFit.fitWidth,
-                                    child: Text(
-                                      "Modules",
-                                      style: TextStyle(
-                                        fontSize: fontSize,
-                                        fontWeight: FontWeight.w500,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                    ),
-                  ),
+                    const SizedBox(height: 10),
+                    _updatesCard(),
+                  ],
                 ),
               ),
             ),
-          ),
-        ),
-        SizedBox(height: baseSize * (isTablet(context) ? .2 : 0.25)),
-      ],
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildLandscapeLayout(double screenWidth, double screenHeight, double baseSize) {
-    return Column(
-      //crossAxisAlignment: CrossAxisAlignment.center,
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: <Widget>[
-        Semantics(
-          label: 'Wired Logo',
-          child: Image.asset(
-            'assets/images/wired-logo-optimized.webp',
-            height: baseSize * (isTablet(context) ? 0.2 : 0.2),
+  Widget _updatesCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(19),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFD9EAF7)),
+      ),
+      child: _loadingAlert
+          ? const Center(
+        child: Padding(
+          padding: EdgeInsets.all(14),
+          child: CircularProgressIndicator(color: _green),
+        ),
+      )
+          : MarkdownBody(
+        data: alert.isNotEmpty ? alert : 'No updates available.',
+        onTapLink: (text, url, title) => _handleAlertLink(url),
+        styleSheet: MarkdownStyleSheet(
+          a: const TextStyle(
+            color: _blue,
+            decoration: TextDecoration.underline,
+            decorationColor: _blue,
+            fontWeight: FontWeight.w700,
+          ),
+          p: TextStyle(
+            color: isImportant ? const Color(0xFFB3261E) : _ink,
+            fontSize: 14,
+            height: 1.5,
           ),
         ),
-        Text(
-          'CME Module Library',
-          style: TextStyle(
-            fontSize: baseSize * (isTablet(context) ? 0.05 : 0.05),
-            fontWeight: FontWeight.w500,
-            color: const Color.fromRGBO(0, 102, 179, 1),
-          ),
-          //textAlign: TextAlign.center,
-        ),
-
-        Flexible(
-          flex: 3,
-          child: Padding(
-            padding: EdgeInsets.only(
-              top: baseSize * (isTablet(context) ? 0.015 : 0.015),
-              bottom: baseSize * (isTablet(context) ? 0.03 : 0.04),
-              left: baseSize * (isTablet(context) ? 0.25 : 0.04),
-              right: baseSize * (isTablet(context) ? 0.25 : 0.04),
-            ),
-            child: Container(
-              height: baseSize * (isTablet(context) ? 0.35 : 0.5),
-              decoration: BoxDecoration(
-                color: Color(0xFFF9EBD9),
-                borderRadius: BorderRadius.circular(7),
-                border: Border.all(
-                  color: Color(0xFF0070C0),
-                  width: 2,
-                ),
-              ),
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    vertical: baseSize * (isTablet(context) ? 0.01 : 0.02),
-                    horizontal: baseSize * (isTablet(context) ? 0.02 : 0.03),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        'News and Updates',
-                        style: TextStyle(
-                          fontSize: baseSize * (isTablet(context) ? 0.06 : 0.07),
-                          fontWeight: FontWeight.w500,
-                          color: Color.fromRGBO(84, 130, 53, 1),
-                        ),
-                      ),
-                      SizedBox(
-                        height: baseSize * (isTablet(context) ? 0.01 : 0.01),
-                      ),
-                      Container(
-                        padding: EdgeInsets.all(baseSize * 0.02),
-                        child: MarkdownBody(
-                          data: alert.isNotEmpty ? alert : "No alerts available",
-                          onTapLink: (text, url, title) async {
-                            if (url != null) {
-                              final Uri uri = Uri.parse(url);
-                              if (uri.scheme == 'app' && uri.host == 'download') {
-                                final moduleIdString = uri.queryParameters['id'];
-                                final moduleId = int.tryParse(moduleIdString ?? '');
-                                final moduleName = uri.queryParameters['name'];
-                                final downloadLink = uri.queryParameters['link'];
-                                final moduleDescription = uri.queryParameters['description'] ?? 'No Description available';
-
-                                if (moduleName != null && downloadLink != null && moduleId != null) {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => ModuleInfo(
-                                        moduleId: moduleId,
-                                        moduleName: moduleName,
-                                        downloadLink: downloadLink,
-                                        moduleDescription: moduleDescription,
-                                      ),
-                                    ),
-                                  );
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Invalid module data provided.')),
-                                  );
-                                }
-                              } else if (await canLaunchUrl(uri)) {
-                                await launchUrl(uri, mode: LaunchMode.externalApplication);
-                              } else {
-                                debugPrint('Could not launch $url');
-                              }
-                            }
-                          },
-                          styleSheet: MarkdownStyleSheet(
-                            a: TextStyle(
-                              color: Colors.blue,
-                              decoration: TextDecoration.underline,
-                              decorationColor: Colors.blue, // Blue underline
-                              fontWeight: FontWeight.bold,
-                            ),
-                            p: TextStyle(
-                              fontSize: baseSize * (isTablet(context) ? 0.035 : 0.04),
-                              color: isImportant ? Colors.red : Colors.black,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        SizedBox(
-          height: baseSize * (isTablet(context) ? 0.02 : 0.015),
-        ),
-        Flexible(
-          flex: 1,
-          child: Semantics(
-            label: 'Search Button',
-            hint: 'Tap to search for modules',
-            child: GestureDetector(
-              onTap: () async {
-                Navigator.push(
-                    context, MaterialPageRoute(builder: (context) => Search()));
-              },
-              child: Hero(
-                tag: 'modules',
-                child: FractionallySizedBox(
-                  widthFactor: isTablet(context) ? 0.2 : 0.2,
-                  child: Container(
-                    height: baseSize * (isTablet(context) ? 0.08 : 0.08),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [
-                          Color(0xFF0070C0),
-                          Color(0xFF00C1FF),
-                          Color(0xFF0070C0),
-                        ], // Your gradient colors
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                      ),
-                      borderRadius: BorderRadius.circular(30),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.5),
-                          spreadRadius: 1,
-                          blurRadius: 5,
-                          offset: const Offset(
-                              1, 3), // changes position of shadow
-                        ),
-                      ],
-                    ),
-                    child: LayoutBuilder(
-                        builder: (context, constraints) {
-                          double buttonWidth = constraints.maxWidth;
-                          double fontSize = buttonWidth * 0.2;
-                          double padding = buttonWidth * 0.02;
-                          return Padding(
-                            padding: EdgeInsets.all(padding),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Flexible(
-                                  child: FittedBox(
-                                    fit: BoxFit.fitWidth,
-                                    child: Text(
-                                      "Modules",
-                                      style: TextStyle(
-                                        fontSize: fontSize,
-                                        fontWeight: FontWeight.w500,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-        SizedBox(height: baseSize * (isTablet(context) ? .03 : 0.0)),
-      ],
+      ),
     );
   }
 }
+
+

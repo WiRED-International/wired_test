@@ -1,22 +1,21 @@
-import 'dart:async';
 import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
-import 'package:wired_test/pages/animations/animation_info.dart';
+
 import '../../providers/auth_guard.dart';
+import '../../utils/app_layout.dart';
 import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
 import '../../utils/side_nav_bar.dart';
-import '../../utils/app_layout.dart';
-import '../cme/cme_tracker.dart';
 import '../creditsTracker/credits_tracker.dart';
 import '../home_page.dart';
 import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
 import '../module_library.dart';
-import 'package:flutter_svg/flutter_svg.dart';
+import 'animation_info.dart';
 
 class AnimationList extends StatefulWidget {
   const AnimationList({super.key});
@@ -25,25 +24,20 @@ class AnimationList extends StatefulWidget {
   State<AnimationList> createState() => _AnimationListState();
 }
 
+// Keep the existing model name and fields for compatibility.
 class Animation {
   int? id;
   String? name;
   String? description;
   String? downloadLink;
 
-  Animation({
-    this.id,
-    this.name,
-    this.description,
-    this.downloadLink,
-  });
+  Animation({this.id, this.name, this.description, this.downloadLink});
 
   Animation.fromJson(Map<String, dynamic> json)
-      : id = json['id'] as int?,
-        name = json['name'] as String,
-        description = json['description'] as String,
-        downloadLink = json['downloadLink'] as String;
-
+      : id = json['id'] is int ? json['id'] as int : int.tryParse('${json['id']}'),
+        name = json['name']?.toString(),
+        description = json['description']?.toString(),
+        downloadLink = json['downloadLink']?.toString();
 
   Map<String, dynamic> toJson() => {
     'name': name,
@@ -53,45 +47,11 @@ class Animation {
 }
 
 class _AnimationListState extends State<AnimationList> {
+  static const Color _blue = Color(0xFF0070C0);
+  static const Color _darkBlue = Color(0xFF16466A);
+  static const Color _border = Color(0xFFD7E4EA);
+
   late Future<List<Animation>> futureAnimations;
-
-  Future<List<Animation>> fetchAnimations() async {
-    final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
-    final apiEndpoint = '/modules?type=animation';
-    try {
-      final response = await http.get(Uri.parse('$apiBaseUrl$apiEndpoint'));
-
-      debugPrint("Response body: ${response.body}");
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-
-        debugPrint("Fetched Data: $data");
-
-        if (data is List) {
-          print("Data is a List");
-          List<Animation> animations = data.map<Animation>((e) =>
-              Animation.fromJson(e)).toList();
-
-          // Filter out animations with null or empty names
-          animations =
-              animations.where((a) => a.name != null && a.name!.isNotEmpty)
-                  .toList();
-
-          debugPrint("Parsed Animations Length: ${animations.length}");
-          return animations;
-        } else {
-          debugPrint("Data is not a list");
-        }
-      } else {
-        debugPrint(
-            "Failed to load animations, status code: ${response.statusCode}");
-      }
-    } catch (e) {
-      debugPrint("Error fetching animations: $e");
-    }
-    return [];
-  }
 
   @override
   void initState() {
@@ -99,293 +59,241 @@ class _AnimationListState extends State<AnimationList> {
     futureAnimations = fetchAnimations();
   }
 
+  Future<List<Animation>> fetchAnimations() async {
+    final base = (dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000')
+        .replaceFirst(RegExp(r'/$'), '');
+    final response = await http
+        .get(Uri.parse('$base/modules?type=animation'))
+        .timeout(const Duration(seconds: 25));
+    if (response.statusCode != 200) {
+      throw Exception('Unable to load animations (${response.statusCode}).');
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! List) {
+      throw const FormatException('Unexpected animations response.');
+    }
+    return decoded
+        .whereType<Map<String, dynamic>>()
+        .map(Animation.fromJson)
+        .where((animation) => (animation.name ?? '').trim().isNotEmpty)
+        .toList();
+  }
+
+  void _refresh() {
+    setState(() => futureAnimations = fetchAnimations());
+  }
+
+  void _open(Widget page) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  }
+
+  Future<void> _openMenu() async {
+    final loggedIn = await checkIfUserIsLoggedIn();
+    if (!mounted) return;
+    _open(loggedIn ? Menu() : GuestMenu());
+  }
+
+  void _openAnimation(Animation animation) {
+    _open(AnimationInfo(
+      animationId: animation.id ?? 0,
+      animationName: animation.name ?? 'Unknown Animation',
+      animationDescription: animation.description ?? '',
+      downloadLink: animation.downloadLink ?? '',
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
-    var screenWidth = MediaQuery.of(context).size.width;
-    var screenHeight = MediaQuery.of(context).size.height;
-    var baseSize = MediaQuery.of(context).size.shortestSide;
-    bool isLandscape =
+    final landscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
 
     return AppLayout(
       appBar: CustomAppBar(
-        onBackPressed: () {
-          Navigator.pop(context);
-        },
+        onBackPressed: () => Navigator.pop(context),
         requireAuth: false,
       ),
-
-      bottomNav: isLandscape
+      bottomNav: landscape
           ? null
           : CustomBottomNavBar(
-        onHomeTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const MyHomePage()),
-          );
-        },
-        onLibraryTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => ModuleLibrary()),
-          );
-        },
-        onTrackerTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AuthGuard(
-                child: CreditsTracker(),
-              ),
-            ),
-          );
-        },
-        onMenuTap: () async {
-          bool isLoggedIn = await checkIfUserIsLoggedIn();
-          print("Navigating to menu. Logged in: $isLoggedIn");
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) =>
-              isLoggedIn ? Menu() : GuestMenu(),
-            ),
-          );
-        },
+        onHomeTap: () => _open(const MyHomePage()),
+        onLibraryTap: () => _open(ModuleLibrary()),
+        onTrackerTap: () => _open(AuthGuard(child: CreditsTracker())),
+        onMenuTap: _openMenu,
       ),
-
-      // ❗ IMPORTANT: remove Center()
-      child: isLandscape
+      child: landscape
           ? Row(
         children: [
           CustomSideNavBar(
-            onHomeTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const MyHomePage()),
-              );
-            },
-            onLibraryTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => ModuleLibrary()),
-              );
-            },
-            onTrackerTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AuthGuard(
-                    child: CreditsTracker(),
-                  ),
-                ),
-              );
-            },
-            onMenuTap: () async {
-              bool isLoggedIn = await checkIfUserIsLoggedIn();
-              print("Navigating to menu. Logged in: $isLoggedIn");
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                  isLoggedIn ? Menu() : GuestMenu(),
-                ),
-              );
-            },
+            onHomeTap: () => _open(const MyHomePage()),
+            onLibraryTap: () => _open(ModuleLibrary()),
+            onTrackerTap: () => _open(AuthGuard(child: CreditsTracker())),
+            onMenuTap: _openMenu,
           ),
-
-          Expanded(
-            child: _buildLandscapeLayout(
-              screenWidth,
-              screenHeight,
-              baseSize,
-            ),
-          ),
+          Expanded(child: _buildContent()),
         ],
       )
-          : _buildPortraitLayout(
-        screenWidth,
-        screenHeight,
-        baseSize,
+          : _buildContent(),
+    );
+  }
+
+  Widget _buildContent() {
+    return SafeArea(
+      top: false,
+      bottom: false,
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 760),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(22, 28, 22, 26),
+                child: Column(
+                  children: [
+                    const Text(
+                      'Animations',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w700,
+                        color: _darkBlue,
+                      ),
+                    ),
+                    const SizedBox(height: 9),
+                    const Text(
+                      'Explore health education through animated lessons.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 15, color: _darkBlue),
+                    ),
+
+                  ],
+                ),
+              ),
+              Expanded(
+                child: FutureBuilder<List<Animation>>(
+                  future: futureAnimations,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: CircularProgressIndicator(color: _blue),
+                      );
+                    }
+                    if (snapshot.hasError) {
+                      return _messageState(
+                        Icons.wifi_off_rounded,
+                        'Unable to load animations',
+                        'Check your connection and try again.',
+                        showRetry: true,
+                      );
+                    }
+                    final animations = snapshot.data ?? <Animation>[];
+                    if (animations.isEmpty) {
+                      return _messageState(
+                        Icons.movie_outlined,
+                        'No animations available',
+                        'Check back later for new animated lessons.',
+                      );
+                    }
+                    return ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+                      itemCount: animations.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final animation = animations[index];
+                        return Material(
+                          color: Colors.white.withValues(alpha: 0.94),
+                          borderRadius: BorderRadius.circular(14),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(14),
+                            onTap: () => _openAnimation(animation),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 17,
+                              ),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: _border),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Icon(
+                                    Icons.play_circle_outline_rounded,
+                                    color: _blue,
+                                    size: 29,
+                                  ),
+                                  const SizedBox(width: 14),
+                                  Expanded(
+                                    child: Text(
+                                      animation.name ?? '',
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w600,
+                                        color: _darkBlue,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Icon(
+                                    Icons.chevron_right_rounded,
+                                    color: _blue,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildPortraitLayout(screenWidth, screenHeight, baseSize) {
-    return Column(
-      children: [
-        SizedBox(
-          height: baseSize * (isTablet(context) ? 0.03 : 0.03),
-        ),
-        Container(
-          child: Column(
-            children: [
-              Text(
-                "Animations",
-                style: TextStyle(
-                  fontSize: baseSize * (isTablet(context) ? 0.08 : 0.08),
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF548235),
+  Widget _messageState(
+      IconData icon,
+      String title,
+      String detail, {
+        bool showRetry = false,
+      }) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: _darkBlue, size: 42),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: _darkBlue,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(detail, textAlign: TextAlign.center),
+            if (showRetry) ...[
+              const SizedBox(height: 18),
+              ElevatedButton.icon(
+                onPressed: _refresh,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Try again'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _blue,
+                  foregroundColor: Colors.white,
                 ),
               ),
             ],
-          ),
+          ],
         ),
-        SizedBox(height: baseSize * (isTablet(context) ? 0.02 : 0.02),),
-        Expanded(
-          child: FutureBuilder<List<Animation>>(
-            future: futureAnimations,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              } else if (snapshot.hasError) {
-                return Center(child: Text('Error: ${snapshot.error}'));
-              } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return const Center(child: Text('No animations available'));
-              } else {
-                final animations = snapshot.data!;
-                debugPrint("Number of Animations: ${animations.length}");
-                return ListView.builder(
-                  itemCount: animations.length,
-                  itemBuilder: (context, index) {
-                    final animation = animations[index];
-                    final animationId = animation.id ?? 0;
-                    final animationName = animation.name ?? "Unknown Animation";
-                    final animationDescription = animation.description ?? "";
-                    final downloadLink = animation.downloadLink ?? "";
-
-                    return Column(
-                      children: [
-                        InkWell(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => AnimationInfo(
-                                  animationId: animationId,
-                                  animationName: animationName,
-                                  animationDescription: animationDescription,
-                                  downloadLink: downloadLink,
-                                ),
-                              ),
-                            );
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            child: Text(
-                              animationName,
-                              style: TextStyle(
-                                fontSize: baseSize * (isTablet(context) ? 0.054 : 0.054),
-                                fontWeight: FontWeight.w500,
-                                color: const Color(0xFF0070C0),
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          color: Colors.grey,
-                          height: 1,
-                          width: baseSize * (isTablet(context) ? 0.75 : 0.7),
-                        ),
-                      ],
-                    );
-                  },
-                );
-              }
-            },
-          ),
-        ),
-      ],
-    );
-  }
-  Widget _buildLandscapeLayout(screenWidth, screenHeight, baseSize) {
-    return Column(
-      children: [
-        SizedBox(
-          height: baseSize * (isTablet(context) ? 0.03 : 0.03),
-        ),
-        Container(
-          child: Column(
-            children: [
-              Text(
-                "Animations",
-                style: TextStyle(
-                  fontSize: baseSize * (isTablet(context) ? 0.08 : 0.08),
-                  fontWeight: FontWeight.w500,
-                  color: Color(0xFF548235),
-                ),
-              ),
-            ],
-          ),
-        ),
-        SizedBox(height: baseSize * (isTablet(context) ? 0.02 : 0.02),),
-        Expanded(
-          child: FutureBuilder<List<Animation>>(
-            future: futureAnimations,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              } else if (snapshot.hasError) {
-                return Center(child: Text('Error: ${snapshot.error}'));
-              } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return const Center(child: Text('No animations available'));
-              } else {
-                final animations = snapshot.data!;
-                debugPrint("Number of Animations: ${animations.length}");
-                return ListView.builder(
-                  itemCount: animations.length,
-                  itemBuilder: (context, index) {
-                    final animation = animations[index];
-                    final animationId = animation.id ?? 0;
-                    final animationName = animation.name ?? "Unknown Animation";
-                    final animationDescription = animation.description ?? "";
-                    final downloadLink = animation.downloadLink ?? "";
-
-                    return Column(
-                      children: [
-                        InkWell(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => AnimationInfo(
-                                  animationId: animationId,
-                                  animationName: animationName,
-                                  animationDescription: animationDescription,
-                                  downloadLink: downloadLink,
-                                ),
-                              ),
-                            );
-                          },
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                            child: Text(
-                              animationName,
-                              style: TextStyle(
-                                fontSize: baseSize * (isTablet(context) ? 0.054 : 0.054),
-                                fontWeight: FontWeight.w500,
-                                color: const Color(0xFF0070C0),
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                        Container(
-                          color: Colors.grey,
-                          height: 1,
-                          width: baseSize * (isTablet(context) ? 0.75 : 0.7),
-                        ),
-                      ],
-                    );
-                  },
-                );
-              }
-            },
-          ),
-        ),
-      ],
+      ),
     );
   }
 }
