@@ -89,44 +89,6 @@ Future<void> deleteStoredScore(String moduleId) async {
   }
 }
 
-// Function to get the rank text based on credits earned
-String getRankText(int creditsEarned) {
-  if (creditsEarned >= 200) {
-    return "Rank: Supreme CHW";
-  } else if (creditsEarned >= 150) {
-    return "Rank: Diamond CHW";
-  } else if (creditsEarned >= 110) {
-    return "Rank: Platinum CHW";
-  } else if (creditsEarned >= 80) {
-    return "Rank: Gold CHW";
-  } else if (creditsEarned >= 60) {
-    return "Rank: Silver CHW";
-  } else if (creditsEarned >= 50) {
-    return "Rank: Bronze CHW";
-  } else {
-    return "Rank: Iron CHW";
-  }
-}
-
-// Function to get the badge image based on the number of credits earned
-String getBadgeImage(int creditsEarned) {
-  if (creditsEarned >= 200) {
-    return "assets/images/circular_supreme_badge.webp";
-  } else if (creditsEarned >= 150) {
-    return "assets/images/circular_diamond_badge.webp";
-  } else if (creditsEarned >= 110) {
-    return "assets/images/circular_platinum_badge.webp";
-  } else if (creditsEarned >= 80) {
-    return "assets/images/circular_gold_badge.webp";
-  } else if (creditsEarned >= 60) {
-    return "assets/images/circular_silver_badge.webp";
-  } else if (creditsEarned >= 50) {
-    return "assets/images/circular_bronze_badge.webp";
-  } else {
-    return "assets/images/circular_iron_badge.webp"; // Default badge or placeholder
-  }
-}
-
 int calculateCredits(List<dynamic>? quizScores) {
   final int currentYear = DateTime.now().year;
 

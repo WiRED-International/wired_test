@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../utils/functions.dart';
 
-class LandscapeProfileSection  extends StatelessWidget {
+class LandscapeProfileSection extends StatelessWidget {
   final String firstName;
   final String dateJoined;
   final String email;
@@ -18,9 +18,8 @@ class LandscapeProfileSection  extends StatelessWidget {
   Widget build(BuildContext context) {
     double scalingFactor = getScalingFactor(context);
     final double circleDiameter = scalingFactor * (isTablet(context) ? 65 : 70);
-    final double circleDiameterSmall = scalingFactor * (isTablet(context) ? 58 : 64);
-
-    String badgeImage = getBadgeImage(creditsEarned);
+    final double circleDiameterSmall =
+        scalingFactor * (isTablet(context) ? 58 : 64);
 
     return Column(
       children: [
@@ -30,7 +29,8 @@ class LandscapeProfileSection  extends StatelessWidget {
           children: [
             Container(
               // height: scalingFactor * (isTablet(context) ? 0.05 : 125),
-              height: MediaQuery.of(context).size.height * (isTablet(context) ? 0.18 : 0.20),
+              height: MediaQuery.of(context).size.height *
+                  (isTablet(context) ? 0.18 : 0.20),
               width: MediaQuery.of(context).size.width,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -45,10 +45,14 @@ class LandscapeProfileSection  extends StatelessWidget {
             ),
             Positioned(
               //top: scalingFactor * (isTablet(context) ? 0.05 : 120) - (circleDiameter / 2),
-              top: MediaQuery.of(context).size.height * (isTablet(context) ? 0.20 : 0.24) - (circleDiameter / 2),
+              top: MediaQuery.of(context).size.height *
+                      (isTablet(context) ? 0.20 : 0.24) -
+                  (circleDiameter / 2),
               // Middle of the circle aligns with the bottom
               //left: scalingFactor * (isTablet(context) ? 0.05 : 60) - (circleDiameter / 2),
-              left: MediaQuery.of(context).size.width * (isTablet(context) ? 0.11 : 0.12) - (circleDiameter / 2),
+              left: MediaQuery.of(context).size.width *
+                      (isTablet(context) ? 0.11 : 0.12) -
+                  (circleDiameter / 2),
               // Horizontally centered
               child: Container(
                 width: circleDiameter, // Diameter of the circle
@@ -62,10 +66,14 @@ class LandscapeProfileSection  extends StatelessWidget {
             // Second Circle
             Positioned(
               //top: scalingFactor * (isTablet(context) ? 0.05 : 120) - circleDiameterSmall / 2,
-              top: MediaQuery.of(context).size.height * (isTablet(context) ? 0.20 : 0.24) - circleDiameterSmall / 2,
+              top: MediaQuery.of(context).size.height *
+                      (isTablet(context) ? 0.20 : 0.24) -
+                  circleDiameterSmall / 2,
               // Adjust position to place on top of first circle
               //left: scalingFactor * (isTablet(context) ? 0.05 : 60) - (circleDiameterSmall / 2),
-              left: MediaQuery.of(context).size.width * (isTablet(context) ? 0.11 : 0.12) - (circleDiameterSmall / 2),
+              left: MediaQuery.of(context).size.width *
+                      (isTablet(context) ? 0.11 : 0.12) -
+                  (circleDiameterSmall / 2),
               // Smaller circle horizontally centered
               child: Container(
                 width: circleDiameterSmall, // Smaller circle
@@ -81,7 +89,8 @@ class LandscapeProfileSection  extends StatelessWidget {
                     ],
                   ),
                   image: DecorationImage(
-                    image: AssetImage(badgeImage),
+                    image: const AssetImage(
+                        'assets/images/circular_iron_badge.webp'),
                     fit: BoxFit.cover,
                   ),
                 ),
