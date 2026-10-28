@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'package:wired_test/pages/cme/cme_tracker.dart';
 import '../../providers/auth_guard.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/cme_award_provider.dart';
 import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
@@ -16,6 +17,7 @@ import '../home_page.dart';
 import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
 import '../module_library.dart';
+
 
 class EnterScore extends StatefulWidget {
 
@@ -120,6 +122,7 @@ class _EnterScoreState extends State<EnterScore> {
     }
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final cmeAwardProvider = context.read<CmeAwardProvider>();
     final token = authProvider.authToken;
     final userId = authProvider.getUserIdFromToken();
 
@@ -149,6 +152,14 @@ class _EnterScoreState extends State<EnterScore> {
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         await _updateStoredScore(widget.moduleId.toString(), _storedScore!);
+
+        // Refresh CME award status after a successful score submission.
+        await cmeAwardProvider.fetchAwardedModules(
+          forceRefresh: true,
+        );
+
+        if (!context.mounted) return;
+
         showDialog(
           context: context,
           barrierDismissible: false,

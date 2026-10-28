@@ -18,6 +18,8 @@ import '../services/location_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_layout.dart';
 import '../utils/custom_app_bar.dart';
+import 'package:provider/provider.dart';
+import '../providers/cme_award_provider.dart';
 
 /// Module details and downloads for compiler and Storyline modules.
 class ModuleDetailsPage extends StatefulWidget {
@@ -48,6 +50,14 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
   void initState() {
     super.initState();
     _refreshInstallation();
+
+    if (widget.module.creditType == 'cme' && widget.module.id != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+
+        context.read<CmeAwardProvider>().fetchAwardedModules();
+      });
+    }
   }
 
   Future<void> _refreshInstallation() async {
@@ -281,6 +291,56 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
+                    if (module.creditType == 'cme' &&
+                        module.id != null &&
+                        context.watch<CmeAwardProvider>().hasEarnedCredit(module.id!)) ...[
+                      const SizedBox(height: 18),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFF7E8),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFFE8C783)),
+                        ),
+                        child: const Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.info_outline_rounded,
+                              color: Color(0xFF946200),
+                              size: 24,
+                            ),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'CME Credit Previously Earned',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: Color(0xFF795300),
+                                    ),
+                                  ),
+                                  SizedBox(height: 6),
+                                  Text(
+                                    'You have already earned CME credit for this module. '
+                                        'You may review the material again, but additional CME '
+                                        'credit cannot be awarded.',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      height: 1.5,
+                                      color: Color(0xFF795300),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 18),
                     const Divider(),
                     const SizedBox(height: 12),

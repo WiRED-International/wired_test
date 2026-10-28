@@ -26,6 +26,7 @@ class DownloadableModule {
   final String? version;
   final String? downloadLink;
   final String? packageSize;
+  final String? creditType;
   final List<DownloadableProgram> programs;
   final List<String> keywords;
   final List<String> categories;
@@ -40,6 +41,7 @@ class DownloadableModule {
     this.version,
     this.downloadLink,
     this.packageSize,
+    this.creditType,
     required this.programs,
     this.keywords = const [],
     this.categories = const [],
@@ -105,6 +107,7 @@ class DownloadableModule {
       version: json['version']?.toString(),
       downloadLink: json['downloadLink']?.toString(),
       packageSize: json['packageSize']?.toString(),
+      creditType: json['credit_type']?.toString(),
       programs: (json['programs'] as List<dynamic>? ?? [])
           .map((item) => DownloadableProgram.fromJson(
                 Map<String, dynamic>.from(item as Map),

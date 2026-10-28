@@ -8,7 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:wired_test/pages/creditsTracker/credits_tracker.dart';
 import '../../providers/auth_guard.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/quiz_score_provider.dart';
+import '../../providers/cme_award_provider.dart';
 import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
@@ -119,6 +119,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
     }
 
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    final cmeAwardProvider = context.read<CmeAwardProvider>();
     final token = authProvider.authToken;
 
     if (token == null) {
@@ -157,6 +158,13 @@ class _SubmitCreditsState extends State<SubmitCredits> {
       );
 
       if (response.statusCode == 201 || response.statusCode == 200) {
+        // Refresh CME awards after a successful score submission.
+        await cmeAwardProvider.fetchAwardedModules(
+          forceRefresh: true,
+        );
+
+        if (!context.mounted) return;
+
         // 🧹 Automatically remove the module’s stored score after successful submission
         await deleteStoredScore(moduleFile.moduleId!);
         print("✅ Successfully submitted and removed ${moduleFile.moduleName} from local storage.");
@@ -315,8 +323,6 @@ class _SubmitCreditsState extends State<SubmitCredits> {
     final isTabletDevice = isTablet(context);
 
     final scale = isTabletDevice ? 1.0 : 1.0;
-
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
     return AppLayout(
       appBar: CustomAppBar(
@@ -581,7 +587,6 @@ class _SubmitCreditsState extends State<SubmitCredits> {
   }
 
   Widget _buildLandscapeLayout(BuildContext context, double screenWidth, double screenHeight, double baseSize, double scale,) {
-    final mediaQuery = MediaQuery.of(context);
     final isTabletDevice = isTablet(context);
     final textScale = isTabletDevice ? 1.0 : 1.0;
 
