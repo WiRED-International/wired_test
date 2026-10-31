@@ -136,6 +136,32 @@ class _ByTopicState extends State<ByTopic> {
   }
 
   Widget _content() {
+    return Stack(
+      children: [
+        _categoryList(),
+        // Fade above the fixed navigation bar; does not intercept scrolling.
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: IgnorePointer(
+            child: Container(
+              height: 100,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0x00FFD09A), Color(0xFFFFD09A)],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _categoryList() {
     return RefreshIndicator(
       onRefresh: () async {
         _reload();
