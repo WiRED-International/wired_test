@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:open_file/open_file.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../providers/auth_guard.dart';
@@ -119,6 +120,48 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
     return RegExp(r'files/(\d+)/story.html').firstMatch(content)?.group(1);
   }
 
+  bool _isRecoveryPath(String path, Directory root) =>
+      p.split(p.relative(path, from: root.path)).any(
+            (part) => part.toLowerCase().endsWith('.backup'),
+          );
+
+  Future<bool> _isStandaloneAnimation(File file, Directory root) async {
+    final modulesPath = p.normalize(p.absolute(p.join(root.path, 'modules')));
+    final filePath = p.normalize(p.absolute(file.path));
+    if (!p.isWithin(modulesPath, filePath) || _isRecoveryPath(filePath, root)) {
+      return false;
+    }
+
+    try {
+      final parents = p.split(p.relative(p.dirname(filePath), from: modulesPath))
+          .where((part) => part != '.').toList();
+      var directoryPath = modulesPath;
+      // Check ancestors from the storage boundary inward, rejecting links
+      // before inspecting descendants or following paths outside modules/.
+      for (var index = 0; index <= parents.length; index++) {
+        if (await FileSystemEntity.type(directoryPath, followLinks: false) !=
+            FileSystemEntityType.directory) {
+          return false;
+        }
+        // Listing also surfaces access errors: absence must not be inferred
+        // from an entry-file exists() check that silently returns false.
+        await for (final entry in
+            Directory(directoryPath).list(followLinks: false)) {
+          final name = p.basename(entry.path);
+          if (name == 'index.html' || name == 'story.html') return false;
+        }
+        if (index < parents.length) {
+          directoryPath = p.join(directoryPath, parents[index]);
+        }
+      }
+      return await FileSystemEntity.type(filePath, followLinks: false) ==
+          FileSystemEntityType.file;
+    } on FileSystemException {
+      // Unknown ownership is never permission to delete or expose media.
+      return false;
+    }
+  }
+
   Future<void> _loadModules() async {
     if (mounted) setState(() { _loading = true; _error = null; });
     try {
@@ -129,6 +172,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
 
       if (await packages.exists()) {
         await for (final entity in packages.list(recursive: true, followLinks: false)) {
+          if (_isRecoveryPath(entity.path, root)) continue;
           if (entity is! File) {
             continue;
           }
@@ -159,6 +203,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
 
       if (await modules.exists()) {
         await for (final entity in modules.list(followLinks: false)) {
+          if (_isRecoveryPath(entity.path, root)) continue;
           if (entity is File) {
             final name = _filename(entity.path);
             if (!RegExp(r'\.html?$', caseSensitive: false).hasMatch(name)) continue;
@@ -210,6 +255,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
       if (await modules.exists()) {
         await for (final entity in modules.list(recursive: true, followLinks: false)) {
           if (entity is! File || !entity.path.toLowerCase().endsWith('.mp4')) continue;
+          if (!await _isStandaloneAnimation(entity, root)) continue;
           if (await entity.length() == 0) continue;
           final name = _filename(entity.path);
           final stem = name.replaceFirst(RegExp(r'\.mp4$', caseSensitive: false), '');
@@ -310,6 +356,11 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
   Future<void> _delete(ModuleFile module) async {
     try {
       if (module.isAnimation) {
+        final root = await _storageRoot();
+        if (!await _isStandaloneAnimation(module.file as File, root)) {
+          if (mounted) _notify('This video may belong to a module or recovery download and cannot be removed separately.');
+          return;
+        }
         await (module.file as File).delete();
       } else if (module.file is Directory) {
         // Compiler content is isolated in its own directory.
