@@ -195,8 +195,10 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
     }
   }
 
-  void _open(Widget page) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  Future<void> _open(Widget page) async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+    if (page is! ModuleLibrary || !mounted || _busy) return;
+    await _refreshInstallation();
   }
 
   Future<void> _openMenu() async {
