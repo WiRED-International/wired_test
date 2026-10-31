@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:isolate';
 
-import 'package:archive/archive.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../providers/auth_guard.dart';
+import '../../services/animation_archive_extraction_service.dart';
 import '../../services/location_service.dart';
 import '../../utils/app_layout.dart';
 import '../../utils/custom_app_bar.dart';
@@ -366,44 +366,11 @@ Future<void> _extractAnimationArchive(Map<String, dynamic> args) async {
   try {
     final zipPath = args['zipPath'] as String;
     final outputDir = args['outputDir'] as String;
-    final input = InputFileStream(zipPath);
-    final archive = ZipDecoder().decodeStream(input);
-
-    final root = Directory(outputDir).absolute.path;
-    final normalizedRoot = root.replaceAll('\\', '/');
-    for (final entry in archive) {
-      final name = entry.name.replaceAll('\\', '/');
-      final parts = name.split('/');
-      if (name.startsWith('/') || name.contains(':') ||
-          parts.contains('..') || parts.contains('.') ||
-          parts.any((part) => part.isEmpty && part != parts.last) ||
-          entry.isSymbolicLink) {
-        throw const FormatException('Unsafe archive entry.');
-      }
-      final target = File('$root/$name').absolute.path.replaceAll('\\', '/');
-      if (!target.startsWith('$normalizedRoot/')) {
-        throw const FormatException('Archive entry escapes the storage directory.');
-      }
-    }
-
-    var count = 0;
-    for (final entry in archive) {
-      final target = '$root/${entry.name.replaceAll('\\', '/')}';
-      if (entry.isFile) {
-        await Directory(File(target).parent.path).create(recursive: true);
-        final output = OutputFileStream(target);
-        try {
-          entry.writeContent(output);
-        } finally {
-          await output.close();
-        }
-      } else {
-        await Directory(target).create(recursive: true);
-      }
-      count++;
-      port.send(count / archive.length);
-    }
-    await input.close();
+    await AnimationArchiveExtractionService().extractArchive(
+      zipPath: zipPath,
+      outputDir: outputDir,
+      onProgress: (progress) => port.send(progress),
+    );
     port.send('done');
   } catch (error) {
     port.send('error:$error');
