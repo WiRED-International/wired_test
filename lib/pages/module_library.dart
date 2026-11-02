@@ -78,8 +78,15 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
 
   Future<Directory> _storageRoot() async {
     if (Platform.isAndroid) {
-      return await getExternalStorageDirectory() ??
-          await getApplicationDocumentsDirectory();
+      Directory? external;
+      try {
+        external = await getExternalStorageDirectory();
+      } on Exception {
+        // Fall back to Documents when external storage is unavailable.
+      } on UnsupportedError {
+        // External storage is not supported by the directory provider.
+      }
+      return external ?? await getApplicationDocumentsDirectory();
     }
     if (Platform.isIOS || Platform.isMacOS) {
       return getApplicationSupportDirectory();
