@@ -59,6 +59,13 @@ class AnimationInstallationWorkspace {
   Directory get payloadDirectory => Directory(p.join(_attempt, 'payload'));
   String get _markerPath => p.join(_attempt, '.workspace-owner');
 
+  /// Read-only ownership validation before a scoped publication. This does not
+  /// grant ownership of any destination or prevent concurrent path replacement.
+  Future<void> validateOwnership() async {
+    if (_cleaned || _cleaning) throw StateError('Workspace is not available');
+    await _checkBoundary();
+  }
+
   Future<void> _checkBoundary() async {
     if (p.dirname(_attempt) != _parent ||
         p.dirname(_parent) != _root ||

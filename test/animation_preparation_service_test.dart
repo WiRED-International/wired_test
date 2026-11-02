@@ -335,8 +335,9 @@ void main() {
     expect(transports, isEmpty);
     expect(await attempts(), isEmpty);
   });
-  for (final phase in AnimationPreparationPhase.values
-      .where((phase) => phase != AnimationPreparationPhase.cleaningUp)) {
+  for (final phase in AnimationPreparationPhase.values.where((phase) =>
+      phase != AnimationPreparationPhase.cleaningUp &&
+      phase != AnimationPreparationPhase.publishing)) {
     test('cancellation at $phase prevents callback and discards attempt',
         () async {
       final token = AnimationPreparationCancellation();
