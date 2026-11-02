@@ -3,10 +3,10 @@ import 'dart:io';
 import 'dart:isolate';
 
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../../providers/auth_guard.dart';
 import '../../services/animation_archive_extraction_service.dart';
+import '../../services/animation_storage_service.dart';
 import '../../services/location_service.dart';
 import '../../utils/app_layout.dart';
 import '../../utils/custom_app_bar.dart';
@@ -69,13 +69,7 @@ class _AnimationInfoState extends State<AnimationInfo> {
   }
 
   Future<String> _storagePath() async {
-    Directory? base;
-    try {
-      base = await getExternalStorageDirectory();
-    } catch (_) {
-      // Use the internal application documents directory instead.
-    }
-    base ??= await getApplicationDocumentsDirectory();
+    final base = await AnimationStorageService().getCanonicalRoot();
     final directory = Directory('${base.path}/modules');
     await directory.create(recursive: true);
     return directory.path;
