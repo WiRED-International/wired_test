@@ -1,10 +1,14 @@
 import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:wired_test/services/animation_installation_coordinator.dart';
+import 'package:wired_test/services/animation_installation_inspection_service.dart';
 import 'package:wired_test/pages/module_library.dart';
 
 // Exercise the real Library UI without playback, network, or installed content.
@@ -15,6 +19,9 @@ void main() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   late Directory root;
   late File sentinel;
+  late AnimationInstallationCoordinator coordinator;
+  final playback = <MethodCall>[];
+  const playbackChannel = MethodChannel('open_file');
   const sentinelContents = 'unrelated content must survive';
 
   Future<File> writeFixture(String relativePath, String contents) async {
@@ -27,6 +34,12 @@ void main() {
 
   setUp(() async {
     root = await Directory.systemTemp.createTemp('healthmap-library-mp4-');
+    coordinator = AnimationInstallationCoordinator();
+    playback.clear();
+    messenger.setMockMethodCallHandler(playbackChannel, (call) async {
+      playback.add(call);
+      return '{"type":0,"message":"done"}';
+    });
     sentinel = await writeFixture('modules/unrelated.keep', sentinelContents);
     messenger.setMockMethodCallHandler(channel, (call) async {
       switch (call.method) {
@@ -48,6 +61,7 @@ void main() {
 
   tearDown(() async {
     messenger.setMockMethodCallHandler(channel, null);
+    messenger.setMockMethodCallHandler(playbackChannel, null);
     try {
       expect(await sentinel.readAsString(), sentinelContents);
     } finally {
@@ -79,14 +93,20 @@ void main() {
     fail('Library fixture scan did not finish');
   }
 
-  Future<void> mountLibrary(WidgetTester tester) async {
+  Future<void> mountLibrary(WidgetTester tester,
+      {Future<void> Function()? beforeDirectoryCleanup}) async {
     // Landscape avoids an unrelated bottom-navigation overflow with the test
     // font. Keep framework exceptions enabled; do not suppress layout errors.
     tester.view.physicalSize = const Size(1000, 700);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
-    await tester.pumpWidget(const MaterialApp(home: ModuleLibrary()));
+    await tester.pumpWidget(Provider<AnimationInstallationCoordinator>.value(
+        value: coordinator,
+        child: MaterialApp(
+            home: ModuleLibrary(
+          beforeAnimationDirectoryCleanup: beforeDirectoryCleanup,
+        ))));
     await settleLibrary(tester);
   }
 
@@ -94,7 +114,7 @@ void main() {
     final remove = find.byTooltip('Remove download');
     expect(remove, findsOneWidget);
     await tester.ensureVisible(remove);
-    await tester.tap(remove);
+    await tester.runAsync(() => tester.tap(remove));
     await tester.pumpAndSettle();
     expect(find.text('Remove downloaded animation?'), findsOneWidget);
   }
@@ -117,6 +137,9 @@ void main() {
   for (final entry in <String, String>{
     'top-level': 'modules/standalone_clip.mp4',
     'deeply nested': 'modules/animations/topic/group/standalone_clip.mp4',
+    'published': 'modules/animations/42/topic/group/standalone_clip.mp4',
+    'published backup name':
+        'modules/animations/42/topic.backup/group/standalone_clip.mp4',
   }.entries) {
     testWidgets('${entry.key} standalone MP4 is discovered and safely deleted',
         (tester) async {
@@ -126,21 +149,46 @@ void main() {
       expect(find.text('standalone clip'), findsOneWidget);
       expect(find.text('Open animation'), findsOneWidget);
       expect(find.text('1 downloaded'), findsOneWidget);
+      await tester.tap(find.text('Open animation'));
+      for (var i = 0; i < 100 && playback.isEmpty; i++) {
+        await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)));
+        await tester.pump();
+      }
+      expect(playback.single.method, 'open_file');
+      expect(p.normalize(playback.single.arguments['file_path'] as String),
+          video!.path);
+      expect(playback.single.arguments['type'], 'video/mp4');
 
       // Cancellation must not delete either the video or unrelated content.
       await requestDelete(tester);
       await tester.tap(find.text('Cancel'));
       await tester.pumpAndSettle();
       await tester.runAsync(() async {
-        expect(await video!.readAsString(), 'nonempty MP4 fixture');
+        expect(await video.readAsString(), 'nonempty MP4 fixture');
         expect(await sentinel.readAsString(), sentinelContents);
       });
 
       await requestDelete(tester);
       await confirmDelete(tester);
+      expect(find.text('Removed "standalone clip" from this device.'),
+          findsOneWidget);
       await tester.runAsync(() async {
-        expect(await video!.exists(), isFalse);
+        expect(await video.exists(), isFalse);
         expect(await sentinel.readAsString(), sentinelContents);
+        if (entry.key.startsWith('published')) {
+          expect(
+              await Directory(p.join(root.path, 'modules/animations/42'))
+                  .exists(),
+              isFalse);
+          expect(
+              (await AnimationInstallationInspectionService()
+                      .inspectInstallation(root: root, animationId: 42))
+                  .status,
+              AnimationInstallationStatus.notInstalled);
+        } else {
+          expect(await video.parent.exists(), isTrue);
+        }
       });
       expect(find.text('standalone clip'), findsNothing);
       expect(find.text('0 downloaded'), findsOneWidget);
@@ -242,4 +290,185 @@ void main() {
       expect(await sentinel.readAsString(), sentinelContents);
     });
   });
+  testWidgets('active animation installation prevents Library removal',
+      (tester) async {
+    final video = await tester.runAsync(
+        () => writeFixture('modules/animations/42/topic/active.mp4', 'keep'));
+    await mountLibrary(tester);
+    await requestDelete(tester);
+    final release = Completer<void>();
+    final owner =
+        coordinator.run(animationId: 42, operation: () => release.future);
+    try {
+      await confirmDelete(tester);
+      expect(
+          find.text(
+              'This animation is being installed. Try removing it after installation finishes.'),
+          findsOneWidget);
+      await tester.runAsync(() async {
+        expect(await video!.readAsString(), 'keep');
+      });
+    } finally {
+      release.complete();
+      await owner;
+    }
+  });
+
+  testWidgets(
+      'backup exemption never includes recovery or nonnumeric legacy trees',
+      (tester) async {
+    await tester.runAsync(() async {
+      await writeFixture('modules/animations/42.backup/hidden.mp4', 'recovery');
+      await writeFixture(
+          'modules/animations/topic.backup/hidden.mp4', 'legacy recovery');
+      await writeFixture('packages/old.backup/hidden.mp4', 'package recovery');
+      await writeFixture('modules/animations/43/index.html', 'module');
+      await writeFixture(
+          'modules/animations/43/nested.backup/hidden.mp4', 'module video');
+    });
+    await mountLibrary(tester);
+    expect(find.text('Open animation'), findsNothing);
+    expect(find.byTooltip('Remove download'), findsNothing);
+    expect(find.text('0 downloaded'), findsOneWidget);
+    await tester.runAsync(() async {
+      expect(
+          await File(
+                  p.join(root.path, 'modules/animations/42.backup/hidden.mp4'))
+              .readAsString(),
+          'recovery');
+      expect(
+          await File(p.join(root.path, 'modules/animations/43/index.html'))
+              .readAsString(),
+          'module');
+    });
+  });
+
+  testWidgets(
+      'new numeric animation refuses a module owner added after confirmation',
+      (tester) async {
+    final video = await tester.runAsync(
+        () => writeFixture('modules/animations/42/nested/clip.mp4', 'keep'));
+    await mountLibrary(tester);
+    await requestDelete(tester);
+    await tester.runAsync(
+        () => writeFixture('modules/animations/42/story.html', 'module'));
+    await confirmDelete(tester);
+    await tester.runAsync(() async {
+      expect(await video!.readAsString(), 'keep');
+      expect(
+          await File(p.join(root.path, 'modules/animations/42/story.html'))
+              .readAsString(),
+          'module');
+    });
+  });
+  testWidgets(
+      'partial removal refreshes Library and warns after cleanup failure',
+      (tester) async {
+    final video = await tester.runAsync(
+        () => writeFixture('modules/animations/42/nested/clip.mp4', 'video'));
+    final original = FileSystemException('injected directory cleanup failure');
+    final originalStack = StackTrace.current;
+    await mountLibrary(tester, beforeDirectoryCleanup: () async {
+      Error.throwWithStackTrace(original, originalStack);
+    });
+    expect(find.text('clip'), findsOneWidget);
+    await requestDelete(tester);
+    await confirmDelete(tester);
+    expect(
+        find.text(
+            'Video removed, but directory cleanup was incomplete. Re-download may be blocked.'),
+        findsOneWidget);
+    expect(find.text('Unable to remove this module.'), findsNothing);
+    expect(find.text('clip'), findsNothing);
+    expect(find.text('Open animation'), findsNothing);
+    expect(find.text('0 downloaded'), findsOneWidget);
+    await tester.runAsync(() async {
+      expect(await video!.exists(), isFalse);
+      expect(await video.parent.exists(), isTrue);
+      expect(
+          (await AnimationInstallationInspectionService()
+                  .inspectInstallation(root: root, animationId: 42))
+              .status,
+          AnimationInstallationStatus.conflict);
+      await coordinator.run(animationId: 42, operation: () async {});
+    });
+  });
+
+  testWidgets('retained unrelated files produce a re-download warning',
+      (tester) async {
+    final video = await tester.runAsync(() async {
+      final clip =
+          await writeFixture('modules/animations/42/nested/clip.mp4', 'video');
+      await writeFixture(
+          'modules/animations/42/nested/unrelated.keep', 'preserve');
+      return clip;
+    });
+    await mountLibrary(tester);
+    await requestDelete(tester);
+    await confirmDelete(tester);
+    expect(
+        find.text(
+            'Animation removed, but other files remain in its folder. Re-download is blocked until they are reviewed.'),
+        findsOneWidget);
+    await tester.runAsync(() async {
+      expect(await video!.exists(), isFalse);
+      expect(
+          await File(p.join(
+                  root.path, 'modules/animations/42/nested/unrelated.keep'))
+              .readAsString(),
+          'preserve');
+    });
+  });
+
+  for (final play in [false, true]) {
+    testWidgets('stale linked MP4 cannot be ${play ? 'played' : 'removed'}',
+        (tester) async {
+      final video = await tester.runAsync(
+          () => writeFixture('modules/animations/42/nested/clip.mp4', 'video'));
+      await mountLibrary(tester);
+      if (!play) await requestDelete(tester);
+      final saved = File(p.join(root.path, 'external/clip.mp4'));
+      final link = Link(video!.path);
+      var linked = false;
+      await tester.runAsync(() async {
+        await saved.parent.create(recursive: true);
+        await video.rename(saved.path);
+        try {
+          await link.create(saved.path);
+          linked = true;
+        } on FileSystemException catch (error) {
+          markTestSkipped('Symlinks unavailable: $error');
+        }
+      });
+      try {
+        if (!linked) return;
+        if (play) {
+          await tester.runAsync(() => tester.tap(find.text('Open animation')));
+          for (var i = 0; i < 100; i++) {
+            await tester.runAsync(
+                () => Future<void>.delayed(const Duration(milliseconds: 10)));
+            await tester.pump();
+            if (find.byType(SnackBar).evaluate().isNotEmpty) break;
+          }
+          expect(
+              find.text(
+                  'This animation is no longer available separately. Refresh your library.'),
+              findsOneWidget);
+          expect(playback, isEmpty);
+        } else {
+          await confirmDelete(tester);
+        }
+        await tester.runAsync(() async {
+          expect(await saved.readAsString(), 'video');
+          expect(await FileSystemEntity.type(link.path, followLinks: false),
+              FileSystemEntityType.link);
+        });
+      } finally {
+        await tester.runAsync(() async {
+          if (linked) await link.delete();
+          await saved.rename(video.path);
+        });
+      }
+    });
+  }
 }
