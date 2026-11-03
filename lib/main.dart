@@ -1,3 +1,7 @@
+import 'services/animation_installation_coordinator.dart';
+import 'services/animation_preparation_service.dart';
+import 'services/animation_storage_service.dart';
+import 'services/location_service.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -31,8 +35,8 @@ Future<void> main() async {
 
   // 🧹 DEV ONLY: Clear Hive boxes to avoid schema mismatch after model changes
   // ----------------------------------------------------------
-  final bool clearBoxesForDev =
-    const bool.fromEnvironment('CLEAR_HIVE_BOXES', defaultValue: false); // ✅ set to false for production
+  final bool clearBoxesForDev = const bool.fromEnvironment('CLEAR_HIVE_BOXES',
+      defaultValue: false); // ✅ set to false for production
   if (clearBoxesForDev) {
     await Hive.deleteBoxFromDisk('exam_attempts');
     await Hive.deleteBoxFromDisk('examBox');
@@ -56,6 +60,13 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
+        Provider(create: (_) => AnimationInstallationCoordinator()),
+        Provider(
+            create: (context) => AnimationPreparationService(
+                  coordinator: context.read<AnimationInstallationCoordinator>(),
+                )),
+        Provider(create: (_) => AnimationStorageService()),
+        Provider(create: (_) => LocationService()),
         // 🔐 Authentication
         ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
 
@@ -86,7 +97,8 @@ Future<void> main() async {
             return ExamController(attemptsBox, syncService, examBox);
           },
           update: (context, syncService, controller) {
-            return controller ?? ExamController(attemptsBox, syncService, examBox);
+            return controller ??
+                ExamController(attemptsBox, syncService, examBox);
           },
         ),
       ],
@@ -158,5 +170,3 @@ class _MyAppState extends State<MyApp> {
     );
   }
 }
-
-
