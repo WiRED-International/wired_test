@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -61,32 +60,6 @@ Future<bool> checkIfUserIsLoggedIn() async {
   debugPrint("User is logged in: $isLoggedIn"); // Debugging output
 
   return isLoggedIn;
-}
-
-// Remove flutter secure storage entry by module id
-const FlutterSecureStorage secureStorage = FlutterSecureStorage();
-
-Future<void> deleteStoredScore(String moduleId) async {
-  try {
-    String? storedScoresJson = await secureStorage.read(key: "quiz_scores");
-
-    if (storedScoresJson != null) {
-      Map<String, dynamic> storedScores = jsonDecode(storedScoresJson);
-
-      if (storedScores.containsKey(moduleId)) {
-        storedScores.remove(moduleId); // Remove the specific module ID
-        await secureStorage.write(
-            key: "quiz_scores", value: jsonEncode(storedScores));
-        debugPrint("Successfully deleted score for Module ID: $moduleId");
-      } else {
-        debugPrint("No score found for Module ID: $moduleId");
-      }
-    } else {
-      debugPrint("No stored scores found.");
-    }
-  } catch (e) {
-    debugPrint("Error deleting score: $e");
-  }
 }
 
 int calculateCredits(List<dynamic>? quizScores) {

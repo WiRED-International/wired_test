@@ -1,4 +1,4 @@
-import '../utils/functions.dart';
+import 'cme_credit_totals.dart';
 
 class User {
   final int? id;
@@ -10,7 +10,8 @@ class User {
   final String? organization;
   final String? dateJoined;
   final List<dynamic>? quizScores;
-  final int creditsEarned;
+  final CmeCreditTotals cmeCredits;
+  int? get creditsEarned => cmeCredits.currentYear.earnedCredits;
   final int totalCredits;
 
   User({
@@ -24,18 +25,21 @@ class User {
     required this.dateJoined,
     required this.quizScores,
     this.totalCredits = 50,
-  }) : creditsEarned = calculateCredits(quizScores ?? []);
+    this.cmeCredits = const CmeCreditTotals.unavailable(),
+  });
 
   factory User.fromJson(Map<String, dynamic> json) {
     final parsedQuizScores = (json['quizScores'] as List<dynamic>?)?.map((q) {
-      final module = q['module'] ?? {};
-      return {
-        ...q,
-        'credit_type': module['credit_type'] ?? 'none',
-      };
-    }).toList() ?? [];
+          final module = q['module'] ?? {};
+          return {
+            ...q,
+            'credit_type': module['credit_type'] ?? 'none',
+          };
+        }).toList() ??
+        [];
 
     return User(
+      cmeCredits: CmeCreditTotals.fromJson(json['cmeCredits']),
       id: json['id'],
       firstName: json['first_name'] ?? 'Unknown',
       lastName: json['last_name'] ?? 'Unknown',
@@ -46,21 +50,22 @@ class User {
       dateJoined: json['createdAt'] ?? 'Unknown Date',
       quizScores: parsedQuizScores,
       totalCredits:
-      (json['totalCredits'] ?? json['total_credits'] ?? 50).toInt(),
+          (json['totalCredits'] ?? json['total_credits'] ?? 50).toInt(),
     );
   }
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'firstName': firstName,
-    'lastName': lastName,
-    'email': email,
-    'role': role,
-    'country': country,
-    'organization': organization,
-    'dateJoined': dateJoined,
-    'quizScores': quizScores,
-    'creditsEarned': creditsEarned,
-    'totalCredits': totalCredits,
-  };
+        'id': id,
+        'firstName': firstName,
+        'lastName': lastName,
+        'email': email,
+        'role': role,
+        'country': country,
+        'organization': organization,
+        'dateJoined': dateJoined,
+        'quizScores': quizScores,
+        'creditsEarned': creditsEarned,
+        'cmeCredits': cmeCredits.toJson(),
+        'totalCredits': totalCredits,
+      };
 }

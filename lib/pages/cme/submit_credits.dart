@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -49,8 +50,11 @@ class _SubmitCreditsState extends State<SubmitCredits> {
   late Future<List<FileSystemEntity>> futureResources; // For PDF resources
   List<ModuleFile> modules = [];
   // List<FileSystemEntity> resources = []; // Store PDF files
-  DisplayType selectedType = DisplayType.modules; // To track whether Modules or Resources are selected
+  DisplayType selectedType =
+      DisplayType.modules; // To track whether Modules or Resources are selected
   final secureStorage = const FlutterSecureStorage();
+  final _submittingIds = <String>{};
+  final _submittedIds = <String>{};
 
   @override
   void initState() {
@@ -68,13 +72,14 @@ class _SubmitCreditsState extends State<SubmitCredits> {
     final FlutterSecureStorage secureStorage = const FlutterSecureStorage();
     try {
       // 🧩 Optional debugging: check what's stored
-      String? pendingScoresJson = await secureStorage.read(key: "pending_quiz_scores");
-      String? quizScoresJson = await secureStorage.read(key: "quiz_scores");
+      String? pendingScoresJson =
+          await secureStorage.read(key: "pending_quiz_scores");
 
-      print("🗂 pending_quiz_scores: ${pendingScoresJson != null ? 'Exists' : 'None'}");
-      print("🗂 quiz_scores (API cache): ${quizScoresJson != null ? 'Exists' : 'None'}");
+      print(
+          "🗂 pending_quiz_scores: ${pendingScoresJson != null ? 'Exists' : 'None'}");
       // Retrieve stored modules from secure storage
-      String? storedScoresJson = await secureStorage.read(key: "pending_quiz_scores");
+      String? storedScoresJson =
+          await secureStorage.read(key: "pending_quiz_scores");
 
       if (storedScoresJson != null) {
         Map<String, dynamic> storedScores = jsonDecode(storedScoresJson);
@@ -83,7 +88,9 @@ class _SubmitCreditsState extends State<SubmitCredits> {
         storedScores.forEach((moduleId, moduleData) {
           if (moduleData is Map<String, dynamic>) {
             String moduleName = moduleData['module_name'] ?? 'Unknown Module';
-            double parsedScore = double.tryParse(moduleData['score']?.toString() ?? '0.0') ?? 0.0;
+            double parsedScore =
+                double.tryParse(moduleData['score']?.toString() ?? '0.0') ??
+                    0.0;
 
             fetchedModules.add(ModuleFile(
               moduleId: moduleId,
@@ -92,12 +99,15 @@ class _SubmitCreditsState extends State<SubmitCredits> {
             ));
           }
         });
-        print("📦 Loaded ${storedScores.length} pending quiz scores from Secure Storage");
+        print(
+            "📦 Loaded ${storedScores.length} pending quiz scores from Secure Storage");
         fetchedModules.sort((a, b) => a.moduleName.compareTo(b.moduleName));
 
-        setState(() {
-          modules = fetchedModules;
-        });
+        if (mounted) {
+          setState(() {
+            modules = fetchedModules;
+          });
+        }
 
         return fetchedModules;
       } else {
@@ -110,7 +120,14 @@ class _SubmitCreditsState extends State<SubmitCredits> {
     }
   }
 
-  Future<void> _handleSubmit(BuildContext context, ModuleFile moduleFile) async {
+  Future<void> _handleSubmit(
+      BuildContext context, ModuleFile moduleFile) async {
+    final id = moduleFile.moduleId;
+    if (id == null ||
+        _submittingIds.contains(id) ||
+        _submittedIds.contains(id)) {
+      return;
+    }
     if (moduleFile.score == null || moduleFile.score == 0.0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No score available to submit.')),
@@ -127,6 +144,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
       return;
     }
 
+    _submittingIds.add(id);
     try {
       final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
       final apiEndpoint = '/quiz-scores';
@@ -158,22 +176,24 @@ class _SubmitCreditsState extends State<SubmitCredits> {
       );
 
       if (response.statusCode == 201 || response.statusCode == 200) {
-        // Refresh CME awards after a successful score submission.
-        await cmeAwardProvider.fetchAwardedModules(
-          forceRefresh: true,
-        );
-
+        _submittedIds.add(id); // Preserve confirmed success through navigation.
+        await deleteStoredScore(id);
+        unawaited(cmeAwardProvider.fetchAwardedModules(forceRefresh: true));
         if (!context.mounted) return;
 
-        // 🧹 Automatically remove the module’s stored score after successful submission
-        await deleteStoredScore(moduleFile.moduleId!);
-        print("✅ Successfully submitted and removed ${moduleFile.moduleName} from local storage.");
+        print(
+            "✅ Successfully submitted and removed ${moduleFile.moduleName} from local storage.");
 
         // Refresh the module list after deletion
         final updatedModules = await _fetchModulesFromSecureStorage();
-        if (mounted) setState(() => modules = updatedModules);
+        if (!context.mounted) return;
+        setState(() {
+          modules = updatedModules;
+          futureModules = Future.value(updatedModules);
+        });
 
-        print("✅ Successfully submitted and removed ${moduleFile.moduleName} from local storage.");
+        print(
+            "✅ Successfully submitted and removed ${moduleFile.moduleName} from local storage.");
 
         showDialog(
           context: context,
@@ -215,7 +235,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
           print('Could not parse quiz submission error response: $e');
         }
 
-        if (mounted) {
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(errorMessage),
@@ -224,14 +244,21 @@ class _SubmitCreditsState extends State<SubmitCredits> {
         }
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('An error occurred. Please try again.')),
-      );
+      if (_submittedIds.contains(id)) {
+        debugPrint('Score submitted; subsequent operation failed: $e');
+      } else if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('An error occurred. Please try again.')),
+        );
+      }
+    } finally {
+      _submittingIds.remove(id);
     }
   }
 
   Future<void> _refreshModules() async {
     final updatedModules = await _fetchModulesFromSecureStorage();
+    if (!mounted) return;
     setState(() {
       modules = updatedModules;
     });
@@ -275,7 +302,8 @@ class _SubmitCreditsState extends State<SubmitCredits> {
     try {
       const FlutterSecureStorage secureStorage = FlutterSecureStorage();
 
-      String? storedScoresJson = await secureStorage.read(key: "pending_quiz_scores");
+      String? storedScoresJson =
+          await secureStorage.read(key: "pending_quiz_scores");
 
       if (storedScoresJson != null && storedScoresJson.isNotEmpty) {
         Map<String, dynamic> storedScores = jsonDecode(storedScoresJson);
@@ -286,7 +314,8 @@ class _SubmitCreditsState extends State<SubmitCredits> {
 
           if (storedScores.isEmpty) {
             await secureStorage.delete(key: "pending_quiz_scores");
-            print("✅ All module scores deleted. Cleared quiz_scores key completely.");
+            print(
+                "✅ All module scores deleted. Cleared quiz_scores key completely.");
           } else {
             await secureStorage.write(
               key: "pending_quiz_scores",
@@ -310,7 +339,8 @@ class _SubmitCreditsState extends State<SubmitCredits> {
       "module_id": moduleId,
       "module_name": moduleName,
     };
-    await secureStorage.write(key: "module_info", value: jsonEncode(moduleInfo));
+    await secureStorage.write(
+        key: "module_info", value: jsonEncode(moduleInfo));
   }
 
   @override
@@ -336,99 +366,97 @@ class _SubmitCreditsState extends State<SubmitCredits> {
       bottomNav: isLandscape
           ? null
           : CustomBottomNavBar(
-        onHomeTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const MyHomePage()),
-          );
-        },
-        onLibraryTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => ModuleLibrary()),
-          );
-        },
-        onTrackerTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => AuthGuard(
-                child: CreditsTracker(),
-              ),
+              onHomeTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const MyHomePage()),
+                );
+              },
+              onLibraryTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => ModuleLibrary()),
+                );
+              },
+              onTrackerTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AuthGuard(
+                      child: CreditsTracker(),
+                    ),
+                  ),
+                );
+              },
+              onMenuTap: () async {
+                bool isLoggedIn = await checkIfUserIsLoggedIn();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                  ),
+                );
+              },
+              scale: scale,
             ),
-          );
-        },
-        onMenuTap: () async {
-          bool isLoggedIn = await checkIfUserIsLoggedIn();
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) =>
-              isLoggedIn ? Menu() : GuestMenu(),
-            ),
-          );
-        },
-        scale: scale,
-      ),
 
       // ❗ IMPORTANT: no Center()
       child: isLandscape
           ? Row(
-        children: [
-          CustomSideNavBar(
-            onHomeTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const MyHomePage()),
-              );
-            },
-            onLibraryTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => ModuleLibrary()),
-              );
-            },
-            onTrackerTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => AuthGuard(
-                    child: CreditsTracker(),
+              children: [
+                CustomSideNavBar(
+                  onHomeTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (context) => const MyHomePage()),
+                    );
+                  },
+                  onLibraryTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => ModuleLibrary()),
+                    );
+                  },
+                  onTrackerTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => AuthGuard(
+                          child: CreditsTracker(),
+                        ),
+                      ),
+                    );
+                  },
+                  onMenuTap: () async {
+                    bool isLoggedIn = await checkIfUserIsLoggedIn();
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => isLoggedIn ? Menu() : GuestMenu(),
+                      ),
+                    );
+                  },
+                  scale: scale,
+                ),
+                Expanded(
+                  child: _buildLandscapeLayout(
+                    context,
+                    screenWidth,
+                    screenHeight,
+                    baseSize,
+                    scale,
                   ),
                 ),
-              );
-            },
-            onMenuTap: () async {
-              bool isLoggedIn = await checkIfUserIsLoggedIn();
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                  isLoggedIn ? Menu() : GuestMenu(),
-                ),
-              );
-            },
-            scale: scale,
-          ),
-
-          Expanded(
-            child: _buildLandscapeLayout(
-              context,
-              screenWidth,
-              screenHeight,
-              baseSize,
-              scale,
-            ),
-          ),
-        ],
-      )
+              ],
+            )
           : _buildPortraitLayout(context),
     );
   }
 
-  Widget _buildPortraitLayout(BuildContext context,) {
+  Widget _buildPortraitLayout(
+    BuildContext context,
+  ) {
     final mediaQuery = MediaQuery.of(context);
     final baseSize = mediaQuery.size.shortestSide;
     final isTabletDevice = isTablet(context);
@@ -474,11 +502,13 @@ class _SubmitCreditsState extends State<SubmitCredits> {
               } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
                 return Center(
                   child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: baseSize * 0.05 * scale),
+                    padding: EdgeInsets.symmetric(
+                        horizontal: baseSize * 0.05 * scale),
                     child: Text(
                       'No saved scores yet. Download a module, complete its quiz, and save your score for submission.',
                       style: TextStyle(
-                        fontSize: baseSize * (isTabletDevice ? 0.028 : 0.035) * scale,
+                        fontSize:
+                            baseSize * (isTabletDevice ? 0.028 : 0.035) * scale,
                         fontWeight: FontWeight.w500,
                         color: const Color(0xFF548235),
                       ),
@@ -502,7 +532,8 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.95),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.grey.shade300, width: 1),
+                        border:
+                            Border.all(color: Colors.grey.shade300, width: 1),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withOpacity(0.08),
@@ -551,7 +582,8 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                   label: "Submit",
                                   icon: Icons.check,
                                   backgroundColor: const Color(0xFF1976D2),
-                                  onTap: () => _handleSubmit(context, moduleFile),
+                                  onTap: () =>
+                                      _handleSubmit(context, moduleFile),
                                   baseSize: baseSize,
                                   scale: scale,
                                 ),
@@ -586,7 +618,13 @@ class _SubmitCreditsState extends State<SubmitCredits> {
     );
   }
 
-  Widget _buildLandscapeLayout(BuildContext context, double screenWidth, double screenHeight, double baseSize, double scale,) {
+  Widget _buildLandscapeLayout(
+    BuildContext context,
+    double screenWidth,
+    double screenHeight,
+    double baseSize,
+    double scale,
+  ) {
     final isTabletDevice = isTablet(context);
     final textScale = isTabletDevice ? 1.0 : 1.0;
 
@@ -608,7 +646,8 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                 Text(
                   "Submit Quiz Scores",
                   style: TextStyle(
-                    fontSize: baseSize * (isTabletDevice ? 0.045 : 0.055) * textScale,
+                    fontSize:
+                        baseSize * (isTabletDevice ? 0.045 : 0.055) * textScale,
                     fontWeight: FontWeight.w700,
                     color: const Color(0xFF325BFF),
                   ),
@@ -617,7 +656,8 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                 Text(
                   "Review and submit your pending quiz scores",
                   style: TextStyle(
-                    fontSize: baseSize * (isTabletDevice ? 0.028 : 0.034) * textScale,
+                    fontSize:
+                        baseSize * (isTabletDevice ? 0.028 : 0.034) * textScale,
                     color: Colors.black87,
                     height: 1.4,
                   ),
@@ -651,10 +691,11 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                               horizontal: baseSize * 0.02 * scale),
                           child: Text(
                             'You have not saved any score for submission yet. '
-                                'Please download a module, complete the final quiz, and save your score for submission.',
+                            'Please download a module, complete the final quiz, and save your score for submission.',
                             style: TextStyle(
-                              fontSize:
-                              baseSize * (isTabletDevice ? 0.028 : 0.034) * textScale,
+                              fontSize: baseSize *
+                                  (isTabletDevice ? 0.028 : 0.034) *
+                                  textScale,
                               fontWeight: FontWeight.w500,
                               color: const Color(0xFF548235),
                             ),
@@ -673,10 +714,9 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                         itemBuilder: (context, index) {
                           final moduleFile = modules[index];
                           return Container(
-                            margin:
-                            EdgeInsets.only(bottom: baseSize * 0.03 * scale),
-                            padding:
-                            EdgeInsets.all(baseSize * 0.035 * scale),
+                            margin: EdgeInsets.only(
+                                bottom: baseSize * 0.03 * scale),
+                            padding: EdgeInsets.all(baseSize * 0.035 * scale),
                             decoration: BoxDecoration(
                               color: Colors.white.withOpacity(0.95),
                               borderRadius: BorderRadius.circular(14),
@@ -716,9 +756,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                   baseSize: baseSize,
                                   scale: scale,
                                 ),
-
                                 SizedBox(height: baseSize * 0.03 * scale),
-
                                 Row(
                                   children: [
                                     Expanded(
@@ -727,7 +765,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                         label: "Submit",
                                         icon: Icons.check,
                                         backgroundColor:
-                                        const Color(0xFF1976D2),
+                                            const Color(0xFF1976D2),
                                         onTap: () =>
                                             _handleSubmit(context, moduleFile),
                                         baseSize: baseSize,
@@ -741,7 +779,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                         label: "Delete",
                                         icon: Icons.delete_outline,
                                         backgroundColor:
-                                        const Color(0xFFD32F2F),
+                                            const Color(0xFFD32F2F),
                                         onTap: () => _showDeleteConfirmation(
                                           moduleFile.moduleName,
                                           moduleFile.moduleId!,
@@ -802,9 +840,9 @@ class _SubmitCreditsState extends State<SubmitCredits> {
 // 🔹 Helper for Label–Value Row
   Widget _buildRow(BuildContext context,
       {required String label,
-        required String value,
-        required double baseSize,
-        required double scale}) {
+      required String value,
+      required double baseSize,
+      required double scale}) {
     final isTabletDevice = isTablet(context);
     return Padding(
       padding: EdgeInsets.only(bottom: baseSize * 0.01 * scale),
@@ -838,14 +876,14 @@ class _SubmitCreditsState extends State<SubmitCredits> {
 
 // 🔹 Helper for Gradient Buttons
   Widget _buildActionButton(
-      BuildContext context, {
-        required String label,
-        required IconData icon,
-        required Color backgroundColor,
-        required VoidCallback onTap,
-        required double baseSize,
-        required double scale,
-      }) {
+    BuildContext context, {
+    required String label,
+    required IconData icon,
+    required Color backgroundColor,
+    required VoidCallback onTap,
+    required double baseSize,
+    required double scale,
+  }) {
     final isTabletDevice = isTablet(context);
     final buttonHeight = baseSize * (isTabletDevice ? 0.075 : 0.085) * scale;
     final fontSize = baseSize * (isTabletDevice ? 0.026 : 0.032) * scale;
