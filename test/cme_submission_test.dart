@@ -14,10 +14,11 @@ import 'package:wired_test/providers/auth_provider.dart';
 import 'package:wired_test/providers/cme_award_provider.dart';
 
 class _Auth extends AuthProvider {
+  String? token = 'A';
   @override
   bool get isLoggedIn => true;
   @override
-  String? get authToken => 'A';
+  String? get authToken => token;
   @override
   String? getUserIdFromToken() => '7';
 }
@@ -323,6 +324,114 @@ void main() {
                 posts++;
                 return http.Response('{"passed":false,"credits_awarded":0}',
                     score == 0 ? 200 : 201);
+              }));
+    });
+  }
+  for (final status in [401, 403, 404]) {
+    for (final detailed in [false, true]) {
+      testWidgets(
+          'HTTP $status preserves score and explains recovery ($detailed)',
+          (tester) async {
+        awards = CmeAwardProvider()..syncAuthToken('A');
+        final before = Map<String, String>.from(storage);
+        await http.runWithClient(() async {
+          await mount(tester);
+          await tester.ensureVisible(find.text('Submit'));
+          await tester.runAsync(() => tester.tap(find.text('Submit')));
+          await waitUntil(
+              tester,
+              () => find
+                  .textContaining('Your score remains saved on this device.')
+                  .evaluate()
+                  .isNotEmpty);
+          if (status == 401) {
+            expect(find.textContaining('Please log in again'), findsOneWidget);
+          }
+          if (status == 403) {
+            expect(
+                find.textContaining(detailed
+                    ? 'You must be enrolled in this class.'
+                    : 'permission'),
+                findsOneWidget);
+            expect(find.textContaining('archived'), findsNothing);
+          }
+          if (status == 404) {
+            expect(
+                find.textContaining(
+                    'module could not be found or is unavailable'),
+                findsOneWidget);
+          }
+          expect(find.text('Success'), findsNothing);
+          expect(storage, before);
+          expect(awards.isLoading, isFalse);
+        },
+            () => MockClient((_) async => http.Response(
+                detailed
+                    ? '{"message":"You must be enrolled in this class."}'
+                    : 'not JSON',
+                status)));
+      });
+    }
+  }
+  for (final token in [null, '']) {
+    testWidgets('missing authentication shows login message ($token)',
+        (tester) async {
+      auth.token = token;
+      awards = CmeAwardProvider();
+      var posts = 0;
+      final before = Map<String, String>.from(storage);
+      await http.runWithClient(() async {
+        await mount(tester);
+        await tester.ensureVisible(find.text('Submit'));
+        await tester.tap(find.text('Submit'));
+        await tester.pump();
+        expect(find.textContaining('Please log in before submitting'),
+            findsOneWidget);
+        expect(storage, before);
+        expect(posts, 0);
+      },
+          () => MockClient((_) async {
+                posts++;
+                return http.Response('{}', 200);
+              }));
+    });
+  }
+  for (final timeout in [false, true]) {
+    testWidgets(
+        'uncertain request preserves pending score and allows retry ($timeout)',
+        (tester) async {
+      awards = CmeAwardProvider(
+          readToken: () async => 'A',
+          clientFactory: () => MockClient(
+              (_) async => http.Response('{"credited_module_ids":[]}', 200)))
+        ..syncAuthToken('A');
+      var calls = 0;
+      final before = Map<String, String>.from(storage);
+      await http.runWithClient(() async {
+        await mount(tester);
+        await tester.ensureVisible(find.text('Submit'));
+        await tester.runAsync(() => tester.tap(find.text('Submit')));
+        await waitUntil(
+            tester,
+            () => find
+                .textContaining('submission could not be confirmed')
+                .evaluate()
+                .isNotEmpty);
+        expect(storage, before);
+        expect(find.text('Success'), findsNothing);
+        await tester.runAsync(() => tester.tap(find.text('Submit')));
+        await waitUntil(
+            tester, () => find.text('Success').evaluate().isNotEmpty);
+        expect(calls, 2);
+        expect(storage.containsKey('pending_quiz_scores'), isFalse);
+      },
+          () => MockClient((_) async {
+                if (++calls == 1) {
+                  if (timeout) throw TimeoutException('response lost');
+                  throw http.ClientException('connection lost');
+                }
+                return http.Response(
+                    '{"passed":false,"credits_awarded":0}', 200);
               }));
     });
   }

@@ -127,8 +127,11 @@ class _SubmitCreditsState extends State<SubmitCredits> {
     final cmeAwardProvider = context.read<CmeAwardProvider>();
     final token = authProvider.authToken;
 
-    if (token == null) {
-      print('Authentication token is missing');
+    if (token == null || token.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text(
+            'Please log in before submitting. Your score remains saved on this device.'),
+      ));
       return;
     }
 
@@ -207,17 +210,40 @@ class _SubmitCreditsState extends State<SubmitCredits> {
           },
         );
       } else {
-        String errorMessage = 'Failed to submit score. Please try again.';
-
+        String? backendMessage;
         try {
           final responseData = jsonDecode(response.body);
-
-          if (responseData is Map<String, dynamic> &&
-              responseData['message'] != null) {
-            errorMessage = responseData['message'].toString();
+          if (responseData is Map<String, dynamic>) {
+            final message = responseData['message'];
+            if (message is String && message.trim().isNotEmpty) {
+              backendMessage = message.trim();
+            }
           }
         } catch (e) {
-          print('Could not parse quiz submission error response: $e');
+          debugPrint('Could not parse quiz submission error response: $e');
+        }
+
+        final String errorMessage;
+        switch (response.statusCode) {
+          case 401:
+            errorMessage =
+                'Your session is no longer valid. Please log in again. '
+                'Your score remains saved on this device.';
+            break;
+          case 403:
+            errorMessage = 'This score could not be submitted. '
+                '${backendMessage ?? "You do not currently have permission to submit it. Please contact support if this continues."} '
+                'Your score remains saved on this device.';
+            break;
+          case 404:
+            errorMessage =
+                'The requested module could not be found or is unavailable. '
+                'Your score remains saved on this device. Please contact support if this continues.';
+            break;
+          default:
+            errorMessage =
+                '${backendMessage ?? "Failed to submit score. Please try again."} '
+                'Your score remains saved on this device.';
         }
 
         if (context.mounted) {
@@ -233,7 +259,9 @@ class _SubmitCreditsState extends State<SubmitCredits> {
         debugPrint('Score submitted; subsequent operation failed: $e');
       } else if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('An error occurred. Please try again.')),
+          const SnackBar(
+              content: Text(
+                  'The submission could not be confirmed. Your score remains saved on this device. Check your connection before trying again.')),
         );
       }
     } finally {
