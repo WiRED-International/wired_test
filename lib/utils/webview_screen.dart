@@ -1,3 +1,4 @@
+import '../models/quiz_result_validation.dart';
 import 'package:provider/provider.dart';
 import '../services/pending_quiz_score_repository.dart';
 import 'dart:convert';
@@ -134,32 +135,9 @@ class _WebViewScreenState extends State<WebViewScreen> {
                     print("📥 saveCmeScore handler triggered: $args");
 
                     try {
-                      if (args.isEmpty) {
-                        print("❌ No score data received.");
-                        return;
-                      }
-
-                      final data = Map<String, dynamic>.from(args.first as Map);
-
-                      final String moduleId =
-                          data["module_id"]?.toString() ?? "unknown";
-                      final String moduleName =
-                          data["module_name"]?.toString() ?? "Unknown Module";
-                      final double score = double.tryParse(
-                              data["quiz_score"]?.toString() ?? "0") ??
-                          0.0;
-
-                      print("💾 Saving score from Compiler Module:");
-                      print("🔹 ID: $moduleId");
-                      print("🔹 Name: $moduleName");
-                      print("🔹 Score: $score");
-
-                      // 🔥 Reuse your EXISTING storage function (no duplicate logic)
-                      final saved = await _storeScoreInSecureStorage({
-                        "module_id": moduleId,
-                        "module_name": moduleName,
-                        "quiz_score": score,
-                      });
+                      final saved = await _storeScoreInSecureStorage(
+                        args.isEmpty ? null : args.first,
+                      );
 
                       if (saved) print("✅ Compiler score saved successfully");
                     } catch (e) {
@@ -335,23 +313,10 @@ class _WebViewScreenState extends State<WebViewScreen> {
                     print("🔹 ModuleName: ${jsonData['module_name']}");
                     print("🔹 Quiz Score: ${jsonData['quiz_score']}");
 
-                    // If module_id is missing, retrieve it from WebView
-                    if (!jsonData.containsKey("module_id") ||
-                        jsonData["module_id"] == null) {
-                      print(
-                          "⚠️ Module ID missing in Storyline data! Attempting retrieval...");
-
-                      // Retrieve moduleId from WebView
-                      String? injectedModuleId = await _webViewController
-                          .evaluateJavascript(source: "window.moduleId;");
-                      if (injectedModuleId != null &&
-                          injectedModuleId.isNotEmpty) {
-                        jsonData["module_id"] = injectedModuleId;
-                        print(
-                            "✅ Injected missing module ID: $injectedModuleId");
-                      } else {
-                        print("❌ Failed to retrieve module ID from WebView!");
-                      }
+                    if (validQuizModuleId(jsonData['module_id']) == null ||
+                        validQuizScore(jsonData['quiz_score']) == null) {
+                      await _storeScoreInSecureStorage(jsonData);
+                      return;
                     }
 
                     // If module_name is missing, retrieve it from WebView
@@ -491,11 +456,12 @@ class _WebViewScreenState extends State<WebViewScreen> {
         throw const FormatException('Invalid quiz result');
       }
 
-      final String moduleId = data["module_id"]?.toString() ?? "unknown";
-      final String moduleName =
-          data["module_name"]?.toString() ?? "Unknown Module";
-      final double score =
-          double.tryParse(data["quiz_score"]?.toString() ?? "0") ?? 0.0;
+      final moduleId = validQuizModuleId(data['module_id']);
+      final score = validQuizScore(data['quiz_score']);
+      if (moduleId == null || score == null) {
+        throw const FormatException('Invalid quiz score or module identifier');
+      }
+      final moduleName = data['module_name']?.toString() ?? 'Unknown Module';
 
       await _pendingScores.save(
         moduleId: moduleId,

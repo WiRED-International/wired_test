@@ -1,3 +1,4 @@
+import '../../models/quiz_result_validation.dart';
 import '../../services/pending_quiz_score_repository.dart';
 import 'dart:async';
 import 'dart:convert';
@@ -74,9 +75,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
         storedScores.forEach((moduleId, moduleData) {
           if (moduleData is Map<String, dynamic>) {
             String moduleName = moduleData['module_name'] ?? 'Unknown Module';
-            double parsedScore =
-                double.tryParse(moduleData['score']?.toString() ?? '0.0') ??
-                    0.0;
+            double? parsedScore = validQuizScore(moduleData['score']);
 
             fetchedModules.add(ModuleFile(
               moduleId: moduleId,
@@ -114,9 +113,12 @@ class _SubmitCreditsState extends State<SubmitCredits> {
         _submittedIds.contains(id)) {
       return;
     }
-    if (moduleFile.score == null || moduleFile.score == 0.0) {
+    final score = validQuizScore(moduleFile.score);
+    if (score == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No score available to submit.')),
+        const SnackBar(
+            content:
+                Text('A valid score from 0 to 100 is required to submit.')),
       );
       return;
     }
@@ -156,7 +158,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
         },
         body: json.encode({
           'module_id': finalId,
-          'score': moduleFile.score ?? 0.0,
+          'score': score,
           'date_taken': DateTime.now().toIso8601String(),
         }),
       );

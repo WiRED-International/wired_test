@@ -295,4 +295,35 @@ void main() {
       });
     }
   }
+  for (final score in [0, 0.5, 50, 100]) {
+    testWidgets('submits valid score $score without changing the API contract',
+        (tester) async {
+      storage['pending_quiz_scores'] = jsonEncode({
+        '1234': {'module_name': 'Test lesson', 'score': score}
+      });
+      awards = CmeAwardProvider(
+          readToken: () async => 'A',
+          clientFactory: () => MockClient(
+              (_) async => http.Response('{"credited_module_ids":[]}', 200)))
+        ..syncAuthToken('A');
+      var posts = 0;
+      await http.runWithClient(() async {
+        await mount(tester, expectScore: false);
+        await tester.ensureVisible(find.text('Submit'));
+        await tester.runAsync(() => tester.tap(find.text('Submit')));
+        await waitUntil(
+            tester, () => find.text('Success').evaluate().isNotEmpty);
+        expect(posts, 1);
+        expect(storage.containsKey('pending_quiz_scores'), isFalse);
+      },
+          () => MockClient((request) async {
+                final body = jsonDecode(request.body) as Map;
+                expect(body.keys.toSet(), {'module_id', 'score', 'date_taken'});
+                expect(body['score'], score);
+                posts++;
+                return http.Response('{"passed":false,"credits_awarded":0}',
+                    score == 0 ? 200 : 201);
+              }));
+    });
+  }
 }
