@@ -33,9 +33,11 @@ void main() {
   late _Auth auth;
   bool failPendingCleanup = false;
   bool failPendingRead = false;
+  bool failPendingWrite = false;
   setUp(() {
     failPendingCleanup = false;
     failPendingRead = false;
+    failPendingWrite = false;
     dotenv.loadFromString(envString: 'API_BASE_URL=https://example.invalid');
     auth = _Auth();
     storage = {
@@ -54,6 +56,9 @@ void main() {
           }
           return storage[key];
         case 'write':
+          if (failPendingWrite && key == 'pending_quiz_scores') {
+            throw PlatformException(code: 'write');
+          }
           storage[key] = args['value'] as String;
           return null;
         case 'delete':
@@ -432,6 +437,138 @@ void main() {
                 }
                 return http.Response(
                     '{"passed":false,"credits_awarded":0}', 200);
+              }));
+    });
+  }
+  for (final change in [
+    'different score',
+    'same score',
+    'unknown fields',
+    'absent'
+  ]) {
+    testWidgets('acknowledged POST conditionally cleans up: $change',
+        (tester) async {
+      storage['pending_quiz_scores'] = jsonEncode({
+        '1234': {
+          'module_name': 'Test lesson',
+          'score': 95,
+          'date_saved': '2000-01-01',
+          'extra': {
+            'nested': [1]
+          }
+        }
+      });
+      awards = CmeAwardProvider(
+          readToken: () async => 'A',
+          clientFactory: () => MockClient(
+              (_) async => http.Response('{"credited_module_ids":[]}', 200)))
+        ..syncAuthToken('A');
+      final response = Completer<http.Response>();
+      var posts = 0;
+      await http.runWithClient(() async {
+        await mount(tester);
+        await tester.ensureVisible(find.text('Submit'));
+        await tester.runAsync(() => tester.tap(find.text('Submit')));
+        await waitUntil(tester, () => posts == 1);
+        final repository = tester
+            .element(find.byType(SubmitCredits))
+            .read<PendingQuizScoreRepository>();
+        if (change == 'absent') {
+          await repository.remove('1234');
+        } else if (change == 'unknown fields') {
+          final data = jsonDecode(storage['pending_quiz_scores']!) as Map;
+          data['1234']['extra']['nested'][0] = 2;
+          storage['pending_quiz_scores'] = jsonEncode(data);
+        } else {
+          await repository.save(
+              moduleId: '1234',
+              moduleName: 'Test lesson',
+              score: change == 'different score' ? 88 : 95);
+        }
+        final updated = storage['pending_quiz_scores'];
+        response.complete(http.Response('{}', 200));
+        await waitUntil(
+            tester, () => find.text('Success').evaluate().isNotEmpty);
+        expect(
+            find.textContaining('Local cleanup was incomplete'), findsNothing);
+        expect(storage['pending_quiz_scores'], updated);
+        if (change != 'absent') {
+          expect(find.textContaining('A newer saved result was kept'),
+              findsOneWidget);
+          Navigator.of(tester.element(find.text('Success'))).pop();
+          await waitUntil(
+              tester,
+              () =>
+                  find.text('Submit').evaluate().isNotEmpty &&
+                  find.byType(CircularProgressIndicator).evaluate().isEmpty);
+          await tester.pump(const Duration(milliseconds: 300));
+          await tester.ensureVisible(find.text('Submit'));
+          await tester.runAsync(() => tester.tap(find.text('Submit')));
+          await waitUntil(
+              tester, () => find.text('Success').evaluate().isNotEmpty);
+          expect(posts, 2);
+          expect(storage.containsKey('pending_quiz_scores'), isFalse);
+        }
+      },
+          () => MockClient((_) async =>
+              ++posts == 1 ? await response.future : http.Response('{}', 201)));
+    });
+  }
+  testWidgets(
+      'legacy nine-digit key uses four-digit POST but original-key cleanup',
+      (tester) async {
+    storage['pending_quiz_scores'] = jsonEncode({
+      '123456789': {'module_name': 'Test lesson', 'score': 95},
+      '5678': {'module_name': 'Z other lesson', 'score': 88},
+    });
+    awards = CmeAwardProvider(
+        readToken: () async => 'A',
+        clientFactory: () => MockClient(
+            (_) async => http.Response('{"credited_module_ids":[]}', 200)))
+      ..syncAuthToken('A');
+    await http.runWithClient(() async {
+      await mount(tester);
+      await tester.ensureVisible(find.text('Submit').first);
+      await tester.runAsync(() => tester.tap(find.text('Submit').first));
+      await waitUntil(tester, () => find.text('Success').evaluate().isNotEmpty);
+      expect(
+          (jsonDecode(storage['pending_quiz_scores']!) as Map).keys, ['5678']);
+    },
+        () => MockClient((request) async {
+              expect(jsonDecode(request.body)['module_id'], '6789');
+              return http.Response('{"quizScore":{"module_id":42}}', 201);
+            }));
+  });
+  for (final failure in ['read', 'write']) {
+    testWidgets(
+        'accepted POST remains successful after conditional cleanup $failure failure',
+        (tester) async {
+      storage['pending_quiz_scores'] = jsonEncode({
+        '1234': {'module_name': 'Test lesson', 'score': 95},
+        '5678': {'module_name': 'Z other lesson', 'score': 88},
+      });
+      final before = storage['pending_quiz_scores'];
+      awards = CmeAwardProvider(
+          readToken: () async => 'A',
+          clientFactory: () => MockClient(
+              (_) async => http.Response('{"credited_module_ids":[]}', 200)))
+        ..syncAuthToken('A');
+      await http.runWithClient(() async {
+        await mount(tester);
+        await tester.ensureVisible(find.text('Submit').first);
+        await tester.runAsync(() => tester.tap(find.text('Submit').first));
+        await waitUntil(
+            tester, () => find.text('Success').evaluate().isNotEmpty);
+        expect(find.textContaining('Local cleanup was incomplete'),
+            findsOneWidget);
+        expect(find.textContaining('submission could not be confirmed'),
+            findsNothing);
+        expect(storage['pending_quiz_scores'], before);
+      },
+          () => MockClient((_) async {
+                failPendingRead = failure == 'read';
+                failPendingWrite = failure == 'write';
+                return http.Response('{}', 201);
               }));
     });
   }

@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+enum PendingScoreRemovalOutcome { removed, alreadyAbsent, changed }
+
 /// One application-scoped instance owns all pending-score storage operations.
 /// The queue covers local reads and mutations only, never network requests.
 class PendingQuizScoreRepository {
@@ -55,6 +57,46 @@ class PendingQuizScoreRepository {
 
   Future<Map<String, dynamic>> readAll() => _serialize(_readMap);
 
+  /// Compare and remove in the same queue operation. Snapshot before queueing
+  /// so later caller mutations cannot change which entry was acknowledged.
+  Future<PendingScoreRemovalOutcome> removeIfUnchanged(
+      String moduleId, Map<String, dynamic> submittedEntry) {
+    final snapshot = jsonDecode(jsonEncode(submittedEntry));
+    return _serialize(() async {
+      final scores = await _readMap();
+      if (!scores.containsKey(moduleId)) {
+        return PendingScoreRemovalOutcome.alreadyAbsent;
+      }
+      if (!_structurallyEqual(scores[moduleId], snapshot)) {
+        return PendingScoreRemovalOutcome.changed;
+      }
+      scores.remove(moduleId);
+      if (scores.isEmpty) {
+        await _delete();
+      } else {
+        await _write(jsonEncode(scores));
+      }
+      return PendingScoreRemovalOutcome.removed;
+    });
+  }
+
+  static bool _structurallyEqual(dynamic left, dynamic right) {
+    if (left is Map && right is Map) {
+      return left.length == right.length &&
+          left.keys.every((key) =>
+              right.containsKey(key) &&
+              _structurallyEqual(left[key], right[key]));
+    }
+    if (left is List && right is List) {
+      if (left.length != right.length) return false;
+      for (var i = 0; i < left.length; i++) {
+        if (!_structurallyEqual(left[i], right[i])) return false;
+      }
+      return true;
+    }
+    return left == right;
+  }
+
   Future<void> save({
     required String moduleId,
     required String moduleName,
@@ -74,7 +116,7 @@ class PendingQuizScoreRepository {
         await _write(jsonEncode(scores));
       });
 
-  /// Stage 1 preserves unconditional same-module removal semantics.
+  /// Unconditional removal for an explicit user-requested deletion.
   Future<void> remove(String moduleId) => _serialize(() async {
         final scores = await _readMap();
         if (!scores.containsKey(moduleId)) return;

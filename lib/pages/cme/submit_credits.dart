@@ -35,6 +35,7 @@ class ModuleFile {
   final String moduleName;
   final String? moduleId;
   final double? score;
+  final Map<String, dynamic> pendingEntry;
 
   ModuleFile({
     this.file,
@@ -42,7 +43,9 @@ class ModuleFile {
     required this.moduleName,
     this.moduleId,
     this.score,
-  });
+    required Map<String, dynamic> pendingEntry,
+  }) : pendingEntry = Map.unmodifiable(
+            jsonDecode(jsonEncode(pendingEntry)) as Map<String, dynamic>);
 }
 
 enum DisplayType { modules, resources }
@@ -63,7 +66,15 @@ class _SubmitCreditsState extends State<SubmitCredits> {
   void initState() {
     super.initState();
     _pendingScores = context.read<PendingQuizScoreRepository>();
-    futureModules = _fetchModulesFromSecureStorage();
+    futureModules = _loadPendingScores();
+  }
+
+  Future<List<ModuleFile>> _loadPendingScores() {
+    final load = _fetchModulesFromSecureStorage();
+    // A fast refresh failure can precede the next FutureBuilder build. Observe
+    // it immediately; FutureBuilder still receives this same failed future.
+    load.ignore();
+    return load;
   }
 
   Future<List<ModuleFile>> _fetchModulesFromSecureStorage() async {
@@ -81,6 +92,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
               moduleId: moduleId,
               moduleName: moduleName,
               score: parsedScore,
+              pendingEntry: moduleData,
             ));
           }
         });
@@ -136,6 +148,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
     }
 
     _submittingIds.add(id);
+    var submissionAccepted = false;
     try {
       final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
       final apiEndpoint = '/quiz-scores';
@@ -167,8 +180,15 @@ class _SubmitCreditsState extends State<SubmitCredits> {
       );
 
       if (response.statusCode == 201 || response.statusCode == 200) {
+        submissionAccepted = true;
         _submittedIds.add(id); // Preserve confirmed success through navigation.
-        final cleanupComplete = await deleteStoredScore(id);
+        final cleanupOutcome =
+            await _cleanupSubmittedScore(id, moduleFile.pendingEntry);
+        final cleanupComplete = cleanupOutcome != null;
+        if (cleanupOutcome == PendingScoreRemovalOutcome.changed) {
+          _submittedIds
+              .remove(id); // The preserved result has not been submitted.
+        }
         unawaited(cmeAwardProvider.fetchAwardedModules(forceRefresh: true));
         if (!context.mounted) return;
 
@@ -177,7 +197,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
 
         // Refresh the module list after deletion
         setState(() {
-          futureModules = _fetchModulesFromSecureStorage();
+          futureModules = _loadPendingScores();
         });
 
         showDialog(
@@ -187,7 +207,9 @@ class _SubmitCreditsState extends State<SubmitCredits> {
             return AlertDialog(
               title: Text('Success'),
               content: Text(cleanupComplete
-                  ? 'Your score has been submitted successfully!'
+                  ? (cleanupOutcome == PendingScoreRemovalOutcome.changed
+                      ? 'Your score has been submitted successfully! A newer saved result was kept and remains available to submit.'
+                      : 'Your score has been submitted successfully!')
                   : 'Your score has been submitted successfully! Local cleanup was incomplete. '
                       'The saved copy may still appear. Do not submit it again.'),
               actions: [
@@ -255,7 +277,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
         }
       }
     } catch (e) {
-      if (_submittedIds.contains(id)) {
+      if (submissionAccepted) {
         debugPrint('Score submitted; subsequent operation failed: $e');
       } else if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -271,7 +293,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
 
   void _retryLoad() {
     setState(() {
-      futureModules = _fetchModulesFromSecureStorage();
+      futureModules = _loadPendingScores();
     });
   }
 
@@ -314,7 +336,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
 
                 // 🔁 Force FutureBuilder + UI to rebuild
                 setState(() {
-                  futureModules = _fetchModulesFromSecureStorage();
+                  futureModules = _loadPendingScores();
                 });
               },
               child: Text("Yes, delete"),
@@ -323,6 +345,16 @@ class _SubmitCreditsState extends State<SubmitCredits> {
         );
       },
     );
+  }
+
+  Future<PendingScoreRemovalOutcome?> _cleanupSubmittedScore(
+      String moduleId, Map<String, dynamic> submittedEntry) async {
+    try {
+      return await _pendingScores.removeIfUnchanged(moduleId, submittedEntry);
+    } catch (error) {
+      debugPrint('Score submitted; local cleanup failed: $error');
+      return null;
+    }
   }
 
   Future<bool> deleteStoredScore(String moduleId) async {

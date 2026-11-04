@@ -146,4 +146,95 @@ void main() {
     await next;
     expect((jsonDecode(raw!) as Map).keys, ['B']);
   });
+  test(
+      'conditional cleanup removes structurally equal legacy entry and preserves others',
+      () async {
+    raw =
+        '{"A":{"score":80,"extra":{"b":[1,{"x":true}],"a":null}},"B":{"score":90}}';
+    final expected = {
+      'extra': {
+        'a': null,
+        'b': [
+          1,
+          {'x': true}
+        ]
+      },
+      'score': 80
+    };
+    expect(await repository.removeIfUnchanged('A', expected),
+        PendingScoreRemovalOutcome.removed);
+    expect((await repository.readAll()).keys, ['B']);
+    expect(await repository.removeIfUnchanged('A', expected),
+        PendingScoreRemovalOutcome.alreadyAbsent);
+  });
+  for (final changed in [
+    {'score': 90, 'date_saved': 'old'},
+    {'score': 80, 'date_saved': 'new'},
+    {
+      'score': 80,
+      'date_saved': 'old',
+      'extra': {
+        'nested': [2]
+      }
+    },
+  ]) {
+    test('conditional cleanup preserves changed entry $changed', () async {
+      final expected = {
+        'score': 80,
+        'date_saved': 'old',
+        'extra': {
+          'nested': [1]
+        }
+      };
+      raw = jsonEncode({
+        'A': changed,
+        'B': {'score': 50}
+      });
+      final before = raw;
+      expect(await repository.removeIfUnchanged('A', expected),
+          PendingScoreRemovalOutcome.changed);
+      expect(raw, before);
+      expect(mutations, 0);
+    });
+  }
+  test('conditional snapshot is detached when queued behind another operation',
+      () async {
+    final blockedRead = Completer<String?>();
+    var reads = 0;
+    raw = '{"A":{"score":80,"extra":[1]}}';
+    repository = PendingQuizScoreRepository(
+      read: () => ++reads == 1 ? blockedRead.future : Future.value(raw),
+      delete: () async {
+        raw = null;
+      },
+    );
+    final first = repository.readAll();
+    final expected = {
+      'score': 80,
+      'extra': [1]
+    };
+    final cleanup = repository.removeIfUnchanged('A', expected);
+    (expected['extra'] as List)[0] = 2;
+    blockedRead.complete(raw);
+    await first;
+    expect(await cleanup, PendingScoreRemovalOutcome.removed);
+    expect(raw, isNull);
+  });
+  for (final operation in ['read', 'write', 'delete']) {
+    test('conditional $operation failure propagates and permits recovery',
+        () async {
+      raw = jsonEncode({
+        'A': {'score': 80},
+        if (operation == 'write') 'B': {'score': 90}
+      });
+      final before = raw;
+      fail = operation;
+      await expectLater(
+          repository.removeIfUnchanged('A', {'score': 80}), throwsStateError);
+      expect(raw, before);
+      fail = null;
+      expect(await repository.removeIfUnchanged('A', {'score': 80}),
+          PendingScoreRemovalOutcome.removed);
+    });
+  }
 }
