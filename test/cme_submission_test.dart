@@ -1,3 +1,4 @@
+import 'package:wired_test/services/pending_quiz_score_repository.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -30,8 +31,10 @@ void main() {
   late CmeAwardProvider awards;
   late _Auth auth;
   bool failPendingCleanup = false;
+  bool failPendingRead = false;
   setUp(() {
     failPendingCleanup = false;
+    failPendingRead = false;
     dotenv.loadFromString(envString: 'API_BASE_URL=https://example.invalid');
     auth = _Auth();
     storage = {
@@ -45,6 +48,9 @@ void main() {
       final key = args['key'] as String;
       switch (call.method) {
         case 'read':
+          if (failPendingRead && key == 'pending_quiz_scores') {
+            throw PlatformException(code: 'read');
+          }
           return storage[key];
         case 'write':
           storage[key] = args['value'] as String;
@@ -66,13 +72,15 @@ void main() {
     messenger.setMockMethodCallHandler(channel, null);
   });
 
-  Future<void> mount(WidgetTester tester) async {
-    tester.view.physicalSize = const Size(1000, 1600);
+  Future<void> mount(WidgetTester tester,
+      {bool expectScore = true, Size size = const Size(1000, 1600)}) async {
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(MultiProvider(
         providers: [
+          Provider(create: (_) => PendingQuizScoreRepository()),
           ChangeNotifierProvider<AuthProvider>.value(value: auth),
           ChangeNotifierProvider<CmeAwardProvider>.value(value: awards),
         ],
@@ -83,7 +91,7 @@ void main() {
                 child: child!),
             home: const SubmitCredits())));
     await tester.pumpAndSettle();
-    expect(find.text('95.00'), findsOneWidget);
+    if (expectScore) expect(find.text('95.00'), findsOneWidget);
   }
 
   Future<void> waitUntil(WidgetTester tester, bool Function() done) async {
@@ -244,6 +252,8 @@ void main() {
       await waitUntil(tester, () => find.text('Success').evaluate().isNotEmpty);
       await waitUntil(tester, () => !awards.isLoading);
       expect(posts, 1);
+      expect(
+          find.textContaining('Local cleanup was incomplete'), findsOneWidget);
       expect(storage.containsKey('pending_quiz_scores'), isTrue);
       expect(find.text('An error occurred. Please try again.'), findsNothing);
       expect(tester.takeException(), isNull);
@@ -253,4 +263,36 @@ void main() {
               return http.Response('{}', 201);
             }));
   });
+  for (final size in [const Size(1000, 1600), const Size(1600, 1000)]) {
+    for (final malformed in [false, true]) {
+      testWidgets('load failure shows Retry and recovers: $malformed at $size',
+          (tester) async {
+        awards = CmeAwardProvider()..syncAuthToken('A');
+        if (malformed) {
+          storage['pending_quiz_scores'] = '{"1234":{"score":95},"broken":42}';
+        } else {
+          failPendingRead = true;
+        }
+        final original = storage['pending_quiz_scores'];
+        await mount(tester, expectScore: false, size: size);
+        expect(find.textContaining('Saved scores could not be loaded'),
+            findsOneWidget);
+        expect(find.text('Retry'), findsOneWidget);
+        expect(find.textContaining('No saved scores yet.'), findsNothing);
+        expect(storage['pending_quiz_scores'], original);
+        failPendingRead = false;
+        if (malformed) {
+          // Simulate external repair; the UI itself must not reset the data.
+          storage['pending_quiz_scores'] = jsonEncode({
+            '1234': {'score': 95, 'module_name': 'Test lesson'}
+          });
+        }
+        await tester.tap(find.text('Retry'));
+        await tester.pumpAndSettle();
+        expect(find.text('95.00'), findsOneWidget);
+        expect(find.text('Retry'), findsNothing);
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
 }

@@ -1,3 +1,4 @@
+import 'services/pending_quiz_score_repository.dart';
 import 'services/animation_installation_coordinator.dart';
 import 'services/animation_preparation_service.dart';
 import 'services/animation_storage_service.dart';
@@ -67,6 +68,7 @@ Future<void> main() async {
                 )),
         Provider(create: (_) => AnimationStorageService()),
         Provider(create: (_) => LocationService()),
+        Provider(create: (_) => PendingQuizScoreRepository()),
         // 🔐 Authentication
         ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
 

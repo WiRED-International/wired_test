@@ -1,3 +1,4 @@
+import '../../services/pending_quiz_score_repository.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -53,36 +54,21 @@ class _SubmitCreditsState extends State<SubmitCredits> {
   DisplayType selectedType =
       DisplayType.modules; // To track whether Modules or Resources are selected
   final secureStorage = const FlutterSecureStorage();
+  late final PendingQuizScoreRepository _pendingScores;
   final _submittingIds = <String>{};
   final _submittedIds = <String>{};
 
   @override
   void initState() {
     super.initState();
+    _pendingScores = context.read<PendingQuizScoreRepository>();
     futureModules = _fetchModulesFromSecureStorage();
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _refreshModules(); // Re-read SecureStorage each time page becomes active
-  }
-
   Future<List<ModuleFile>> _fetchModulesFromSecureStorage() async {
-    final FlutterSecureStorage secureStorage = const FlutterSecureStorage();
     try {
-      // 🧩 Optional debugging: check what's stored
-      String? pendingScoresJson =
-          await secureStorage.read(key: "pending_quiz_scores");
-
-      print(
-          "🗂 pending_quiz_scores: ${pendingScoresJson != null ? 'Exists' : 'None'}");
-      // Retrieve stored modules from secure storage
-      String? storedScoresJson =
-          await secureStorage.read(key: "pending_quiz_scores");
-
-      if (storedScoresJson != null) {
-        Map<String, dynamic> storedScores = jsonDecode(storedScoresJson);
+      final storedScores = await _pendingScores.readAll();
+      if (storedScores.isNotEmpty) {
         List<ModuleFile> fetchedModules = [];
 
         storedScores.forEach((moduleId, moduleData) {
@@ -116,7 +102,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
       }
     } catch (e) {
       print("❌ Error fetching modules from Secure Storage: $e");
-      return [];
+      rethrow;
     }
   }
 
@@ -177,23 +163,17 @@ class _SubmitCreditsState extends State<SubmitCredits> {
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         _submittedIds.add(id); // Preserve confirmed success through navigation.
-        await deleteStoredScore(id);
+        final cleanupComplete = await deleteStoredScore(id);
         unawaited(cmeAwardProvider.fetchAwardedModules(forceRefresh: true));
         if (!context.mounted) return;
 
         print(
-            "✅ Successfully submitted and removed ${moduleFile.moduleName} from local storage.");
+            "✅ Submission confirmed for ${moduleFile.moduleName}; local cleanup complete: $cleanupComplete.");
 
         // Refresh the module list after deletion
-        final updatedModules = await _fetchModulesFromSecureStorage();
-        if (!context.mounted) return;
         setState(() {
-          modules = updatedModules;
-          futureModules = Future.value(updatedModules);
+          futureModules = _fetchModulesFromSecureStorage();
         });
-
-        print(
-            "✅ Successfully submitted and removed ${moduleFile.moduleName} from local storage.");
 
         showDialog(
           context: context,
@@ -201,7 +181,10 @@ class _SubmitCreditsState extends State<SubmitCredits> {
           builder: (BuildContext context) {
             return AlertDialog(
               title: Text('Success'),
-              content: Text('Your score has been submitted successfully!'),
+              content: Text(cleanupComplete
+                  ? 'Your score has been submitted successfully!'
+                  : 'Your score has been submitted successfully! Local cleanup was incomplete. '
+                      'The saved copy may still appear. Do not submit it again.'),
               actions: [
                 TextButton(
                   onPressed: () {
@@ -256,13 +239,20 @@ class _SubmitCreditsState extends State<SubmitCredits> {
     }
   }
 
-  Future<void> _refreshModules() async {
-    final updatedModules = await _fetchModulesFromSecureStorage();
-    if (!mounted) return;
+  void _retryLoad() {
     setState(() {
-      modules = updatedModules;
+      futureModules = _fetchModulesFromSecureStorage();
     });
   }
+
+  Widget _loadError() => Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text(
+              'Saved scores could not be loaded. Please try again. Your saved data has not been reset.',
+              textAlign: TextAlign.center),
+          TextButton(onPressed: _retryLoad, child: const Text('Retry')),
+        ]),
+      );
 
   void _showDeleteConfirmation(String fileName, String moduleId) {
     showDialog(
@@ -283,7 +273,14 @@ class _SubmitCreditsState extends State<SubmitCredits> {
               onPressed: () async {
                 Navigator.of(context).pop(); // Close the modal
 
-                await deleteStoredScore(moduleId);
+                final removed = await deleteStoredScore(moduleId);
+                if (!context.mounted) return;
+                if (!removed) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text(
+                        'The saved score could not be removed. Please try again.'),
+                  ));
+                }
 
                 // 🔁 Force FutureBuilder + UI to rebuild
                 setState(() {
@@ -298,39 +295,13 @@ class _SubmitCreditsState extends State<SubmitCredits> {
     );
   }
 
-  Future<void> deleteStoredScore(String moduleId) async {
+  Future<bool> deleteStoredScore(String moduleId) async {
     try {
-      const FlutterSecureStorage secureStorage = FlutterSecureStorage();
-
-      String? storedScoresJson =
-          await secureStorage.read(key: "pending_quiz_scores");
-
-      if (storedScoresJson != null && storedScoresJson.isNotEmpty) {
-        Map<String, dynamic> storedScores = jsonDecode(storedScoresJson);
-
-        if (storedScores.containsKey(moduleId)) {
-          storedScores.remove(moduleId);
-          print("🧹 Removing module ID $moduleId from SecureStorage...");
-
-          if (storedScores.isEmpty) {
-            await secureStorage.delete(key: "pending_quiz_scores");
-            print(
-                "✅ All module scores deleted. Cleared quiz_scores key completely.");
-          } else {
-            await secureStorage.write(
-              key: "pending_quiz_scores",
-              value: jsonEncode(storedScores),
-            );
-            print("✅ Module score deleted successfully for ID: $moduleId");
-          }
-        } else {
-          print("ℹ️ Module ID $moduleId not found in SecureStorage.");
-        }
-      } else {
-        print("ℹ️ No stored modules found in SecureStorage.");
-      }
+      await _pendingScores.remove(moduleId);
+      return true;
     } catch (e) {
       print("❌ Error deleting module score from SecureStorage: $e");
+      return false;
     }
   }
 
@@ -498,7 +469,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               } else if (snapshot.hasError) {
-                return const Center(child: Text("Error loading modules"));
+                return _loadError();
               } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
                 return Center(
                   child: Padding(
@@ -683,7 +654,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
                     } else if (snapshot.hasError) {
-                      return const Center(child: Text('Error loading modules'));
+                      return _loadError();
                     } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
                       return Center(
                         child: Padding(
