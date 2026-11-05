@@ -1,12 +1,13 @@
 import 'dart:async';
-import 'dart:io';
-import 'dart:isolate';
 
-import 'package:archive/archive.dart';
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
 
 import '../../providers/auth_guard.dart';
+import '../../services/animation_preparation_service.dart';
+import '../../services/animation_installation_coordinator.dart';
+import '../../services/animation_installation_inspection_service.dart';
+import '../../services/animation_storage_service.dart';
 import '../../services/location_service.dart';
 import '../../utils/app_layout.dart';
 import '../../utils/custom_app_bar.dart';
@@ -50,182 +51,224 @@ class _AnimationInfoState extends State<AnimationInfo> {
   String _phase = '';
   String? _error;
 
-  void _open(Widget page) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  AnimationPreparationCancellation? _cancellation;
+  Future<void>? _operation;
+  bool _navigating = false;
+
+  Future<void> _open(Widget page) async {
+    if (_navigating) return;
+    _navigating = true;
+    try {
+      _cancel();
+      await _operation;
+      if (!mounted) return;
+      await Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+    } finally {
+      _navigating = false;
+    }
+  }
+
+  Future<void> _back() async {
+    if (_navigating) return;
+    _navigating = true;
+    _cancel();
+    await _operation;
+    if (mounted && Navigator.canPop(context)) Navigator.pop(context);
+    _navigating = false;
   }
 
   Future<void> _openMenu() async {
     final loggedIn = await checkIfUserIsLoggedIn();
     if (!mounted) return;
-    _open(loggedIn ? Menu() : GuestMenu());
+    await _open(loggedIn ? Menu() : GuestMenu());
   }
 
-  void _setProgress(String phase, double? progress) {
-    if (!mounted) return;
+  void _cancel() {
+    if (!_busy || _cancellation == null) return;
+    _cancellation!.cancel();
+    if (mounted) {
+      setState(() {
+        _phase = 'Cancelling...';
+        _progress = null;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    // The async owner continues to await publication and cleanup after disposal.
+    _cancellation?.cancel();
+    super.dispose();
+  }
+
+  void _onProgress(AnimationPreparationProgress progress) {
+    if (!mounted || (_cancellation?.isRequested ?? false)) return;
     setState(() {
-      _phase = phase;
-      _progress = progress?.clamp(0.0, 1.0);
+      _phase = switch (progress.phase) {
+        AnimationPreparationPhase.inspectingDestination =>
+          'Checking installation',
+        AnimationPreparationPhase.creatingWorkspace => 'Preparing download',
+        AnimationPreparationPhase.downloading => 'Downloading animation',
+        AnimationPreparationPhase.inspectingZip => 'Inspecting archive',
+        AnimationPreparationPhase.verifyingZip => 'Verifying archive',
+        AnimationPreparationPhase.extracting => 'Extracting animation',
+        AnimationPreparationPhase.verifyingStaged => 'Verifying animation',
+        AnimationPreparationPhase.prepared => 'Ready to install',
+        AnimationPreparationPhase.publishing => 'Installing animation',
+        AnimationPreparationPhase.cleaningUp => 'Cleaning up',
+      };
+      _progress = progress.phase == AnimationPreparationPhase.downloading
+          ? progress.download?.fraction
+          : null;
     });
   }
 
-  Future<String> _storagePath() async {
-    Directory? base;
-    try {
-      base = await getExternalStorageDirectory();
-    } catch (_) {
-      // Use the internal application documents directory instead.
-    }
-    base ??= await getApplicationDocumentsDirectory();
-    final directory = Directory('${base.path}/modules');
-    await directory.create(recursive: true);
-    return directory.path;
-  }
-
-  Future<void> _download() async {
+  void _download() {
     if (_busy || _completed) return;
+    if (widget.animationId <= 0) {
+      setState(() => _error = 'A valid animation ID is not available.');
+      return;
+    }
     final uri = Uri.tryParse(widget.downloadLink);
-    if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty ||
+        uri.hasFragment) {
       setState(() => _error = 'A valid HTTPS download link is not available.');
       return;
     }
-
+    final installer = context.read<AnimationPreparationService>();
+    final storage = context.read<AnimationStorageService>();
+    final statistics = context.read<LocationService>();
+    final cancellation = _cancellation = AnimationPreparationCancellation();
     setState(() {
       _busy = true;
       _error = null;
       _phase = 'Preparing download';
       _progress = null;
     });
+    _operation = _install(installer, storage, statistics, uri, cancellation);
+  }
 
-    File? zipFile;
-    HttpClient? client;
+  Future<void> _install(
+    AnimationPreparationService installer,
+    AnimationStorageService storage,
+    LocationService statistics,
+    Uri uri,
+    AnimationPreparationCancellation cancellation,
+  ) async {
+    var published = false;
     try {
-      final path = await _storagePath();
-      // Temporary archive name is independent of the animation's display name.
-      zipFile = File('$path/.animation_${widget.animationId}_${DateTime.now().microsecondsSinceEpoch}.zip');
-      client = HttpClient()..connectionTimeout = const Duration(seconds: 30);
-      final request = await client.getUrl(uri).timeout(const Duration(seconds: 30));
-      final response = await request.close().timeout(const Duration(seconds: 30));
-      if (response.statusCode != HttpStatus.ok) {
-        throw HttpException('HTTP ${response.statusCode}', uri: uri);
-      }
-
-      var received = 0;
-      final total = response.contentLength;
-      final sink = zipFile.openWrite();
-      try {
-        await for (final chunk in response.timeout(const Duration(seconds: 45))) {
-          sink.add(chunk);
-          received += chunk.length;
-          _setProgress('Downloading animation', total > 0 ? received / total : null);
-        }
-        await sink.flush();
-      } finally {
-        await sink.close();
-      }
-      if (total >= 0 && received != total) {
-        throw const FormatException('The download was incomplete.');
-      }
-
-      _setProgress('Extracting animation', 0);
-      final port = ReceivePort();
-      try {
-        await Isolate.spawn(_extractAnimationArchive, {
-          'zipPath': zipFile.path,
-          'outputDir': path,
-          'sendPort': port.sendPort,
+      final root = await storage.getCanonicalRoot();
+      await installer.withPrepared<PublishedAnimation>(
+        animationId: widget.animationId,
+        canonicalRoot: root,
+        downloadUri: uri,
+        cancellation: cancellation,
+        onProgress: _onProgress,
+        use: (prepared) async => await prepared.publish(),
+      );
+      published = true;
+      if (mounted) {
+        setState(() {
+          _completed = true;
+          _error = null;
         });
-        await for (final message in port) {
-          if (message is double) {
-            _setProgress('Extracting animation', message);
-          } else if (message == 'done') {
-            break;
-          } else if (message is String && message.startsWith('error:')) {
-            throw FormatException(message.substring(6));
-          }
-        }
-      } finally {
-        port.close();
       }
-
-      // A completed extraction is not sufficient: My Library needs an MP4.
-      final installedVideos = await Directory(path)
-          .list(recursive: true, followLinks: false)
-          .where((entity) => entity is File && entity.path.toLowerCase().endsWith('.mp4'))
-          .cast<File>()
-          .toList();
-      var hasPlayableFile = false;
-      for (final video in installedVideos) {
-        if (await video.length() > 0) {
-          hasPlayableFile = true;
-          break;
-        }
+    } on AnimationPublicationCommittedException catch (error) {
+      published = true;
+      debugPrint('Animation installed with subsequent error: $error');
+      if (mounted) {
+        setState(() {
+          _completed = true;
+          _error =
+              'Animation installed, but a follow-up operation could not finish.';
+        });
       }
-      if (!hasPlayableFile) {
-        throw const FormatException('The ZIP did not install a playable MP4 animation.');
+    } on AnimationPreparationDestinationException catch (error) {
+      if (mounted) {
+        setState(() {
+          _completed = error.status == AnimationInstallationStatus.installed;
+          _error = _completed
+              ? 'This animation is already installed.'
+              : 'Existing content prevents installation. Open My Library to review it.';
+        });
       }
-      if (!mounted) return;
-      setState(() {
-        _completed = true;
-        _phase = 'Download complete';
-        _progress = 1;
-      });
-
-      // Statistics are best-effort and must not turn a successful download
-      // into a failure. This retains the previous animation tracking behavior.
-      try {
-        final locationService = LocationService();
-        final location = await locationService.getLocation(context);
-        await locationService.saveDownload(widget.animationId, location);
-      } catch (error) {
-        debugPrint('Animation download tracking unavailable: $error');
+    } on AnimationInstallationInProgressException {
+      if (mounted) {
+        setState(() => _error = 'This animation is already being installed.');
+      }
+    } on AnimationPreparationCancelled {
+      if (mounted) setState(() => _error = 'Download cancelled.');
+    } on AnimationPreparationCleanupException catch (error) {
+      debugPrint('Animation private cleanup failed: $error');
+      if (mounted) {
+        setState(() => _error =
+            'Installation did not finish and temporary files could not be cleaned up.');
       }
     } catch (error) {
       debugPrint('Animation download failed: $error');
       if (mounted) {
+        setState(() =>
+            _error = 'Download could not be completed. Please try again.');
+      }
+    } finally {
+      _cancellation = null;
+      if (mounted) {
         setState(() {
-          _error = 'Download could not be completed. Please try again.';
-          _phase = '';
+          _busy = false;
           _progress = null;
         });
       }
-    } finally {
-      client?.close(force: true);
-      if (zipFile != null) {
-        try {
-          if (await zipFile.exists()) await zipFile.delete();
-        } catch (_) {}
-      }
-      if (mounted) setState(() => _busy = false);
+    }
+    if (published) unawaited(_recordDownload(statistics));
+  }
+
+  Future<void> _recordDownload(LocationService statistics) async {
+    // Tracking cannot hold navigation or change the installed result. Avoid
+    // permission dialogs whose page context could be disposed while awaiting.
+    try {
+      await statistics.saveDownload(widget.animationId, null);
+    } catch (error) {
+      debugPrint('Animation download tracking unavailable: $error');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final landscape = MediaQuery.of(context).orientation == Orientation.landscape;
-    return AppLayout(
-      appBar: CustomAppBar(
-        onBackPressed: () => Navigator.pop(context),
-        requireAuth: false,
-      ),
-      bottomNav: landscape
-          ? null
-          : CustomBottomNavBar(
-        onHomeTap: () => _open(const MyHomePage()),
-        onLibraryTap: () => _open(ModuleLibrary()),
-        onTrackerTap: () => _open(AuthGuard(child: CreditsTracker())),
-        onMenuTap: _openMenu,
-      ),
-      child: landscape
-          ? Row(children: [
-        CustomSideNavBar(
-          onHomeTap: () => _open(const MyHomePage()),
-          onLibraryTap: () => _open(ModuleLibrary()),
-          onTrackerTap: () => _open(AuthGuard(child: CreditsTracker())),
-          onMenuTap: _openMenu,
+    final landscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+    return PopScope(
+      canPop: !_busy,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) _back();
+      },
+      child: AppLayout(
+        appBar: CustomAppBar(
+          onBackPressed: _back,
+          requireAuth: false,
         ),
-        Expanded(child: _content()),
-      ])
-          : _content(),
+        bottomNav: landscape
+            ? null
+            : CustomBottomNavBar(
+                onHomeTap: () => _open(const MyHomePage()),
+                onLibraryTap: () => _open(ModuleLibrary()),
+                onTrackerTap: () => _open(AuthGuard(child: CreditsTracker())),
+                onMenuTap: _openMenu,
+              ),
+        child: landscape
+            ? Row(children: [
+                CustomSideNavBar(
+                  onHomeTap: () => _open(const MyHomePage()),
+                  onLibraryTap: () => _open(ModuleLibrary()),
+                  onTrackerTap: () => _open(AuthGuard(child: CreditsTracker())),
+                  onMenuTap: _openMenu,
+                ),
+                Expanded(child: _content()),
+              ])
+            : _content(),
+      ),
     );
   }
 
@@ -240,7 +283,10 @@ class _AnimationInfoState extends State<AnimationInfo> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text('Animation Details',
-                  style: TextStyle(fontSize: 27, fontWeight: FontWeight.w700, color: _heading)),
+                  style: TextStyle(
+                      fontSize: 27,
+                      fontWeight: FontWeight.w700,
+                      color: _heading)),
               const SizedBox(height: 20),
               Container(
                 padding: const EdgeInsets.all(22),
@@ -253,29 +299,55 @@ class _AnimationInfoState extends State<AnimationInfo> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(widget.animationName,
-                        style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w700, color: _blue)),
+                        style: const TextStyle(
+                            fontSize: 23,
+                            fontWeight: FontWeight.w700,
+                            color: _blue)),
                     const SizedBox(height: 12),
                     const Text('Health Education Animation',
-                        style: TextStyle(fontSize: 14, color: _green, fontWeight: FontWeight.w600)),
+                        style: TextStyle(
+                            fontSize: 14,
+                            color: _green,
+                            fontWeight: FontWeight.w600)),
                     const SizedBox(height: 18),
                     const Divider(),
                     const SizedBox(height: 12),
-                    Text(description.isEmpty
-                        ? 'No description is available for this animation.'
-                        : description,
-                        style: const TextStyle(fontSize: 16, height: 1.55, color: Color(0xFF455D6C))),
+                    Text(
+                        description.isEmpty
+                            ? 'No description is available for this animation.'
+                            : description,
+                        style: const TextStyle(
+                            fontSize: 16,
+                            height: 1.55,
+                            color: Color(0xFF455D6C))),
                     const SizedBox(height: 24),
                     Text(_completed ? 'Downloaded' : 'Not downloaded',
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _green)),
+                        style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: _green)),
                     if (_busy) ...[
                       const SizedBox(height: 18),
                       Text(_phase, style: const TextStyle(fontSize: 15)),
                       const SizedBox(height: 10),
                       LinearProgressIndicator(value: _progress),
+                      TextButton(
+                        onPressed: (_cancellation?.isRequested ?? false)
+                            ? null
+                            : _cancel,
+                        child: const Text('Cancel'),
+                      ),
                     ],
                     if (_error != null) ...[
                       const SizedBox(height: 16),
-                      Text(_error!, style: const TextStyle(fontSize: 14, color: Color(0xFF9C3C2E))),
+                      Text(_error!,
+                          style: const TextStyle(
+                              fontSize: 14, color: Color(0xFF9C3C2E))),
+                    ],
+                    if (!_completed && _error != null && !_busy) ...[
+                      TextButton(
+                          onPressed: () => _open(ModuleLibrary()),
+                          child: const Text('Open My Library')),
                     ],
                     if (_completed) ...[
                       const SizedBox(height: 22),
@@ -295,15 +367,19 @@ class _AnimationInfoState extends State<AnimationInfo> {
                                     color: Color(0xFF25834A), size: 28),
                                 SizedBox(width: 10),
                                 Expanded(
-                                    child: Text('Animation downloaded successfully!',
-                                        style: TextStyle(fontSize: 17,
+                                    child: Text(
+                                        'Animation downloaded successfully!',
+                                        style: TextStyle(
+                                            fontSize: 17,
                                             fontWeight: FontWeight.w700,
                                             color: Color(0xFF205D38)))),
                               ],
                             ),
                             const SizedBox(height: 10),
-                            const Text('Your animation is ready to use offline.',
-                                style: TextStyle(fontSize: 14, color: Color(0xFF345A43))),
+                            const Text(
+                                'Your animation is ready to use offline.',
+                                style: TextStyle(
+                                    fontSize: 14, color: Color(0xFF345A43))),
                             const SizedBox(height: 18),
                             SizedBox(
                               height: 50,
@@ -342,9 +418,10 @@ class _AnimationInfoState extends State<AnimationInfo> {
                             shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(13)),
                           ),
-                          child: Text(_busy ? 'Downloading...' : 'Download Animation',
-                              style: const TextStyle(fontSize: 17,
-                                  fontWeight: FontWeight.w700)),
+                          child: Text(
+                              _busy ? 'Downloading...' : 'Download Animation',
+                              style: const TextStyle(
+                                  fontSize: 17, fontWeight: FontWeight.w700)),
                         ),
                       ),
                     ],
@@ -358,57 +435,3 @@ class _AnimationInfoState extends State<AnimationInfo> {
     );
   }
 }
-
-// Keep the animation ZIP layout compatible with existing offline playback.
-// Reject unsafe entries before writing any extracted files.
-Future<void> _extractAnimationArchive(Map<String, dynamic> args) async {
-  final port = args['sendPort'] as SendPort;
-  try {
-    final zipPath = args['zipPath'] as String;
-    final outputDir = args['outputDir'] as String;
-    final input = InputFileStream(zipPath);
-    final archive = ZipDecoder().decodeStream(input);
-
-    final root = Directory(outputDir).absolute.path;
-    final normalizedRoot = root.replaceAll('\\', '/');
-    for (final entry in archive) {
-      final name = entry.name.replaceAll('\\', '/');
-      final parts = name.split('/');
-      if (name.startsWith('/') || name.contains(':') ||
-          parts.contains('..') || parts.contains('.') ||
-          parts.any((part) => part.isEmpty && part != parts.last) ||
-          entry.isSymbolicLink) {
-        throw const FormatException('Unsafe archive entry.');
-      }
-      final target = File('$root/$name').absolute.path.replaceAll('\\', '/');
-      if (!target.startsWith('$normalizedRoot/')) {
-        throw const FormatException('Archive entry escapes the storage directory.');
-      }
-    }
-
-    var count = 0;
-    for (final entry in archive) {
-      final target = '$root/${entry.name.replaceAll('\\', '/')}';
-      if (entry.isFile) {
-        await Directory(File(target).parent.path).create(recursive: true);
-        final output = OutputFileStream(target);
-        try {
-          entry.writeContent(output);
-        } finally {
-          await output.close();
-        }
-      } else {
-        await Directory(target).create(recursive: true);
-      }
-      count++;
-      port.send(count / archive.length);
-    }
-    await input.close();
-    port.send('done');
-  } catch (error) {
-    port.send('error:$error');
-  }
-}
-
-
-

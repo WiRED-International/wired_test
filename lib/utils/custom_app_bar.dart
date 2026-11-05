@@ -3,6 +3,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import 'package:wired_test/utils/functions.dart';
 import '../providers/auth_provider.dart';
+import '../pages/cme/login.dart';
 
 class CustomAppBar extends StatelessWidget {
   final VoidCallback onBackPressed;
@@ -42,7 +43,10 @@ class CustomAppBar extends StatelessWidget {
                   onBackPressed();
                 } else {
                   // Redirect to login page for unauthenticated users
-                  Navigator.pushNamed(context, '/login'); // Adjust to your login route
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => Login()),
+                  );
                 }
               } else {
                 // No authentication required, proceed with navigation

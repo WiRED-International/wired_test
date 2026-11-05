@@ -293,19 +293,16 @@ class _MyHomePageState extends State<MyHomePage> {
                     const SizedBox(height: 52),
                     const Divider(color: Color(0xFFB9D9E9), thickness: 1),
                     const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        const Expanded(
-                          child: Text('News & Updates',
-                              style: TextStyle(color: _ink, fontSize: 19,
-                                  fontWeight: FontWeight.w700)),
+                    const Center(
+                      child: Text(
+                        'News & Updates',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: _ink,
+                          fontSize: 19,
+                          fontWeight: FontWeight.w700,
                         ),
-                        IconButton(
-                          tooltip: 'Refresh news',
-                          onPressed: _refreshAlert,
-                          icon: const Icon(Icons.refresh_rounded, color: _ink),
-                        ),
-                      ],
+                      ),
                     ),
                     const SizedBox(height: 10),
                     _updatesCard(),

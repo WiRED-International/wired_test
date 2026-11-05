@@ -34,16 +34,18 @@ class Animation {
   Animation({this.id, this.name, this.description, this.downloadLink});
 
   Animation.fromJson(Map<String, dynamic> json)
-      : id = json['id'] is int ? json['id'] as int : int.tryParse('${json['id']}'),
+      : id = json['id'] is int
+            ? json['id'] as int
+            : int.tryParse('${json['id']}'),
         name = json['name']?.toString(),
         description = json['description']?.toString(),
         downloadLink = json['downloadLink']?.toString();
 
   Map<String, dynamic> toJson() => {
-    'name': name,
-    'description': description,
-    'downloadLink': downloadLink,
-  };
+        'name': name,
+        'description': description,
+        'downloadLink': downloadLink,
+      };
 }
 
 class _AnimationListState extends State<AnimationList> {
@@ -94,8 +96,15 @@ class _AnimationListState extends State<AnimationList> {
   }
 
   void _openAnimation(Animation animation) {
+    final id = animation.id;
+    if (id == null || id <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('A valid animation ID is not available.'),
+      ));
+      return;
+    }
     _open(AnimationInfo(
-      animationId: animation.id ?? 0,
+      animationId: id,
       animationName: animation.name ?? 'Unknown Animation',
       animationDescription: animation.description ?? '',
       downloadLink: animation.downloadLink ?? '',
@@ -115,23 +124,23 @@ class _AnimationListState extends State<AnimationList> {
       bottomNav: landscape
           ? null
           : CustomBottomNavBar(
-        onHomeTap: () => _open(const MyHomePage()),
-        onLibraryTap: () => _open(ModuleLibrary()),
-        onTrackerTap: () => _open(AuthGuard(child: CreditsTracker())),
-        onMenuTap: _openMenu,
-      ),
+              onHomeTap: () => _open(const MyHomePage()),
+              onLibraryTap: () => _open(ModuleLibrary()),
+              onTrackerTap: () => _open(AuthGuard(child: CreditsTracker())),
+              onMenuTap: _openMenu,
+            ),
       child: landscape
           ? Row(
-        children: [
-          CustomSideNavBar(
-            onHomeTap: () => _open(const MyHomePage()),
-            onLibraryTap: () => _open(ModuleLibrary()),
-            onTrackerTap: () => _open(AuthGuard(child: CreditsTracker())),
-            onMenuTap: _openMenu,
-          ),
-          Expanded(child: _buildContent()),
-        ],
-      )
+              children: [
+                CustomSideNavBar(
+                  onHomeTap: () => _open(const MyHomePage()),
+                  onLibraryTap: () => _open(ModuleLibrary()),
+                  onTrackerTap: () => _open(AuthGuard(child: CreditsTracker())),
+                  onMenuTap: _openMenu,
+                ),
+                Expanded(child: _buildContent()),
+              ],
+            )
           : _buildContent(),
     );
   }
@@ -164,7 +173,6 @@ class _AnimationListState extends State<AnimationList> {
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 15, color: _darkBlue),
                     ),
-
                   ],
                 ),
               ),
@@ -255,11 +263,11 @@ class _AnimationListState extends State<AnimationList> {
   }
 
   Widget _messageState(
-      IconData icon,
-      String title,
-      String detail, {
-        bool showRetry = false,
-      }) {
+    IconData icon,
+    String title,
+    String detail, {
+    bool showRetry = false,
+  }) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(28),

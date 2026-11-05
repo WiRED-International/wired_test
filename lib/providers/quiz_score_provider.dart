@@ -52,11 +52,6 @@ class QuizScoreProvider with ChangeNotifier {
             'categories': module['categories'] ?? [],
           };
         }).toList();
-
-        await _storage.write(
-            key: 'quiz_scores',
-            value: jsonEncode(_quizScores)
-        );
       } else {
         throw Exception('Failed to fetch quiz scores: ${response.statusCode}');
       }

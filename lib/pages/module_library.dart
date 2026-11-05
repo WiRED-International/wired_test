@@ -5,9 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:open_file/open_file.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
 
 import '../providers/auth_guard.dart';
+import '../services/animation_installation_coordinator.dart';
+import '../services/animation_library_removal_service.dart';
 import '../utils/app_layout.dart';
 import '../utils/custom_app_bar.dart';
 import '../utils/custom_nav_bar.dart';
@@ -45,7 +49,11 @@ class ModuleFile {
 }
 
 class ModuleLibrary extends StatefulWidget {
-  const ModuleLibrary({super.key});
+  const ModuleLibrary({super.key, this.beforeAnimationDirectoryCleanup});
+
+  /// Failure-injection hook for testing cleanup after real MP4 deletion.
+  @visibleForTesting
+  final Future<void> Function()? beforeAnimationDirectoryCleanup;
 
   @override
   State<ModuleLibrary> createState() => _ModuleLibraryState();
@@ -77,8 +85,15 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
 
   Future<Directory> _storageRoot() async {
     if (Platform.isAndroid) {
-      return await getExternalStorageDirectory() ??
-          await getApplicationDocumentsDirectory();
+      Directory? external;
+      try {
+        external = await getExternalStorageDirectory();
+      } on Exception {
+        // Fall back to Documents when external storage is unavailable.
+      } on UnsupportedError {
+        // External storage is not supported by the directory provider.
+      }
+      return external ?? await getApplicationDocumentsDirectory();
     }
     if (Platform.isIOS || Platform.isMacOS) {
       return getApplicationSupportDirectory();
@@ -86,8 +101,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
     return getApplicationDocumentsDirectory();
   }
 
-  String _filename(String path) =>
-      path.replaceAll('\\', '/').split('/').last;
+  String _filename(String path) => path.replaceAll('\\', '/').split('/').last;
 
   String _withoutExtension(String filename) =>
       filename.replaceFirst(RegExp(r'\.html?$', caseSensitive: false), '');
@@ -119,8 +133,65 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
     return RegExp(r'files/(\d+)/story.html').firstMatch(content)?.group(1);
   }
 
+  bool _isRecoveryPath(String path, Directory root) =>
+      p.split(p.relative(path, from: root.path)).any(
+            (part) => part.toLowerCase().endsWith('.backup'),
+          );
+
+  Future<bool> _isStandaloneAnimation(File file, Directory root) async {
+    final modulesPath = p.normalize(p.absolute(p.join(root.path, 'modules')));
+    final filePath = p.normalize(p.absolute(file.path));
+    final publishedId =
+        AnimationLibraryRemovalService.animationIdFor(root: root, file: file);
+    if (p.split(file.path).any((part) => part == '.' || part == '..') ||
+        !p.isWithin(modulesPath, filePath) ||
+        (_isRecoveryPath(filePath, root) && publishedId == null)) {
+      return false;
+    }
+
+    try {
+      if (await FileSystemEntity.type(root.path, followLinks: false) !=
+          FileSystemEntityType.directory) {
+        return false;
+      }
+      final parents = p
+          .split(p.relative(p.dirname(filePath), from: modulesPath))
+          .where((part) => part != '.')
+          .toList();
+      var directoryPath = modulesPath;
+      // Check ancestors from the storage boundary inward, rejecting links
+      // before inspecting descendants or following paths outside modules/.
+      for (var index = 0; index <= parents.length; index++) {
+        if (await FileSystemEntity.type(directoryPath, followLinks: false) !=
+            FileSystemEntityType.directory) {
+          return false;
+        }
+        // Listing also surfaces access errors: absence must not be inferred
+        // from an entry-file exists() check that silently returns false.
+        await for (final entry
+            in Directory(directoryPath).list(followLinks: false)) {
+          final name = p.basename(entry.path).toLowerCase();
+          if (name == 'index.html' || name == 'story.html') return false;
+        }
+        if (index < parents.length) {
+          directoryPath = p.join(directoryPath, parents[index]);
+        }
+      }
+      return await FileSystemEntity.type(filePath, followLinks: false) ==
+          FileSystemEntityType.file;
+    } on FileSystemException {
+      // Unknown ownership is never permission to delete or expose media.
+      return false;
+    }
+  }
+
   Future<void> _loadModules() async {
-    if (mounted) setState(() { _loading = true; _error = null; });
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final root = await _storageRoot();
       final result = <ModuleFile>[];
@@ -128,7 +199,9 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
       final modules = Directory('${root.path}/modules');
 
       if (await packages.exists()) {
-        await for (final entity in packages.list(recursive: true, followLinks: false)) {
+        await for (final entity
+            in packages.list(recursive: true, followLinks: false)) {
+          if (_isRecoveryPath(entity.path, root)) continue;
           if (entity is! File) {
             continue;
           }
@@ -144,12 +217,14 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
             final html = await entity.readAsString();
             final display = _titleFromLauncher(html);
             final title = display != null && display.isNotEmpty
-                ? display : _withoutExtension(name);
+                ? display
+                : _withoutExtension(name);
             result.add(ModuleFile(
               file: entity,
               path: entity.path,
               moduleName: title,
-              moduleId: _legacyId(html, package: true) ?? _withoutExtension(name),
+              moduleId:
+                  _legacyId(html, package: true) ?? _withoutExtension(name),
             ));
           } catch (_) {
             // An unreadable launcher should not prevent other modules loading.
@@ -159,19 +234,24 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
 
       if (await modules.exists()) {
         await for (final entity in modules.list(followLinks: false)) {
+          if (_isRecoveryPath(entity.path, root)) continue;
           if (entity is File) {
             final name = _filename(entity.path);
-            if (!RegExp(r'\.html?$', caseSensitive: false).hasMatch(name)) continue;
+            if (!RegExp(r'\.html?$', caseSensitive: false).hasMatch(name)) {
+              continue;
+            }
             try {
               final html = await entity.readAsString();
               final display = _titleFromLauncher(html);
               final title = display != null && display.isNotEmpty
-                  ? display : _withoutExtension(name);
+                  ? display
+                  : _withoutExtension(name);
               result.add(ModuleFile(
                 file: entity,
                 path: entity.path,
                 moduleName: title,
-                moduleId: _legacyId(html, package: false) ?? _withoutExtension(name),
+                moduleId:
+                    _legacyId(html, package: false) ?? _withoutExtension(name),
               ));
             } catch (_) {}
           } else if (entity is Directory) {
@@ -208,34 +288,50 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
       // Animations are MP4 files, not HTML modules. Include videos in the
       // existing modules folder (including previously downloaded animations).
       if (await modules.exists()) {
-        await for (final entity in modules.list(recursive: true, followLinks: false)) {
-          if (entity is! File || !entity.path.toLowerCase().endsWith('.mp4')) continue;
+        await for (final entity
+            in modules.list(recursive: true, followLinks: false)) {
+          if (entity is! File || !entity.path.toLowerCase().endsWith('.mp4')) {
+            continue;
+          }
+          if (!await _isStandaloneAnimation(entity, root)) continue;
           if (await entity.length() == 0) continue;
           final name = _filename(entity.path);
-          final stem = name.replaceFirst(RegExp(r'\.mp4$', caseSensitive: false), '');
+          final stem =
+              name.replaceFirst(RegExp(r'\.mp4$', caseSensitive: false), '');
           final title = stem.replaceAll(RegExp(r'[_-]+'), ' ').trim();
           result.add(ModuleFile(
             file: entity,
             path: entity.path,
             moduleName: title.isEmpty ? name : title,
-            moduleId: stem,
+            moduleId: AnimationLibraryRemovalService.animationIdFor(
+                        root: root, file: entity)
+                    ?.toString() ??
+                stem,
             isAnimation: true,
           ));
         }
       }
       if (!mounted) return;
-      setState(() { _modules = result; _loading = false; });
+      setState(() {
+        _modules = result;
+        _loading = false;
+      });
     } catch (e) {
       if (!mounted) return;
-      setState(() { _loading = false; _error = 'Unable to load downloaded modules: $e'; });
+      setState(() {
+        _loading = false;
+        _error = 'Unable to load downloaded modules: $e';
+      });
     }
   }
 
   List<ModuleFile> get _visibleModules {
     final query = _searchController.text.trim().toLowerCase();
-    final list = _modules.where((m) =>
-    m.moduleName.toLowerCase().contains(query) ||
-        m.moduleId.toLowerCase().contains(query)).toList();
+    final list = _modules
+        .where((m) =>
+            m.moduleName.toLowerCase().contains(query) ||
+            m.moduleId.toLowerCase().contains(query))
+        .toList();
     list.sort((a, b) => _sort == 'Name Z–A'
         ? b.moduleName.toLowerCase().compareTo(a.moduleName.toLowerCase())
         : a.moduleName.toLowerCase().compareTo(b.moduleName.toLowerCase()));
@@ -250,6 +346,13 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
     }
     try {
       if (module.isAnimation) {
+        if (!await _isStandaloneAnimation(entry, await _storageRoot())) {
+          if (mounted) {
+            _notify(
+                'This animation is no longer available separately. Refresh your library.');
+          }
+          return;
+        }
         final result = await OpenFile.open(module.path, type: 'video/mp4');
         if (result.type != ResultType.done && mounted) {
           _notify('Unable to open this animation: ${result.message}');
@@ -278,17 +381,20 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
   }
 
   void _notify(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _confirmDelete(ModuleFile module) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(module.isAnimation ? 'Remove downloaded animation?' : 'Remove downloaded module?'),
+        title: Text(module.isAnimation
+            ? 'Remove downloaded animation?'
+            : 'Remove downloaded module?'),
         content: Text(
           'Remove "${module.moduleName}" from this device?\n\n'
-              'Saved quiz scores will not be deleted.',
+          'Saved quiz scores will not be deleted.',
         ),
         actions: [
           TextButton(
@@ -310,7 +416,35 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
   Future<void> _delete(ModuleFile module) async {
     try {
       if (module.isAnimation) {
-        await (module.file as File).delete();
+        final root = await _storageRoot();
+        if (!await _isStandaloneAnimation(module.file as File, root)) {
+          if (mounted) {
+            _notify(
+                'This video may belong to a module or recovery download and cannot be removed separately.');
+          }
+          return;
+        }
+        final file = module.file as File;
+        final id = AnimationLibraryRemovalService.animationIdFor(
+            root: root, file: file);
+        if (id != null) {
+          if (!mounted) return;
+          final removed = await AnimationLibraryRemovalService(
+            coordinator: context.read<AnimationInstallationCoordinator>(),
+            beforeDirectoryCleanup: widget.beforeAnimationDirectoryCleanup,
+          ).remove(root: root, file: file);
+          if (!removed) {
+            if (mounted) {
+              _notify(
+                  'Animation removed, but other files remain in its folder. Re-download is blocked until they are reviewed.');
+              await _loadModules();
+            }
+            return;
+          }
+        } else {
+          // Legacy files retain their historical file-only removal behavior.
+          await file.delete();
+        }
       } else if (module.file is Directory) {
         // Compiler content is isolated in its own directory.
         await (module.file as Directory).delete(recursive: true);
@@ -327,11 +461,12 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
           caseSensitive: false,
         ).firstMatch(html);
         Directory? content;
-        if (match != null &&
-            launcher.parent.path == '${root.path}/modules') {
+        if (match != null && launcher.parent.path == '${root.path}/modules') {
           final folder = Uri.decodeComponent(match.group(1)!);
-          if (folder != '.' && folder != '..' &&
-              !folder.contains('/') && !folder.contains('\\')) {
+          if (folder != '.' &&
+              folder != '..' &&
+              !folder.contains('/') &&
+              !folder.contains('\\')) {
             final candidate = Directory('${root.path}/files/$folder');
             if (await candidate.exists()) {
               var referencedElsewhere = false;
@@ -364,6 +499,17 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
       if (!mounted) return;
       _notify('Removed "${module.moduleName}" from this device.');
       await _loadModules();
+    } on AnimationLibraryPartialRemovalException catch (error) {
+      debugPrint('$error\n${error.cleanupStack}');
+      if (!mounted) return;
+      _notify(
+          'Video removed, but directory cleanup was incomplete. Re-download may be blocked.');
+      await _loadModules();
+    } on AnimationInstallationInProgressException {
+      if (mounted) {
+        _notify(
+            'This animation is being installed. Try removing it after installation finishes.');
+      }
     } catch (_) {
       if (mounted) _notify('Unable to remove this module.');
     }
@@ -372,41 +518,43 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
   void _goHome() => Navigator.push(
       context, MaterialPageRoute(builder: (_) => const MyHomePage()));
 
-  void _goTracker() => Navigator.push(
-      context, MaterialPageRoute(builder: (_) =>
-      AuthGuard(child: CreditsTracker())));
+  void _goTracker() => Navigator.push(context,
+      MaterialPageRoute(builder: (_) => AuthGuard(child: CreditsTracker())));
 
   Future<void> _goMenu() async {
     final loggedIn = await checkIfUserIsLoggedIn();
     if (!mounted) return;
-    Navigator.push(context, MaterialPageRoute(
-        builder: (_) => loggedIn ? Menu() : GuestMenu()));
+    Navigator.push(context,
+        MaterialPageRoute(builder: (_) => loggedIn ? Menu() : GuestMenu()));
   }
 
   @override
   Widget build(BuildContext context) {
-    final landscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final landscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
     return AppLayout(
       appBar: CustomAppBar(
         onBackPressed: () => Navigator.pop(context),
         requireAuth: false,
       ),
-      bottomNav: landscape ? null : CustomBottomNavBar(
-        onHomeTap: _goHome,
-        onLibraryTap: () {},
-        onTrackerTap: _goTracker,
-        onMenuTap: _goMenu,
-      ),
+      bottomNav: landscape
+          ? null
+          : CustomBottomNavBar(
+              onHomeTap: _goHome,
+              onLibraryTap: () {},
+              onTrackerTap: _goTracker,
+              onMenuTap: _goMenu,
+            ),
       child: landscape
           ? Row(children: [
-        CustomSideNavBar(
-          onHomeTap: _goHome,
-          onLibraryTap: () {},
-          onTrackerTap: _goTracker,
-          onMenuTap: _goMenu,
-        ),
-        Expanded(child: _libraryContent()),
-      ])
+              CustomSideNavBar(
+                onHomeTap: _goHome,
+                onLibraryTap: () {},
+                onTrackerTap: _goTracker,
+                onMenuTap: _goMenu,
+              ),
+              Expanded(child: _libraryContent()),
+            ])
           : _libraryContent(),
     );
   }
@@ -435,44 +583,50 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
               )
             else if (_error != null)
               SliverFillRemaining(
-                child: Center(child: Padding(
+                child: Center(
+                    child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Text(_error!, textAlign: TextAlign.center),
                 )),
               )
             else if (visible.isEmpty)
-                SliverFillRemaining(
-                  child: _emptyState(_modules.isEmpty),
-                )
-              else
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 86),
-                  sliver: SliverLayoutBuilder(
-                    builder: (context, constraints) {
-                      final width = constraints.crossAxisExtent;
-                      final columns = width >= 980 ? 3 : width >= 620 ? 2 : 1;
-                      if (columns == 1) {
-                        return SliverList.builder(
-                          itemCount: visible.length,
-                          itemBuilder: (context, index) => Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: _moduleCard(visible[index]),
-                          ),
-                        );
-                      }
-                      return SliverGrid.builder(
+              SliverFillRemaining(
+                child: _emptyState(_modules.isEmpty),
+              )
+            else
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 86),
+                sliver: SliverLayoutBuilder(
+                  builder: (context, constraints) {
+                    final width = constraints.crossAxisExtent;
+                    final columns = width >= 980
+                        ? 3
+                        : width >= 620
+                            ? 2
+                            : 1;
+                    if (columns == 1) {
+                      return SliverList.builder(
                         itemCount: visible.length,
-                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: columns,
-                          mainAxisSpacing: 12,
-                          crossAxisSpacing: 12,
-                          mainAxisExtent: 165,
+                        itemBuilder: (context, index) => Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: _moduleCard(visible[index]),
                         ),
-                        itemBuilder: (context, index) => _moduleCard(visible[index]),
                       );
-                    },
-                  ),
+                    }
+                    return SliverGrid.builder(
+                      itemCount: visible.length,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: columns,
+                        mainAxisSpacing: 12,
+                        crossAxisSpacing: 12,
+                        mainAxisExtent: 165,
+                      ),
+                      itemBuilder: (context, index) =>
+                          _moduleCard(visible[index]),
+                    );
+                  },
                 ),
+              ),
           ],
         ),
       ),
@@ -480,162 +634,181 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
   }
 
   Widget _header() => Padding(
-    padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        const Icon(Icons.auto_stories_outlined, color: _blue, size: 25),
-        const SizedBox(width: 9),
-        const Expanded(
-          child: Text('My Library',
-              style: TextStyle(color: _blue, fontSize: 25,
-                  fontWeight: FontWeight.w700)),
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Icon(Icons.auto_stories_outlined, color: _blue, size: 25),
+            const SizedBox(width: 9),
+            const Expanded(
+              child: Text('My Library',
+                  style: TextStyle(
+                      color: _blue, fontSize: 25, fontWeight: FontWeight.w700)),
+            ),
+            Text(
+              '${_modules.length} downloaded',
+              style: const TextStyle(
+                  color: _green, fontSize: 12, fontWeight: FontWeight.w700),
+            ),
+          ],
         ),
-        Text(
-          '${_modules.length} downloaded',
-          style: const TextStyle(color: _green, fontSize: 12,
-              fontWeight: FontWeight.w700),
-        ),
-      ],
-    ),
-  );
+      );
 
   Widget _tools() => Padding(
-    padding: const EdgeInsets.fromLTRB(16, 6, 16, 7),
-    child: Column(children: [
-      TextField(
-        controller: _searchController,
-        decoration: InputDecoration(
-          hintText: 'Search downloaded modules',
-          prefixIcon: const Icon(Icons.search, color: _blue),
-          suffixIcon: _searchController.text.isEmpty ? null : IconButton(
-            tooltip: 'Clear search',
-            onPressed: _searchController.clear,
-            icon: const Icon(Icons.close),
+        padding: const EdgeInsets.fromLTRB(16, 6, 16, 7),
+        child: Column(children: [
+          TextField(
+            controller: _searchController,
+            decoration: InputDecoration(
+              hintText: 'Search downloaded modules',
+              prefixIcon: const Icon(Icons.search, color: _blue),
+              suffixIcon: _searchController.text.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Clear search',
+                      onPressed: _searchController.clear,
+                      icon: const Icon(Icons.close),
+                    ),
+              filled: true,
+              fillColor: Colors.white,
+              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: Colors.blueGrey.shade100),
+              ),
+            ),
           ),
-          filled: true,
-          fillColor: Colors.white,
-          contentPadding: const EdgeInsets.symmetric(vertical: 14),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: Colors.blueGrey.shade100),
-          ),
-        ),
-      ),
-      const SizedBox(height: 3),
-      Row(children: [
-        Expanded(child: Text(
-          _loading ? 'Loading modules…' : '${_visibleModules.length} shown',
-          style: const TextStyle(color: _deepBlue,
-              fontWeight: FontWeight.w600),
-        )),
-        DropdownButton<String>(
-          value: _sort,
-          underline: const SizedBox.shrink(),
-          items: ['Name A–Z', 'Name Z–A'].map((value) =>
-              DropdownMenuItem(value: value, child: Text(value))).toList(),
-          onChanged: (value) {
-            if (value != null) setState(() => _sort = value);
-          },
-        ),
-        IconButton(
-          tooltip: 'Refresh library',
-          onPressed: _loading ? null : _loadModules,
-          icon: const Icon(Icons.refresh, color: _blue),
-        ),
-      ]),
-    ]),
-  );
+          const SizedBox(height: 3),
+          Row(children: [
+            Expanded(
+                child: Text(
+              _loading ? 'Loading modules…' : '${_visibleModules.length} shown',
+              style: const TextStyle(
+                  color: _deepBlue, fontWeight: FontWeight.w600),
+            )),
+            DropdownButton<String>(
+              value: _sort,
+              underline: const SizedBox.shrink(),
+              items: ['Name A–Z', 'Name Z–A']
+                  .map((value) =>
+                      DropdownMenuItem(value: value, child: Text(value)))
+                  .toList(),
+              onChanged: (value) {
+                if (value != null) setState(() => _sort = value);
+              },
+            ),
+            IconButton(
+              tooltip: 'Refresh library',
+              onPressed: _loading ? null : _loadModules,
+              icon: const Icon(Icons.refresh, color: _blue),
+            ),
+          ]),
+        ]),
+      );
 
   Widget _moduleCard(ModuleFile module) => Container(
-    padding: const EdgeInsets.all(16),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: const Color(0xFFE1EAF1)),
-      boxShadow: const [
-        BoxShadow(color: Color(0x0D173F5C), blurRadius: 14, offset: Offset(0, 4)),
-      ],
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(
-            width: 42, height: 42,
-            decoration: BoxDecoration(
-              color: const Color(0xFFE8F4EB),
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: Icon(module.isAnimation ? Icons.ondemand_video_rounded : Icons.menu_book_rounded, color: _green),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(module.moduleName,
-                  maxLines: 2, overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 16, height: 1.25,
-                    fontWeight: FontWeight.w700, color: _deepBlue,
-                  )),
-            ],
-          )),
-        ]),
-        const SizedBox(height: 11),
-        Row(children: [
-          Expanded(child: FilledButton.icon(
-            onPressed: () => _play(module),
-            style: FilledButton.styleFrom(
-              backgroundColor: _pastelBlue,
-              foregroundColor: _blue,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10)),
-            ),
-            icon: const Icon(Icons.play_arrow_rounded, size: 20),
-            label: Text(module.isAnimation ? 'Open animation' : 'Open module'),
-          )),
-          const SizedBox(width: 10),
-          IconButton.outlined(
-            tooltip: 'Remove download',
-            onPressed: () => _confirmDelete(module),
-            icon: const Icon(Icons.delete_outline, color: Color(0xFF8C4C4C)),
-          ),
-        ]),
-      ],
-    ),
-  );
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE1EAF1)),
+          boxShadow: const [
+            BoxShadow(
+                color: Color(0x0D173F5C), blurRadius: 14, offset: Offset(0, 4)),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F4EB),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: Icon(
+                    module.isAnimation
+                        ? Icons.ondemand_video_rounded
+                        : Icons.menu_book_rounded,
+                    color: _green),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                  child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(module.moduleName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        height: 1.25,
+                        fontWeight: FontWeight.w700,
+                        color: _deepBlue,
+                      )),
+                ],
+              )),
+            ]),
+            const SizedBox(height: 11),
+            Row(children: [
+              Expanded(
+                  child: FilledButton.icon(
+                onPressed: () => _play(module),
+                style: FilledButton.styleFrom(
+                  backgroundColor: _pastelBlue,
+                  foregroundColor: _blue,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                icon: const Icon(Icons.play_arrow_rounded, size: 20),
+                label:
+                    Text(module.isAnimation ? 'Open animation' : 'Open module'),
+              )),
+              const SizedBox(width: 10),
+              IconButton.outlined(
+                tooltip: 'Remove download',
+                onPressed: () => _confirmDelete(module),
+                icon:
+                    const Icon(Icons.delete_outline, color: Color(0xFF8C4C4C)),
+              ),
+            ]),
+          ],
+        ),
+      );
 
   Widget _emptyState(bool noDownloads) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(28),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(noDownloads ? Icons.library_books_outlined : Icons.search_off,
-            size: 58, color: _blue),
-        const SizedBox(height: 14),
-        Text(noDownloads ? 'Your library is empty' : 'No matching modules',
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700,
-                color: _deepBlue)),
-        const SizedBox(height: 8),
-        Text(
-          noDownloads
-              ? 'Download a module to make it available here, even without internet.'
-              : 'Try a different search term.',
-          textAlign: TextAlign.center,
-          style: const TextStyle(color: Colors.black54),
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(noDownloads ? Icons.library_books_outlined : Icons.search_off,
+                size: 58, color: _blue),
+            const SizedBox(height: 14),
+            Text(noDownloads ? 'Your library is empty' : 'No matching modules',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w700,
+                    color: _deepBlue)),
+            const SizedBox(height: 8),
+            Text(
+              noDownloads
+                  ? 'Download a module to make it available here, even without internet.'
+                  : 'Try a different search term.',
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.black54),
+            ),
+            if (!noDownloads) ...[
+              const SizedBox(height: 14),
+              TextButton(
+                onPressed: _searchController.clear,
+                child: const Text('Clear search'),
+              ),
+            ],
+          ]),
         ),
-        if (!noDownloads) ...[
-          const SizedBox(height: 14),
-          TextButton(
-            onPressed: _searchController.clear,
-            child: const Text('Clear search'),
-          ),
-        ],
-      ]),
-    ),
-  );
+      );
 }
-

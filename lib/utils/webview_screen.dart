@@ -1,3 +1,6 @@
+import '../models/quiz_result_validation.dart';
+import 'package:provider/provider.dart';
+import '../services/pending_quiz_score_repository.dart';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -10,14 +13,25 @@ class WebViewScreen extends StatefulWidget {
   final URLRequest urlRequest;
   final String moduleId;
 
-  const WebViewScreen({required this.urlRequest, required this.moduleId, Key? key}) : super(key: key);
-
+  const WebViewScreen({
+    required this.urlRequest,
+    required this.moduleId,
+    Key? key,
+  }) : super(key: key);
 
   @override
   State<WebViewScreen> createState() => _WebViewScreenState();
 }
 
 class _WebViewScreenState extends State<WebViewScreen> {
+  late final PendingQuizScoreRepository _pendingScores;
+
+  @override
+  void initState() {
+    super.initState();
+    _pendingScores = context.read<PendingQuizScoreRepository>();
+  }
+
   bool _isOpeningPdf = false;
   late InAppWebViewController _webViewController;
   final FlutterSecureStorage secureStorage = const FlutterSecureStorage();
@@ -91,10 +105,12 @@ class _WebViewScreenState extends State<WebViewScreen> {
                         final fullUrl = widget.urlRequest.url.toString();
 
                         // Extract folder name between /modules/ and /index.html
-                        final match = RegExp(r'modules/(.+)/index\.html').firstMatch(fullUrl);
+                        final match = RegExp(r'modules/(.+)/index\.html')
+                            .firstMatch(fullUrl);
 
                         if (match != null) {
-                          final moduleFolder = Uri.decodeComponent(match.group(1)!);
+                          final moduleFolder =
+                              Uri.decodeComponent(match.group(1)!);
 
                           print("📂 Extracted module folder: $moduleFolder");
 
@@ -106,7 +122,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
                         print("📂 Detected Storyline Module");
                         await _openLocalPdf(fileName, widget.moduleId);
                       }
-
                     } catch (e) {
                       print("❌ Error in openPdfResource handler: $e");
                     }
@@ -120,33 +135,11 @@ class _WebViewScreenState extends State<WebViewScreen> {
                     print("📥 saveCmeScore handler triggered: $args");
 
                     try {
-                      if (args.isEmpty) {
-                        print("❌ No score data received.");
-                        return;
-                      }
+                      final saved = await _storeScoreInSecureStorage(
+                        args.isEmpty ? null : args.first,
+                      );
 
-                      final data = Map<String, dynamic>.from(args.first as Map);
-
-                      final String moduleId = data["module_id"]?.toString() ?? "unknown";
-                      final String moduleName =
-                          data["module_name"]?.toString() ?? "Unknown Module";
-                      final double score =
-                          double.tryParse(data["quiz_score"]?.toString() ?? "0") ?? 0.0;
-
-                      print("💾 Saving score from Compiler Module:");
-                      print("🔹 ID: $moduleId");
-                      print("🔹 Name: $moduleName");
-                      print("🔹 Score: $score");
-
-                      // 🔥 Reuse your EXISTING storage function (no duplicate logic)
-                      await _storeScoreInSecureStorage({
-                        "module_id": moduleId,
-                        "module_name": moduleName,
-                        "quiz_score": score,
-                      });
-
-                      print("✅ Compiler score saved successfully");
-
+                      if (saved) print("✅ Compiler score saved successfully");
                     } catch (e) {
                       print("❌ Error in saveCmeScore handler: $e");
                     }
@@ -156,18 +149,21 @@ class _WebViewScreenState extends State<WebViewScreen> {
                 );
               },
               onLoadStop: (controller, url) async {
-                print("🚀 WebView attempting to load: ${widget.urlRequest.url}");
+                print(
+                    "🚀 WebView attempting to load: ${widget.urlRequest.url}");
                 print("✅ Page finished loading: $url");
 
                 // Retrieve authentication details
                 String? moduleId = await secureStorage.read(key: "module_id");
-                String? moduleName = await secureStorage.read(key: "module_name");
+                String? moduleName =
+                    await secureStorage.read(key: "module_name");
 
                 print("📌 Stored Data Before Injection:");
                 print("🔹 ModuleID: $moduleId");
                 print("🔹 ModuleName: $moduleName");
 
-                if (moduleId != null && moduleName != null &&
+                if (moduleId != null &&
+                    moduleName != null &&
                     moduleName.isNotEmpty) {
                   // Inject JavaScript into WebView
                   await _webViewController.evaluateJavascript(source: """
@@ -183,7 +179,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
                 // Verify if the injection worked
                 String? checkInjectedModuleId = await _webViewController
                     .evaluateJavascript(source: "window.moduleId;");
-                print("🔍 Post-Injection moduleId Check: $checkInjectedModuleId");
+                print(
+                    "🔍 Post-Injection moduleId Check: $checkInjectedModuleId");
 
                 String? checkInjectedModuleName = await _webViewController
                     .evaluateJavascript(source: "window.moduleName;");
@@ -248,7 +245,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
                 """);
               },
               onConsoleMessage: (controller, consoleMessage) async {
-                print("📝 JavaScript console message: ${consoleMessage.message}");
+                print(
+                    "📝 JavaScript console message: ${consoleMessage.message}");
 
                 try {
                   String cleanMessage = consoleMessage.message.trim();
@@ -268,8 +266,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
                     print("📂 Detected PDF link: $cleanMessage");
 
                     // Retrieve `moduleId` from WebView
-                    String? moduleId = await _webViewController.evaluateJavascript(
-                        source: "window.moduleId");
+                    String? moduleId = await _webViewController
+                        .evaluateJavascript(source: "window.moduleId");
                     if (moduleId == null || moduleId.isEmpty) {
                       print("❌ ERROR: Module ID not found in WebView!");
                       return;
@@ -278,13 +276,12 @@ class _WebViewScreenState extends State<WebViewScreen> {
                     print("🔹 Retrieved moduleId from WebView: $moduleId");
 
                     // Extract actual file name
-                    String fileName = cleanMessage
-                        .split("/")
-                        .last;
+                    String fileName = cleanMessage.split("/").last;
                     print("📂 Extracted PDF file name: $fileName");
 
                     // Get correct external storage path
-                    Directory? externalDir = await getExternalStorageDirectory();
+                    Directory? externalDir =
+                        await getExternalStorageDirectory();
                     // if (externalDir == null) {
                     //   print("❌ ERROR: External storage directory not found.");
                     //   return;
@@ -306,29 +303,20 @@ class _WebViewScreenState extends State<WebViewScreen> {
                   }
 
                   // Validate and parse JSON
-                  if (cleanMessage.startsWith("{") && cleanMessage.endsWith("}")) {
-                    final Map<String, dynamic> jsonData = json.decode(cleanMessage);
+                  if (cleanMessage.startsWith("{") &&
+                      cleanMessage.endsWith("}")) {
+                    final Map<String, dynamic> jsonData =
+                        json.decode(cleanMessage);
 
                     print("📥 Received Data from Storyline:");
                     print("🔹 ModuleID: ${jsonData['module_id']}");
                     print("🔹 ModuleName: ${jsonData['module_name']}");
                     print("🔹 Quiz Score: ${jsonData['quiz_score']}");
 
-                    // If module_id is missing, retrieve it from WebView
-                    if (!jsonData.containsKey("module_id") ||
-                        jsonData["module_id"] == null) {
-                      print(
-                          "⚠️ Module ID missing in Storyline data! Attempting retrieval...");
-
-                      // Retrieve moduleId from WebView
-                      String? injectedModuleId = await _webViewController
-                          .evaluateJavascript(source: "window.moduleId;");
-                      if (injectedModuleId != null && injectedModuleId.isNotEmpty) {
-                        jsonData["module_id"] = injectedModuleId;
-                        print("✅ Injected missing module ID: $injectedModuleId");
-                      } else {
-                        print("❌ Failed to retrieve module ID from WebView!");
-                      }
+                    if (validQuizModuleId(jsonData['module_id']) == null ||
+                        validQuizScore(jsonData['quiz_score']) == null) {
+                      await _storeScoreInSecureStorage(jsonData);
+                      return;
                     }
 
                     // If module_name is missing, retrieve it from WebView
@@ -353,22 +341,23 @@ class _WebViewScreenState extends State<WebViewScreen> {
                     // Store the quiz score in Secure Storage
                     await _storeScoreInSecureStorage(jsonData);
                   } else {
-                    print("⚠️ Warning: Message does not appear to be valid JSON.");
+                    print(
+                        "⚠️ Warning: Message does not appear to be valid JSON.");
                   }
                 } catch (e) {
                   print("❌ Error parsing WebView message: $e");
                 }
               },
 
-    // Handle downloads properly
+              // Handle downloads properly
               onDownloadStartRequest: (controller, downloadStartRequest) async {
-                print("📥 Download Request Triggered: ${downloadStartRequest
-                    .url} - MIME Type: ${downloadStartRequest.mimeType}");
+                print(
+                    "📥 Download Request Triggered: ${downloadStartRequest.url} - MIME Type: ${downloadStartRequest.mimeType}");
 
                 if (downloadStartRequest.mimeType == "application/pdf") {
                   // Retrieve `moduleId` from WebView
-                  String? moduleId = await _webViewController.evaluateJavascript(
-                      source: "window.moduleId");
+                  String? moduleId = await _webViewController
+                      .evaluateJavascript(source: "window.moduleId");
                   if (moduleId == null || moduleId.isEmpty) {
                     print("❌ ERROR: Module ID not found in WebView!");
                     return;
@@ -381,7 +370,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
                 }
               },
 
-    // Override URL loading behavior
+              // Override URL loading behavior
               shouldOverrideUrlLoading: (controller, navigationAction) async {
                 final uri = navigationAction.request.url;
                 if (uri != null) {
@@ -391,8 +380,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
                     print("📂 PDF detected! Forcing download.");
 
                     // Retrieve `moduleId` from WebView
-                    String? moduleId = await _webViewController.evaluateJavascript(
-                        source: "window.moduleId");
+                    String? moduleId = await _webViewController
+                        .evaluateJavascript(source: "window.moduleId");
                     if (moduleId == null || moduleId.isEmpty) {
                       print("❌ ERROR: Module ID not found in WebView!");
                       return NavigationActionPolicy.CANCEL;
@@ -450,7 +439,6 @@ class _WebViewScreenState extends State<WebViewScreen> {
                   ),
                 ),
               ),
-
           ],
         ),
       ),
@@ -458,56 +446,35 @@ class _WebViewScreenState extends State<WebViewScreen> {
   }
 
   // Function to store quiz scores in secure storage
-  Future<void> _storeScoreInSecureStorage(dynamic data) async {
+  Future<bool> _storeScoreInSecureStorage(dynamic data) async {
     try {
       // Normalize input (list or map)
       if (data is List && data.isNotEmpty && data.first is Map) {
         data = data.first;
       } else if (data is! Map<String, dynamic>) {
         print("⚠️ Unexpected data format: $data");
-        return;
+        throw const FormatException('Invalid quiz result');
       }
 
-      final String moduleId = data["module_id"]?.toString() ?? "unknown";
-      final String moduleName = data["module_name"]?.toString() ??
-          "Unknown Module";
-      final double score = double.tryParse(
-          data["quiz_score"]?.toString() ?? "0") ?? 0.0;
-
-      // 1️⃣ Load any existing scores
-      String? existing = await secureStorage.read(key: "pending_quiz_scores");
-      Map<String, dynamic> storedScores = {};
-      if (existing != null && existing.isNotEmpty) {
-        final decoded = jsonDecode(existing);
-        if (decoded is Map<String, dynamic>) storedScores = decoded;
+      final moduleId = validQuizModuleId(data['module_id']);
+      final score = validQuizScore(data['quiz_score']);
+      if (moduleId == null || score == null) {
+        throw const FormatException('Invalid quiz score or module identifier');
       }
+      final moduleName = data['module_name']?.toString() ?? 'Unknown Module';
 
-      // 2️⃣ Update the map
-      storedScores[moduleId] = {
-        "module_name": moduleName,
-        "score": score,
-        "date_saved": DateTime.now().toIso8601String(),
-      };
-
-      // 3️⃣ Write & confirm
-      await secureStorage.write(
-        key: "pending_quiz_scores",
-        value: jsonEncode(storedScores),
+      await _pendingScores.save(
+        moduleId: moduleId,
+        moduleName: moduleName,
+        score: score,
       );
-
-      // ✅ Force the OS to finish the write before continuing
-      await Future.delayed(const Duration(milliseconds: 250));
-
-      // 4️⃣ Read back once to confirm flush
-      final verify = await secureStorage.read(key: "pending_quiz_scores");
-      if (verify != null && verify.contains(moduleId)) {
-        print("✅ Pending quiz score safely flushed for module $moduleId");
-      } else {
-        print("⚠️ Flush verification failed for module $moduleId");
-      }
+      return true;
     } catch (e, st) {
       print("❌ Error storing offline quiz score: $e");
       print(st);
+      _showError(
+          'Your quiz result could not be saved on this device. Please keep this module open and try saving again.');
+      return false;
     }
   }
 
@@ -573,8 +540,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
         print("📂 Detected Storyline Module (numeric ID)");
 
         filePath =
-        "${externalDir
-            .path}/modules/files/$moduleId/story_content/external_files/$fileName";
+            "${externalDir.path}/modules/files/$moduleId/story_content/external_files/$fileName";
       }
 
       // ✅ CASE 2: NEW COMPILER MODULE (folder name)
@@ -582,7 +548,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
         print("📂 Detected Compiler Module (folder)");
 
         filePath =
-        "${externalDir.path}/modules/$moduleId/assets/resources/$fileName";
+            "${externalDir.path}/modules/$moduleId/assets/resources/$fileName";
       }
 
       print("📂 Constructed PDF file path: $filePath");

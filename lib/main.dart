@@ -1,5 +1,9 @@
+import 'services/pending_quiz_score_repository.dart';
+import 'services/animation_installation_coordinator.dart';
+import 'services/animation_preparation_service.dart';
+import 'services/animation_storage_service.dart';
+import 'services/location_service.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wired_test/pages/home_page.dart';
@@ -15,7 +19,7 @@ import 'services/retry_queue_service.dart';
 import 'state/exam_controller.dart';
 import 'models/exam_models.dart';
 import 'l10n/app_localizations.dart';
-
+import 'package:wired_test/providers/cme_award_provider.dart';
 
 Future<void> main() async {
   // Enable debug paint
@@ -32,7 +36,8 @@ Future<void> main() async {
 
   // 🧹 DEV ONLY: Clear Hive boxes to avoid schema mismatch after model changes
   // ----------------------------------------------------------
-  const bool clearBoxesForDev = false; // ✅ set to false for production
+  final bool clearBoxesForDev = const bool.fromEnvironment('CLEAR_HIVE_BOXES',
+      defaultValue: false); // ✅ set to false for production
   if (clearBoxesForDev) {
     await Hive.deleteBoxFromDisk('exam_attempts');
     await Hive.deleteBoxFromDisk('examBox');
@@ -56,6 +61,14 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
+        Provider(create: (_) => AnimationInstallationCoordinator()),
+        Provider(
+            create: (context) => AnimationPreparationService(
+                  coordinator: context.read<AnimationInstallationCoordinator>(),
+                )),
+        Provider(create: (_) => AnimationStorageService()),
+        Provider(create: (_) => LocationService()),
+        Provider(create: (_) => PendingQuizScoreRepository()),
         // 🔐 Authentication
         ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
 
@@ -64,6 +77,16 @@ Future<void> main() async {
 
         // 🧮 Quiz and module progress tracking
         ChangeNotifierProvider(create: (_) => QuizScoreProvider()),
+
+        // 🟢 CME credit award tracking
+        ChangeNotifierProxyProvider<AuthProvider, CmeAwardProvider>(
+          create: (_) => CmeAwardProvider(),
+          update: (context, auth, previous) {
+            final provider = previous ?? CmeAwardProvider();
+            provider.syncAuthToken(auth.isLoggedIn ? auth.authToken : null);
+            return provider;
+          },
+        ),
 
         // 🧩 Exam system
         Provider(create: (_) => RetryQueueService(retryBox)),
@@ -76,7 +99,8 @@ Future<void> main() async {
             return ExamController(attemptsBox, syncService, examBox);
           },
           update: (context, syncService, controller) {
-            return controller ?? ExamController(attemptsBox, syncService, examBox);
+            return controller ??
+                ExamController(attemptsBox, syncService, examBox);
           },
         ),
       ],
@@ -148,5 +172,3 @@ class _MyAppState extends State<MyApp> {
     );
   }
 }
-
-

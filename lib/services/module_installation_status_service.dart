@@ -49,21 +49,35 @@ class ModuleInstallationStatusService {
     // Their launcher filename may differ from the displayed module name.
     // Read the title metadata and verify that the actual content exists.
     await for (final entity in modulesDir.list(followLinks: false)) {
-      if (entity is! File || !entity.path.toLowerCase().endsWith('.htm')) {
+      if (entity is! File ||
+          !RegExp(r'\.html?$', caseSensitive: false).hasMatch(entity.path)) {
         continue;
       }
 
       final content = await entity.readAsString();
 
-      final match = RegExp(
-        r'<meta\s+name="module-title"\s+content="([^"]*)"',
+      String? rawTitle;
+      final metaTags = RegExp(
+        r'''<meta\b((?:[^"'<>]|"[^"]*"|'[^']*')*)>''',
         caseSensitive: false,
-      ).firstMatch(content);
+      ).allMatches(content);
+      for (final tag in metaTags) {
+        final attributes = <String, String>{};
+        for (final attribute in RegExp(
+          r'''(?:^|\s)([^\s=/>]+)\s*=\s*(?:"([^"]*)"|'([^']*)')''',
+        ).allMatches(tag.group(1)!)) {
+          attributes[attribute.group(1)!.toLowerCase()] =
+              attribute.group(2) ?? attribute.group(3)!;
+        }
+        if (attributes['name']?.toLowerCase() == 'module-title') {
+          rawTitle = attributes['content'];
+          if (rawTitle != null) break;
+        }
+      }
 
-      if (match == null) continue;
+      if (rawTitle == null) continue;
 
-      final title = match
-          .group(1)!
+      final title = rawTitle
           .replaceAll('&quot;', '"')
           .replaceAll('&lt;', '<')
           .replaceAll('&gt;', '>')
@@ -71,11 +85,7 @@ class ModuleInstallationStatusService {
 
       if (title != name) continue;
 
-      final launcherName = p.basename(entity.path);
-      final folderName = launcherName.substring(
-        0,
-        launcherName.length - 4,
-      );
+      final folderName = p.basenameWithoutExtension(entity.path);
 
       final storyFile = File(
         p.join(baseDir.path, 'files', folderName, 'story.html'),

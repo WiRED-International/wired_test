@@ -5,15 +5,10 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
-import 'package:wired_test/pages/cme/submit_credits.dart';
 import '../../providers/auth_guard.dart';
-import '../../providers/auth_provider.dart';
-import '../../utils/creditText.dart';
 import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
-import '../../utils/landscape_profile_section.dart';
-import '../../utils/profile_section.dart';
 import '../../utils/side_nav_bar.dart';
 import '../../utils/app_layout.dart';
 import '../creditsTracker/credits_tracker.dart';
@@ -23,10 +18,14 @@ import '../menu/menu.dart';
 import '../module_library.dart';
 import 'credits_history.dart';
 import '../../models/user.dart';
+import '../../models/cme_credit_totals.dart';
+import 'cme_totals_card.dart';
 import '../../../providers/quiz_score_provider.dart';
 
 class CMETracker extends StatefulWidget {
-  const CMETracker({Key? key}) : super(key: key);
+  const CMETracker({super.key, this.loadUser});
+
+  final Future<User> Function()? loadUser;
 
   @override
   State<CMETracker> createState() => _CMETrackerState();
@@ -41,6 +40,7 @@ class _CMETrackerState extends State<CMETracker> {
     super.initState();
     userData = fetchUserData();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       Provider.of<QuizScoreProvider>(context, listen: false).fetchQuizScores();
     });
   }
@@ -50,6 +50,7 @@ class _CMETrackerState extends State<CMETracker> {
   }
 
   Future<User> fetchUserData() async {
+    if (widget.loadUser != null) return widget.loadUser!();
     final token = await getAuthToken();
     if (token == null) throw Exception('User not logged in');
 
@@ -77,55 +78,10 @@ class _CMETrackerState extends State<CMETracker> {
     setState(() {
       userData = fetchUserData();
     });
-    await Provider.of<QuizScoreProvider>(context, listen: false)
-        .fetchQuizScores();
-  }
-
-  int calculateCredits(List<dynamic>? quizScores) {
-    final int currentYear = DateTime.now().year;
-    if (quizScores == null) {
-      debugPrint('🚫 quizScores is NULL');
-      return 0;
-    }
-
-    if (quizScores.isEmpty) {
-      debugPrint('⚠️ quizScores is EMPTY!');
-      return 0;
-    }
-
-    debugPrint('📦 Received ${quizScores.length} quiz scores for credit calculation');
-    for (var s in quizScores) {
-      debugPrint('🔍 Entry: ${jsonEncode(s)}');
-    }
-
-    int totalCredits = 0;
-
-    for (var score in quizScores) {
-      if (score is Map<String, dynamic>) {
-        final double scoreValue = double.tryParse(score['score'].toString()) ?? 0.0;
-        final DateTime? dateTaken = DateTime.tryParse(score['date_taken'].toString());
-        final String creditType = (score['credit_type'] ??
-            score['module']?['credit_type'] ??
-            'none')
-            .toString()
-            .toLowerCase();
-
-        debugPrint('🧮 Evaluating: score=$scoreValue, creditType=$creditType, date=${dateTaken?.year}');
-
-        if (creditType == 'cme' &&
-            scoreValue >= 80.0 &&
-            dateTaken != null &&
-            dateTaken.year == currentYear) {
-          totalCredits += 5;
-          debugPrint('✅ Counted: $scoreValue (${dateTaken.year})');
-        } else {
-          debugPrint('❌ Skipped: score=$scoreValue, creditType=$creditType, date=${dateTaken?.year}');
-        }
-      }
-    }
-
-    debugPrint('📊 Total CME credits counted: $totalCredits');
-    return totalCredits;
+    await Future.wait([
+      userData,
+      Provider.of<QuizScoreProvider>(context, listen: false).fetchQuizScores(),
+    ]);
   }
 
   // =====================================================
@@ -151,67 +107,142 @@ class _CMETrackerState extends State<CMETracker> {
       bottomNav: isLandscape
           ? null
           : CustomBottomNavBar(
-        onHomeTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const MyHomePage()),
-        ),
-        onLibraryTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => ModuleLibrary()),
-        ),
-        onTrackerTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => AuthGuard(child: CreditsTracker()),
-          ),
-        ),
-        onMenuTap: () async {
-          bool isLoggedIn = await checkIfUserIsLoggedIn();
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) =>
-              isLoggedIn ? const Menu() : const GuestMenu(),
+              onHomeTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const MyHomePage()),
+              ),
+              onLibraryTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => ModuleLibrary()),
+              ),
+              onTrackerTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AuthGuard(child: CreditsTracker()),
+                ),
+              ),
+              onMenuTap: () async {
+                bool isLoggedIn = await checkIfUserIsLoggedIn();
+                if (!context.mounted) return;
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        isLoggedIn ? const Menu() : const GuestMenu(),
+                  ),
+                );
+              },
+              scale: scale,
             ),
-          );
-        },
-        scale: scale,
-      ),
 
       // ❗ NO Center()
       child: isLandscape
           ? Row(
-        children: [
-          CustomSideNavBar(
-            onHomeTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const MyHomePage()),
-            ),
-            onLibraryTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => ModuleLibrary()),
-            ),
-            onTrackerTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => AuthGuard(child: CreditsTracker()),
-              ),
-            ),
-            onMenuTap: () async {
-              bool isLoggedIn = await checkIfUserIsLoggedIn();
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) =>
-                  isLoggedIn ? const Menu() : const GuestMenu(),
+              children: [
+                CustomSideNavBar(
+                  onHomeTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const MyHomePage()),
+                  ),
+                  onLibraryTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => ModuleLibrary()),
+                  ),
+                  onTrackerTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => AuthGuard(child: CreditsTracker()),
+                    ),
+                  ),
+                  onMenuTap: () async {
+                    bool isLoggedIn = await checkIfUserIsLoggedIn();
+                    if (!context.mounted) return;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            isLoggedIn ? const Menu() : const GuestMenu(),
+                      ),
+                    );
+                  },
+                  scale: scale,
                 ),
-              );
-            },
-            scale: scale,
-          ),
+                Expanded(
+                  child: FutureBuilder<User>(
+                    future: userData,
+                    builder: (context, userSnapshot) {
+                      if (userSnapshot.connectionState ==
+                          ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (userSnapshot.hasError) {
+                        return Center(
+                            child: Text('Error: ${userSnapshot.error}'));
+                      }
 
-          Expanded(
-            child: FutureBuilder<User>(
+                      final user = userSnapshot.data!;
+                      final totals = user.cmeCredits;
+
+                      return Consumer<QuizScoreProvider>(
+                        builder: (context, quizProvider, child) {
+                          final quizScores = List<Map<String, dynamic>>.from(
+                              quizProvider.quizScores);
+
+                          final cmeScores = quizScores
+                              .where((q) =>
+                                  (q['credit_type']?.toString().toLowerCase() ==
+                                      'cme'))
+                              .toList();
+
+                          cmeScores.sort((a, b) => (b['date_taken'] ?? '')
+                              .compareTo(a['date_taken'] ?? ''));
+
+                          final recentCredits = cmeScores.take(3).toList();
+
+                          final orientation =
+                              MediaQuery.of(context).orientation;
+
+                          return AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 400),
+                            switchInCurve: Curves.easeIn,
+                            switchOutCurve: Curves.easeOut,
+                            transitionBuilder: (child, animation) =>
+                                FadeTransition(
+                                    opacity: animation, child: child),
+                            child: orientation == Orientation.landscape
+                                ? KeyedSubtree(
+                                    key: const ValueKey('landscape'),
+                                    child: _buildLandscapeLayout(
+                                      context,
+                                      screenWidth,
+                                      screenHeight,
+                                      baseSize,
+                                      scale,
+                                      totals,
+                                      recentCredits,
+                                    ),
+                                  )
+                                : KeyedSubtree(
+                                    key: const ValueKey('portrait'),
+                                    child: _buildPortraitLayout(
+                                      context,
+                                      screenWidth,
+                                      screenHeight,
+                                      baseSize,
+                                      scale,
+                                      totals,
+                                      recentCredits,
+                                    ),
+                                  ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                ),
+              ],
+            )
+          : FutureBuilder<User>(
               future: userData,
               builder: (context, userSnapshot) {
                 if (userSnapshot.connectionState == ConnectionState.waiting) {
@@ -222,186 +253,59 @@ class _CMETrackerState extends State<CMETracker> {
                 }
 
                 final user = userSnapshot.data!;
-                final double totalCredits = user.totalCredits.toDouble();
+                final totals = user.cmeCredits;
 
                 return Consumer<QuizScoreProvider>(
                   builder: (context, quizProvider, child) {
-                    final quizScores =
-                    List<Map<String, dynamic>>.from(quizProvider.quizScores);
-
-                    if (quizProvider.isLoading) {
-                      return const Center(
-                        child: Text(
-                          "Loading your CME credits...",
-                          style: TextStyle(fontSize: 16, color: Colors.black54),
-                        ),
-                      );
-                    }
-
-                    if (quizScores.isEmpty) {
-                      return const Center(
-                        child: Text(
-                          "You haven’t earned any CME credits yet.\nComplete a quiz to get started!",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 16,
-                            color: Colors.black54,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      );
-                    }
-
-                    final double earnedCredits =
-                    calculateCredits(quizScores).toDouble();
+                    final quizScores = List<Map<String, dynamic>>.from(
+                        quizProvider.quizScores);
 
                     final cmeScores = quizScores
                         .where((q) =>
-                    (q['credit_type']?.toString().toLowerCase() == 'cme'))
+                            (q['credit_type']?.toString().toLowerCase() ==
+                                'cme'))
                         .toList();
 
-                    cmeScores.sort((a, b) =>
-                        (b['date_taken'] ?? '').compareTo(a['date_taken'] ?? ''));
+                    cmeScores.sort((a, b) => (b['date_taken'] ?? '')
+                        .compareTo(a['date_taken'] ?? ''));
 
                     final recentCredits = cmeScores.take(3).toList();
 
-                    final orientation = MediaQuery.of(context).orientation;
-
-                    return AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 400),
-                      switchInCurve: Curves.easeIn,
-                      switchOutCurve: Curves.easeOut,
-                      transitionBuilder: (child, animation) =>
-                          FadeTransition(opacity: animation, child: child),
-                      child: orientation == Orientation.landscape
-                          ? KeyedSubtree(
-                        key: const ValueKey('landscape'),
-                        child: _buildLandscapeLayout(
-                          context,
-                          screenWidth,
-                          screenHeight,
-                          baseSize,
-                          scale,
-                          earnedCredits,
-                          totalCredits,
-                          recentCredits,
-                        ),
-                      )
-                          : KeyedSubtree(
-                        key: const ValueKey('portrait'),
-                        child: _buildPortraitLayout(
-                          context,
-                          screenWidth,
-                          screenHeight,
-                          baseSize,
-                          scale,
-                          earnedCredits,
-                          totalCredits,
-                          recentCredits,
-                        ),
-                      ),
+                    return _buildPortraitLayout(
+                      context,
+                      screenWidth,
+                      screenHeight,
+                      baseSize,
+                      scale,
+                      totals,
+                      recentCredits,
                     );
                   },
                 );
               },
             ),
-          ),
-        ],
-      )
-          : FutureBuilder<User>(
-        future: userData,
-        builder: (context, userSnapshot) {
-          if (userSnapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (userSnapshot.hasError) {
-            return Center(child: Text('Error: ${userSnapshot.error}'));
-          }
-
-          final user = userSnapshot.data!;
-          final double totalCredits = user.totalCredits.toDouble();
-
-          return Consumer<QuizScoreProvider>(
-            builder: (context, quizProvider, child) {
-              final quizScores =
-              List<Map<String, dynamic>>.from(quizProvider.quizScores);
-
-              if (quizProvider.isLoading) {
-                return const Center(
-                  child: Text(
-                    "Loading your CME credits...",
-                    style: TextStyle(fontSize: 16, color: Colors.black54),
-                  ),
-                );
-              }
-
-              if (quizScores.isEmpty) {
-                return const Center(
-                  child: Text(
-                    "You haven’t earned any CME credits yet.\nComplete a quiz to get started!",
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.black54,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                );
-              }
-
-              final double earnedCredits =
-              calculateCredits(quizScores).toDouble();
-
-              final cmeScores = quizScores
-                  .where((q) =>
-              (q['credit_type']?.toString().toLowerCase() == 'cme'))
-                  .toList();
-
-              cmeScores.sort((a, b) =>
-                  (b['date_taken'] ?? '').compareTo(a['date_taken'] ?? ''));
-
-              final recentCredits = cmeScores.take(3).toList();
-
-              return _buildPortraitLayout(
-                context,
-                screenWidth,
-                screenHeight,
-                baseSize,
-                scale,
-                earnedCredits,
-                totalCredits,
-                recentCredits,
-              );
-            },
-          );
-        },
-      ),
     );
   }
 
   // =====================================================
   // 📱 Portrait Layout
   // =====================================================
-  Widget _buildPortraitLayout(BuildContext context,
-      double screenWidth,
-      double screenHeight,
-      double baseSize,
-      double scale,
-      double earnedCredits,
-      double totalCredits,
-      List<Map<String, dynamic>> recentCredits,) {
-    final safeTotal = totalCredits == 0 ? 1.0 : totalCredits;
-    final percentComplete = (earnedCredits / safeTotal).clamp(0.0, 1.0);
-    final remainingCredits = (safeTotal - earnedCredits).clamp(0.0, safeTotal);
-    final int currentYear = DateTime.now().year;
-
+  Widget _buildPortraitLayout(
+    BuildContext context,
+    double screenWidth,
+    double screenHeight,
+    double baseSize,
+    double scale,
+    CmeCreditTotals totals,
+    List<Map<String, dynamic>> recentCredits,
+  ) {
     return RefreshIndicator(
       onRefresh: () async {
         await refreshData();
-        if (!mounted) return;
+        if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Updated! Your credits are refreshed.'),
+            content: Text('✅ Refresh complete.'),
             backgroundColor: Color(0xFF16A34A),
             duration: Duration(seconds: 2),
           ),
@@ -435,93 +339,7 @@ class _CMETrackerState extends State<CMETracker> {
             ),
             SizedBox(height: baseSize * 0.05 * scale),
 
-            // Progress card
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(baseSize * 0.04),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFF16A34A), Color(0xFF22C55E)],
-                ),
-                borderRadius: BorderRadius.circular(baseSize * 0.04),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.green.withOpacity(0.25),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Stack(
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("$currentYear Progress",
-                        style: TextStyle(
-                            fontSize: baseSize * 0.035, color: Colors.white70),
-                      ),
-                      SizedBox(height: baseSize * 0.01),
-                      Text(
-                        "${earnedCredits.toStringAsFixed(1)} / ${safeTotal
-                            .toStringAsFixed(0)}",
-                        style: TextStyle(
-                          fontSize: baseSize * 0.05,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.white,
-                        ),
-                      ),
-                      Text("Credits Earned",
-                        style: TextStyle(
-                            fontSize: baseSize * 0.035, color: Colors.white70),
-                      ),
-                      SizedBox(height: baseSize * 0.025),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: percentComplete,
-                          minHeight: 8,
-                          backgroundColor: Colors.white24,
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                              Colors.white),
-                        ),
-                      ),
-                      SizedBox(height: baseSize * 0.01),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          "${(percentComplete * 100).toStringAsFixed(
-                              1)}% Complete",
-                          style: TextStyle(fontSize: baseSize * 0.035,
-                              color: Colors.white),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Positioned(
-                    top: baseSize * 0.02,
-                    right: baseSize * 0.02,
-                    child: Container(
-                      width: baseSize * 0.12,
-                      height: baseSize * 0.12,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withOpacity(0.15),
-                      ),
-                      child: Icon(
-                        Icons.emoji_events,
-                        size: baseSize * 0.06,
-                        color: (earnedCredits >= safeTotal)
-                            ? Colors.amberAccent
-                            : Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            CmeTotalsCard(totals: totals),
 
             SizedBox(height: baseSize * 0.04 * scale),
             Center(
@@ -557,7 +375,7 @@ class _CMETrackerState extends State<CMETracker> {
             SizedBox(height: baseSize * 0.05 * scale),
             // Recent credits
             Text(
-              "Recent Credits",
+              "Recent Quiz Submissions",
               style: TextStyle(
                 fontSize: baseSize * 0.045 * scale,
                 fontWeight: FontWeight.w600,
@@ -581,8 +399,7 @@ class _CMETrackerState extends State<CMETracker> {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
-                "Reminder: You need ${remainingCredits.toStringAsFixed(
-                    1)} more credits to meet your $currentYear requirement.",
+                "Credit totals reflect confirmed backend awards, not quiz submissions.",
                 style: TextStyle(
                   color: const Color(0xFF047857),
                   fontSize: baseSize * 0.035 * scale,
@@ -600,19 +417,15 @@ class _CMETrackerState extends State<CMETracker> {
 // =====================================================
 // 💻 Landscape Layout
 // =====================================================
-  Widget _buildLandscapeLayout(BuildContext context,
-      double screenWidth,
-      double screenHeight,
-      double baseSize,
-      double scale,
-      double earnedCredits,
-      double totalCredits,
-      List<Map<String, dynamic>> recentCredits,) {
-    final safeTotal = totalCredits == 0 ? 1.0 : totalCredits;
-    double percentComplete = (earnedCredits / safeTotal).clamp(0.0, 1.0);
-    double remainingCredits = (totalCredits - earnedCredits).clamp(0.0, totalCredits);
-    final int currentYear = DateTime.now().year;
-
+  Widget _buildLandscapeLayout(
+    BuildContext context,
+    double screenWidth,
+    double screenHeight,
+    double baseSize,
+    double scale,
+    CmeCreditTotals totals,
+    List<Map<String, dynamic>> recentCredits,
+  ) {
     return Padding(
       padding: EdgeInsets.symmetric(
         horizontal: baseSize * (isTablet(context) ? 0.04 : 0.06),
@@ -647,104 +460,7 @@ class _CMETrackerState extends State<CMETracker> {
                   ),
                   SizedBox(height: baseSize * 0.05),
 
-                  // 🟢 Progress Card
-                  Container(
-                    width: double.infinity,
-                    padding: EdgeInsets.all(baseSize * 0.04),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          Color(0xFF16A34A),
-                          Color(0xFF22C55E),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(baseSize * 0.04),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.green.withOpacity(0.25),
-                          blurRadius: 8,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Stack(
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "$currentYear Progress",
-                              style: TextStyle(
-                                fontSize: baseSize * 0.035,
-                                color: Colors.white70,
-                              ),
-                            ),
-                            SizedBox(height: baseSize * 0.01),
-                            Text(
-                              "${earnedCredits.toStringAsFixed(
-                                  1)} / ${totalCredits.toStringAsFixed(0)}",
-                              style: TextStyle(
-                                fontSize: baseSize * 0.05,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                            Text(
-                              "Credits Earned",
-                              style: TextStyle(
-                                fontSize: baseSize * 0.035,
-                                color: Colors.white70,
-                              ),
-                            ),
-                            SizedBox(height: baseSize * 0.025),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: LinearProgressIndicator(
-                                value: percentComplete,
-                                minHeight: 8,
-                                backgroundColor: Colors.white24,
-                                valueColor: const AlwaysStoppedAnimation<Color>(
-                                    Colors.white),
-                              ),
-                            ),
-                            SizedBox(height: baseSize * 0.01),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: Text(
-                                "${(percentComplete * 100).toStringAsFixed(
-                                    1)}% Complete",
-                                style: TextStyle(
-                                  fontSize: baseSize * 0.035,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        Positioned(
-                          top: baseSize * 0.02,
-                          right: baseSize * 0.02,
-                          child: Container(
-                            width: baseSize * 0.12,
-                            height: baseSize * 0.12,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white.withOpacity(0.15),
-                            ),
-                            child: Icon(
-                              Icons.emoji_events,
-                              size: baseSize * 0.06,
-                              color: (earnedCredits >= totalCredits)
-                                  ? Colors.amberAccent
-                                  : Colors.white,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  CmeTotalsCard(totals: totals),
                   SizedBox(height: baseSize * 0.03),
 
                   // 🕓 History Button
@@ -786,10 +502,10 @@ class _CMETrackerState extends State<CMETracker> {
                 await refreshData();
 
                 // ✅ Show confirmation when refresh completes
-                if (mounted) {
+                if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('✅ Updated! Your credits are refreshed.'),
+                      content: Text('✅ Refresh complete.'),
                       backgroundColor: Color(0xFF16A34A),
                       duration: Duration(seconds: 2),
                     ),
@@ -800,11 +516,10 @@ class _CMETrackerState extends State<CMETracker> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: Column(
                   children: [
+                    const Text("Recent Quiz Submissions"),
                     // 🧾 List of recent credits
-                    ...recentCredits
-                        .map((credit) =>
-                        _buildCreditCard(baseSize, credit, scale))
-                        .toList(),
+                    ...recentCredits.map(
+                        (credit) => _buildCreditCard(baseSize, credit, scale)),
 
                     SizedBox(height: baseSize * 0.04),
 
@@ -817,8 +532,7 @@ class _CMETrackerState extends State<CMETracker> {
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Text(
-                        "Reminder: You need ${remainingCredits.toStringAsFixed(
-                            1)} more credits to meet your $currentYear requirement.",
+                        "Credit totals reflect confirmed backend awards, not quiz submissions.",
                         style: TextStyle(
                           color: const Color(0xFF047857),
                           fontSize: baseSize * 0.035 * scale,
@@ -839,13 +553,12 @@ class _CMETrackerState extends State<CMETracker> {
     );
   }
 
-
   // =====================================================
   // 🧾 Reusable Credit Card
   // =====================================================
   Widget _buildCreditCard(
-    double baseSize, Map<String, dynamic> credit, double scale) {
-    final double score = (credit['score'] ?? 0).toDouble();
+      double baseSize, Map<String, dynamic> credit, double scale) {
+    final score = num.tryParse(credit['score'].toString()) ?? 0;
     final bool passed = score >= 80.0;
     final String? rawDate = credit['date_taken'];
     String formattedDate = '--';
@@ -856,7 +569,8 @@ class _CMETrackerState extends State<CMETracker> {
         final parsedDate = DateTime.parse(rawDate).toLocal();
         formattedDate = DateFormat('yyyy-MM-dd').format(parsedDate);
       } catch (e) {
-        debugPrint('⚠️ Invalid date format for ${credit['module_name']}: $rawDate');
+        debugPrint(
+            '⚠️ Invalid date format for ${credit['module_name']}: $rawDate');
       }
     }
 
@@ -868,7 +582,7 @@ class _CMETrackerState extends State<CMETracker> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.2),
+            color: Colors.grey.withValues(alpha: 0.2),
             blurRadius: 6,
             offset: const Offset(0, 4),
           ),
@@ -923,7 +637,7 @@ class _CMETrackerState extends State<CMETracker> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              passed ? "5 credits" : "No Credits",
+              passed ? "Passed" : "Not passed",
               style: TextStyle(
                 fontSize: baseSize * 0.032 * scale,
                 fontWeight: FontWeight.w600,
@@ -938,4 +652,3 @@ class _CMETrackerState extends State<CMETracker> {
     );
   }
 }
-

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../utils/functions.dart';
 
-class ProfileSection  extends StatelessWidget {
+class ProfileSection extends StatelessWidget {
   final String firstName;
   final String dateJoined;
   final String email;
@@ -17,11 +17,10 @@ class ProfileSection  extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     double scalingFactor = getScalingFactor(context);
-    final double circleDiameter = scalingFactor * (isTablet(context) ? 70 : 110);
-    final double circleDiameterSmall = scalingFactor * (isTablet(context) ? 64 : 100);
-
-    print("🏅 Calling getBadgeImage with creditsEarned: $creditsEarned");
-    String badgeImage = getBadgeImage(creditsEarned);
+    final double circleDiameter =
+        scalingFactor * (isTablet(context) ? 70 : 110);
+    final double circleDiameterSmall =
+        scalingFactor * (isTablet(context) ? 64 : 100);
 
     return Column(
       children: [
@@ -31,7 +30,8 @@ class ProfileSection  extends StatelessWidget {
           children: [
             Container(
               // height: scalingFactor * (isTablet(context) ? 0.05 : 125),
-              height: MediaQuery.of(context).size.height * (isTablet(context) ? 0.13 : 0.15),
+              height: MediaQuery.of(context).size.height *
+                  (isTablet(context) ? 0.13 : 0.15),
               width: MediaQuery.of(context).size.width,
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -46,10 +46,14 @@ class ProfileSection  extends StatelessWidget {
             ),
             Positioned(
               //top: scalingFactor * (isTablet(context) ? 0.05 : 120) - (circleDiameter / 2),
-              top: MediaQuery.of(context).size.height * (isTablet(context) ? 0.13 : .15) - (circleDiameter / 2),
+              top: MediaQuery.of(context).size.height *
+                      (isTablet(context) ? 0.13 : .15) -
+                  (circleDiameter / 2),
               // Middle of the circle aligns with the bottom
               //left: scalingFactor * (isTablet(context) ? 0.05 : 60) - (circleDiameter / 2),
-              left: MediaQuery.of(context).size.width * (isTablet(context) ? 0.15 : .18) - (circleDiameter / 2),
+              left: MediaQuery.of(context).size.width *
+                      (isTablet(context) ? 0.15 : .18) -
+                  (circleDiameter / 2),
               // Horizontally centered
               child: Container(
                 width: circleDiameter, // Diameter of the circle
@@ -63,10 +67,14 @@ class ProfileSection  extends StatelessWidget {
             // Second Circle
             Positioned(
               //top: scalingFactor * (isTablet(context) ? 0.05 : 120) - circleDiameterSmall / 2,
-              top: MediaQuery.of(context).size.height * (isTablet(context) ? 0.13 : 0.15) - circleDiameterSmall / 2,
+              top: MediaQuery.of(context).size.height *
+                      (isTablet(context) ? 0.13 : 0.15) -
+                  circleDiameterSmall / 2,
               // Adjust position to place on top of first circle
               //left: scalingFactor * (isTablet(context) ? 0.05 : 60) - (circleDiameterSmall / 2),
-              left: MediaQuery.of(context).size.width * (isTablet(context) ? 0.15 : 0.18) - (circleDiameterSmall / 2),
+              left: MediaQuery.of(context).size.width *
+                      (isTablet(context) ? 0.15 : 0.18) -
+                  (circleDiameterSmall / 2),
               // Smaller circle horizontally centered
               child: Container(
                 width: circleDiameterSmall, // Smaller circle
@@ -82,7 +90,8 @@ class ProfileSection  extends StatelessWidget {
                     ],
                   ),
                   image: DecorationImage(
-                    image: AssetImage(badgeImage),
+                    image: const AssetImage(
+                        'assets/images/circular_iron_badge.webp'),
                     fit: BoxFit.cover,
                   ),
                 ),
@@ -131,5 +140,3 @@ class ProfileSection  extends StatelessWidget {
     );
   }
 }
-
-
