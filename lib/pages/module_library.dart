@@ -371,6 +371,7 @@ class _ModuleLibraryState extends State<ModuleLibrary> {
               url: WebUri(Uri.file(module.path).toString()),
             ),
             moduleId: module.moduleId,
+            moduleName: module.moduleName,
           ),
         ),
       );

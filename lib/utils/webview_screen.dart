@@ -12,10 +12,12 @@ import 'package:path_provider/path_provider.dart';
 class WebViewScreen extends StatefulWidget {
   final URLRequest urlRequest;
   final String moduleId;
+  final String? moduleName;
 
   const WebViewScreen({
     required this.urlRequest,
     required this.moduleId,
+    this.moduleName,
     Key? key,
   }) : super(key: key);
 
@@ -319,24 +321,16 @@ class _WebViewScreenState extends State<WebViewScreen> {
                       return;
                     }
 
-                    // If module_name is missing, retrieve it from WebView
-                    if (!jsonData.containsKey("module_name") ||
-                        jsonData["module_name"] == null) {
-                      print(
-                          "⚠️ Module Name missing in Storyline data! Attempting retrieval...");
-
-                      // Retrieve moduleName from WebView
-                      String? injectedModuleName = await _webViewController
-                          .evaluateJavascript(source: "window.moduleName;");
-                      if (injectedModuleName != null &&
-                          injectedModuleName.isNotEmpty) {
-                        jsonData["module_name"] = injectedModuleName;
-                        print(
-                            "✅ Injected missing module Name: $injectedModuleName");
-                      } else {
-                        print("❌ Failed to retrieve module Name from WebView!");
-                      }
-                    }
+                    // Queue results in arrival order; optional metadata must
+                    // not delay a result behind a newer retake.
+                    final messageName = jsonData['module_name'];
+                    final launchName = widget.moduleName;
+                    jsonData['module_name'] = messageName is String &&
+                            messageName.trim().isNotEmpty
+                        ? messageName
+                        : launchName != null && launchName.trim().isNotEmpty
+                            ? launchName
+                            : 'Unknown Module';
 
                     // Store the quiz score in Secure Storage
                     await _storeScoreInSecureStorage(jsonData);
