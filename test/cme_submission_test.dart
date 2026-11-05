@@ -23,6 +23,18 @@ class _Auth extends AuthProvider {
   String? getUserIdFromToken() => '7';
 }
 
+class _TrackedClient extends MockClient {
+  _TrackedClient(Future<http.Response> Function(http.Request) handler)
+      : super(handler);
+  var closes = 0;
+
+  @override
+  void close() {
+    closes++;
+    super.close();
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const channel = MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
@@ -79,7 +91,9 @@ void main() {
   });
 
   Future<void> mount(WidgetTester tester,
-      {bool expectScore = true, Size size = const Size(1000, 1600)}) async {
+      {bool expectScore = true,
+      Size size = const Size(1000, 1600),
+      Duration submissionTimeout = const Duration(seconds: 30)}) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -95,7 +109,7 @@ void main() {
                 data: MediaQuery.of(context)
                     .copyWith(textScaler: const TextScaler.linear(0.7)),
                 child: child!),
-            home: const SubmitCredits())));
+            home: SubmitCredits(submissionTimeout: submissionTimeout))));
     await tester.pumpAndSettle();
     if (expectScore) expect(find.text('95.00'), findsOneWidget);
   }
@@ -108,6 +122,106 @@ void main() {
       if (done()) return;
     }
     fail('Expected asynchronous CME operation to finish');
+  }
+
+  for (final outcome in ['success', 'http error', 'exception']) {
+    testWidgets('submission closes request client after $outcome',
+        (tester) async {
+      awards = CmeAwardProvider(
+        readToken: () async => 'A',
+        clientFactory: () => MockClient(
+            (_) async => http.Response('{"credited_module_ids":[]}', 200)),
+      )..syncAuthToken('A');
+      final client = _TrackedClient((_) async {
+        if (outcome == 'exception') throw http.ClientException('network');
+        return http.Response('{}', outcome == 'success' ? 201 : 500);
+      });
+      final before = storage['pending_quiz_scores'];
+      await http.runWithClient(() async {
+        await mount(tester);
+        await tester.ensureVisible(find.text('Submit'));
+        await tester.runAsync(() => tester.tap(find.text('Submit')));
+        await waitUntil(tester, () => client.closes == 1);
+        if (outcome == 'success') {
+          await waitUntil(
+              tester, () => find.text('Success').evaluate().isNotEmpty);
+          expect(storage.containsKey('pending_quiz_scores'), isFalse);
+        } else {
+          expect(storage['pending_quiz_scores'], before);
+          expect(find.text('Success'), findsNothing);
+        }
+        expect(tester.takeException(), isNull);
+      }, () => client);
+    });
+  }
+
+  for (final scenario in ['retry', 'retake', 'dispose', 'late error']) {
+    testWidgets('stalled submission times out safely: $scenario',
+        (tester) async {
+      awards = CmeAwardProvider(
+        readToken: () async => 'A',
+        clientFactory: () => MockClient(
+            (_) async => http.Response('{"credited_module_ids":[]}', 200)),
+      )..syncAuthToken('A');
+      final response = Completer<http.Response>();
+      var posts = 0;
+      final clients = <_TrackedClient>[];
+      final before = storage['pending_quiz_scores'];
+      await http.runWithClient(() async {
+        await mount(tester,
+            submissionTimeout: const Duration(milliseconds: 100));
+        await tester.ensureVisible(find.text('Submit'));
+        await tester.runAsync(() async {
+          await tester.tap(find.text('Submit'));
+          await tester.tap(find.text('Submit'));
+        });
+        expect(posts, 1);
+        if (scenario == 'retake') {
+          final repository = tester
+              .element(find.byType(SubmitCredits))
+              .read<PendingQuizScoreRepository>();
+          await repository.save(
+              moduleId: '1234', moduleName: 'Retake', score: 88);
+        }
+        final pending = storage['pending_quiz_scores'];
+        if (scenario == 'dispose') {
+          await tester.pumpWidget(const SizedBox());
+        }
+        await waitUntil(tester, () => clients.first.closes == 1);
+        expect(storage['pending_quiz_scores'], pending);
+        expect(posts, 1); // No automatic retry.
+        if (scenario != 'dispose') {
+          expect(find.textContaining('submission could not be confirmed'),
+              findsOneWidget);
+        }
+        if (scenario == 'late error') {
+          response.completeError(http.ClientException('late failure'));
+        } else {
+          response.complete(http.Response('{}', 201));
+        }
+        await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 10)));
+        await tester.pump();
+        expect(storage['pending_quiz_scores'], pending);
+        expect(find.text('Success'), findsNothing);
+        expect(clients.first.closes, 1);
+        if (scenario == 'retry') {
+          expect(pending, before);
+          await tester.runAsync(() => tester.tap(find.text('Submit')));
+          await waitUntil(
+              tester, () => find.text('Success').evaluate().isNotEmpty);
+          expect(posts, 2);
+          expect(clients.last.closes, 1);
+          expect(storage.containsKey('pending_quiz_scores'), isFalse);
+        }
+        expect(tester.takeException(), isNull);
+      }, () {
+        final client = _TrackedClient((_) async =>
+            ++posts == 1 ? await response.future : http.Response('{}', 200));
+        clients.add(client);
+        return client;
+      });
+    });
   }
 
   for (final failure in ['none', 'network', 'timeout', 'storage']) {

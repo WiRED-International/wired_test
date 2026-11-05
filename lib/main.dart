@@ -1,3 +1,4 @@
+import 'config/api_config.dart';
 import 'services/pending_quiz_score_repository.dart';
 import 'services/animation_installation_coordinator.dart';
 import 'services/animation_preparation_service.dart';
@@ -29,7 +30,11 @@ Future<void> main() async {
   // debugPaintPointersEnabled = true; // Shows the touch points
   // debugRepaintRainbowEnabled = true; // Shows repaint areas with a rainbow effect
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: ".env");
+  final apiBaseUrl = ApiConfig.forCurrentBuild();
+  await dotenv.load(
+    fileName: '.env',
+    mergeWith: {'API_BASE_URL': apiBaseUrl},
+  );
 
   // Initialize Hive and open exam boxes
   await Hive.initFlutter();

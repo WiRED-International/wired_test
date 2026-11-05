@@ -23,7 +23,12 @@ import '../menu/menu.dart';
 import '../module_library.dart';
 
 class SubmitCredits extends StatefulWidget {
-  const SubmitCredits({super.key});
+  const SubmitCredits({
+    super.key,
+    this.submissionTimeout = const Duration(seconds: 30),
+  }) : assert(submissionTimeout > Duration.zero);
+
+  final Duration submissionTimeout;
 
   @override
   State<SubmitCredits> createState() => _SubmitCreditsState();
@@ -166,18 +171,26 @@ class _SubmitCreditsState extends State<SubmitCredits> {
       print("📦 Normalized ID: $normalizedId");
       print("📦 Final ID (last 4): $finalId");
 
-      final response = await http.post(
-        Uri.parse('$apiBaseUrl$apiEndpoint'),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $token',
-        },
-        body: json.encode({
-          'module_id': finalId,
-          'score': score,
-          'date_taken': DateTime.now().toIso8601String(),
-        }),
-      );
+      final client = http.Client();
+      final http.Response response;
+      try {
+        response = await client
+            .post(
+              Uri.parse('$apiBaseUrl$apiEndpoint'),
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer $token',
+              },
+              body: json.encode({
+                'module_id': finalId,
+                'score': score,
+                'date_taken': DateTime.now().toIso8601String(),
+              }),
+            )
+            .timeout(widget.submissionTimeout);
+      } finally {
+        client.close();
+      }
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         submissionAccepted = true;
