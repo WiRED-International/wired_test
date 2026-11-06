@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:path/path.dart' as p;
 import 'package:wired_test/pages/home_page.dart';
 import '../providers/auth_guard.dart';
 import '../utils/custom_nav_bar.dart';
@@ -24,8 +26,14 @@ import '../providers/cme_award_provider.dart';
 /// Module details and downloads for compiler and Storyline modules.
 class ModuleDetailsPage extends StatefulWidget {
   final DownloadableModule module;
+  final ModuleInstallationStatusService? installationStatus;
+  final LegacyModuleInstallationService? installer;
 
-  const ModuleDetailsPage({super.key, required this.module});
+  const ModuleDetailsPage(
+      {super.key,
+      required this.module,
+      this.installationStatus,
+      this.installer});
 
   @override
   State<ModuleDetailsPage> createState() => _ModuleDetailsPageState();
@@ -34,13 +42,69 @@ class ModuleDetailsPage extends StatefulWidget {
 class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
   final ModuleDownloadService _downloads = ModuleDownloadService();
   late final ModuleInstallationStatusService _installationStatus =
-      ModuleInstallationStatusService(downloadService: _downloads);
-  late final LegacyModuleInstallationService _installer =
+      widget.installationStatus ??
+          ModuleInstallationStatusService(downloadService: _downloads);
+  late final LegacyModuleInstallationService _installer = widget.installer ??
       LegacyModuleInstallationService(downloadService: _downloads);
 
   bool _checking = true;
   bool _busy = false;
-  bool _installed = false;
+  InstructionalInstallationInspection? _inspection;
+  InstructionalInstallationResult? _publication;
+  bool get _installed =>
+      _publication != null ||
+      _inspection?.state == InstructionalInstallationState.confirmed;
+  bool get _canDownload =>
+      !_checking &&
+      !_busy &&
+      !_installed &&
+      _inspection?.state == InstructionalInstallationState.notInstalled &&
+      widget.module.isDownloadable &&
+      RegExp(r'^[0-9]+$').hasMatch(widget.module.moduleId) &&
+      Uri.tryParse(widget.module.downloadLink ?? '')?.scheme == 'https';
+
+  String get _statusText {
+    if (_publication != null &&
+        _inspection?.state != InstructionalInstallationState.confirmed) {
+      return 'Installed on this device. Installation tracking is not confirmed.';
+    }
+    return switch (_inspection?.state) {
+      InstructionalInstallationState.confirmed => 'Installed',
+      InstructionalInstallationState.legacyCandidate =>
+        'Existing offline content detected. Its module identity is not confirmed.',
+      InstructionalInstallationState.ambiguous =>
+        'Installation status needs verification. Multiple offline matches were found.',
+      InstructionalInstallationState.conflict =>
+        'Installation identity conflict. Existing offline content has been preserved.',
+      InstructionalInstallationState.invalidRecord =>
+        'Installation tracking needs attention. The module may already be on this device.',
+      InstructionalInstallationState.notInstalled => 'Not downloaded',
+      _ =>
+        'Installation status could not be checked. Existing offline content has been preserved.',
+    };
+  }
+
+  Future<bool> _publishedFilesAvailable(
+      InstructionalInstallationResult result) async {
+    try {
+      if (!p.equals(
+              p.dirname(result.entryPointPath), result.contentDirectory) ||
+          !await Directory(result.contentDirectory).exists() ||
+          !await File(result.entryPointPath).exists() ||
+          await File(result.entryPointPath).length() == 0) {
+        return false;
+      }
+      final launcher = result.launcherPath;
+      return result.format == 'compiler' ||
+          (result.format == 'storyline' &&
+              launcher != null &&
+              await File(launcher).exists() &&
+              await File(launcher).length() > 0);
+    } on FileSystemException {
+      return false;
+    }
+  }
+
   bool _justInstalled = false;
   double? _progress;
   String _phase = '';
@@ -64,21 +128,33 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
     if (mounted) setState(() => _checking = true);
 
     try {
-      final installed = await _installationStatus.isInstalled(
+      final publication = _publication;
+      if (publication != null && !await _publishedFilesAvailable(publication)) {
+        if (!mounted) return;
+        setState(() {
+          _publication = null;
+          _justInstalled = false;
+        });
+      }
+      final inspection = await _installationStatus.inspectInstallation(
+        databaseId: widget.module.id,
+        moduleId: widget.module.moduleId,
         moduleName: widget.module.name,
       );
 
       if (!mounted) return;
 
       setState(() {
-        _installed = installed;
+        _inspection = inspection;
         _error = null;
       });
     } catch (error) {
       if (!mounted) return;
 
       setState(() {
-        _error = 'Unable to check installation: $error';
+        _inspection = InstructionalInstallationInspection(
+            InstructionalInstallationState.unavailable,
+            'Inspection failed: $error', const []);
       });
     } finally {
       if (mounted) setState(() => _checking = false);
@@ -142,7 +218,7 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
   Future<void> _install() async {
     final module = widget.module;
     final url = module.downloadLink;
-    if (_busy || _checking || _installed || url == null || url.isEmpty) return;
+    if (!_canDownload || url == null || url.isEmpty) return;
 
     setState(() {
       _busy = true;
@@ -153,7 +229,9 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
 
     var installedSuccessfully = false;
     try {
-      await _installer.downloadAndInstall(
+      final result = await _installer.downloadAndInstallWithResult(
+        databaseId: module.id,
+        version: module.version,
         moduleId: module.moduleId,
         moduleName: module.name,
         downloadUrl: url,
@@ -162,15 +240,28 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
         onExtractionProgress: (value) =>
             _updateProgress('Extracting module', value),
       );
+      if (!await _publishedFilesAvailable(result)) {
+        throw StateError('Published module paths could not be verified');
+      }
       installedSuccessfully = true;
       if (!mounted) return;
       setState(() {
         _phase = 'Installation complete';
         _progress = 1;
+        _publication = result;
       });
       await _refreshInstallation();
       if (!mounted) return;
       setState(() => _justInstalled = true);
+      if (result.hasWarnings) {
+        debugPrint('Module installed; tracking: ${result.trackingError}; '
+            'cleanup: ${result.cleanupWarnings}');
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content:
+              Text('Module installed and available offline. Some installation '
+                  'bookkeeping could not be completed.'),
+        ));
+      }
     } catch (error) {
       debugPrint('Module installation failed: $error');
       if (!mounted) return;
@@ -211,12 +302,7 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
   Widget build(BuildContext context) {
     final module = widget.module;
     final description = module.description?.trim() ?? '';
-    final canDownload = !_checking &&
-        !_busy &&
-        !_installed &&
-        module.isDownloadable &&
-        RegExp(r'^[0-9]+$').hasMatch(module.moduleId) &&
-        Uri.tryParse(module.downloadLink ?? '')?.scheme == 'https';
+    final canDownload = _canDownload;
 
     final landscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
@@ -361,12 +447,33 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
                       const Center(child: CircularProgressIndicator())
                     else
                       Text(
-                        _installed ? 'Installed' : 'Not downloaded',
+                        _statusText,
                         style: const TextStyle(
                           fontSize: 15,
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF358347),
                         ),
+                      ),
+                    if (!_checking &&
+                        !_busy &&
+                        !_installed &&
+                        _inspection?.state ==
+                            InstructionalInstallationState.unavailable)
+                      TextButton.icon(
+                        onPressed: _refreshInstallation,
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Retry installation check'),
+                      ),
+                    if (!_checking &&
+                        !_busy &&
+                        !_justInstalled &&
+                        (_installed ||
+                            _inspection?.state ==
+                                InstructionalInstallationState.legacyCandidate))
+                      TextButton.icon(
+                        onPressed: () => _open(ModuleLibrary()),
+                        icon: const Icon(Icons.library_books_outlined),
+                        label: const Text('Open My Library'),
                       ),
                     if (_busy) ...[
                       const SizedBox(height: 18),

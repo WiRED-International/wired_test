@@ -4,6 +4,33 @@ import 'package:archive/archive_io.dart';
 import 'package:path/path.dart' as p;
 
 import 'module_download_service.dart';
+import 'module_installation_registry.dart';
+
+enum InstructionalTrackingOutcome { saved, skipped, failed }
+
+/// A successful filesystem publication. Tracking and cleanup are independent.
+class InstructionalInstallationResult {
+  InstructionalInstallationResult({
+    required this.format,
+    required this.contentDirectory,
+    required this.entryPointPath,
+    this.launcherPath,
+    required this.trackingOutcome,
+    this.trackingError,
+    List<Object> cleanupWarnings = const [],
+  }) : cleanupWarnings = List.unmodifiable(cleanupWarnings);
+
+  final String format;
+  final String contentDirectory;
+  final String entryPointPath;
+  final String? launcherPath;
+  final InstructionalTrackingOutcome trackingOutcome;
+  final Object? trackingError;
+  final List<Object> cleanupWarnings;
+  bool get hasWarnings =>
+      trackingOutcome == InstructionalTrackingOutcome.failed ||
+      cleanupWarnings.isNotEmpty;
+}
 
 /// Maps a display title to a safe folder name while retaining its wording.
 String legacyModuleFolderName(String title) {
@@ -15,26 +42,56 @@ String legacyModuleFolderName(String title) {
 }
 
 /// Installs both existing HealthMAP module formats into their current
-/// offline-library locations. Does not use the new Hive installation registry.
+/// offline-library locations, then optionally records database identity.
 ///
 /// Compiler: `modules/<module name>/index.html`
 /// Storyline: `files/<story folder>/story.html` and `modules/<story folder>.htm`
 class LegacyModuleInstallationService {
-  LegacyModuleInstallationService({ModuleDownloadService? downloadService})
-      : _downloads = downloadService ?? ModuleDownloadService();
+  LegacyModuleInstallationService({
+    ModuleDownloadService? downloadService,
+    ModuleInstallationRegistry? registry,
+  })  : _downloads = downloadService ?? ModuleDownloadService(),
+        _registry = registry ?? ModuleInstallationRegistry();
 
   final ModuleDownloadService _downloads;
+  final ModuleInstallationRegistry _registry;
 
   // Shared across every LegacyModuleInstallationService instance.
   static bool _installationInProgress = false;
 
   Future<void> downloadAndInstall({
+    int? databaseId,
+    String? version,
     required String moduleId,
     required String moduleName,
     required String downloadUrl,
     void Function(double)? onDownloadProgress,
     void Function(double)? onExtractionProgress,
   }) async {
+    await downloadAndInstallWithResult(
+      databaseId: databaseId,
+      version: version,
+      moduleId: moduleId,
+      moduleName: moduleName,
+      downloadUrl: downloadUrl,
+      onDownloadProgress: onDownloadProgress,
+      onExtractionProgress: onExtractionProgress,
+    );
+  }
+
+  Future<InstructionalInstallationResult> downloadAndInstallWithResult({
+    int? databaseId,
+    String? version,
+    required String moduleId,
+    required String moduleName,
+    required String downloadUrl,
+    void Function(double)? onDownloadProgress,
+    void Function(double)? onExtractionProgress,
+  }) async {
+    if (databaseId != null && databaseId <= 0) {
+      throw ArgumentError.value(
+          databaseId, 'databaseId', 'Expected positive ID');
+    }
     if (_installationInProgress) {
       throw StateError(
         'Another module installation is already in progress.',
@@ -44,7 +101,9 @@ class LegacyModuleInstallationService {
     _installationInProgress = true;
 
     try {
-      await _performDownloadAndInstall(
+      return await _performDownloadAndInstall(
+        databaseId: databaseId,
+        version: version,
         moduleId: moduleId,
         moduleName: moduleName,
         downloadUrl: downloadUrl,
@@ -56,7 +115,9 @@ class LegacyModuleInstallationService {
     }
   }
 
-  Future<void> _performDownloadAndInstall({
+  Future<InstructionalInstallationResult> _performDownloadAndInstall({
+    int? databaseId,
+    String? version,
     required String moduleId,
     required String moduleName,
     required String downloadUrl,
@@ -90,6 +151,13 @@ class LegacyModuleInstallationService {
     }
 
     await staging.create(recursive: true);
+    String? publishedFormat;
+    late String contentDirectory;
+    late String entryPointPath;
+    String? launcherPath;
+    var trackingOutcome = InstructionalTrackingOutcome.skipped;
+    Object? trackingError;
+    final cleanupWarnings = <Object>[];
     try {
       final result = ReceivePort();
       await Isolate.spawn(
@@ -146,6 +214,11 @@ class LegacyModuleInstallationService {
           }
           rethrow;
         }
+        // Commit only after the launcher write/flush, outside its rollback block.
+        publishedFormat = 'storyline';
+        contentDirectory = destination.path;
+        entryPointPath = p.join(destination.path, 'story.html');
+        launcherPath = launcher.path;
       } else if (await File(p.join(staging.path, 'index.html')).exists()) {
         final destination =
             Directory(p.join(modulesDir.path, folderNameForCompiler));
@@ -153,16 +226,56 @@ class LegacyModuleInstallationService {
           throw StateError('Compiler module "$name" is already installed.');
         }
         await staging.rename(destination.path);
+        publishedFormat = 'compiler';
+        contentDirectory = destination.path;
+        entryPointPath = p.join(destination.path, 'index.html');
       } else {
         throw const FormatException(
           'ZIP contains neither a Storyline story.html nor a root index.html.',
         );
       }
 
-      if (await zip.exists()) await zip.delete();
+      // Publication has committed. Tracking must never trigger file rollback.
+      if (databaseId != null) {
+        try {
+          await _registry.saveInstructionalInstallation(
+            databaseId: databaseId,
+            moduleId: moduleId,
+            format: publishedFormat,
+            contentDirectory: contentDirectory,
+            entryPointPath: entryPointPath,
+            launcherPath: launcherPath,
+            version: version?.trim().isEmpty == true ? null : version,
+            provenance: 'new-install',
+          );
+          trackingOutcome = InstructionalTrackingOutcome.saved;
+        } catch (error) {
+          trackingOutcome = InstructionalTrackingOutcome.failed;
+          trackingError = error;
+        }
+      }
+      try {
+        if (await zip.exists()) await zip.delete();
+      } catch (error) {
+        cleanupWarnings.add(error);
+      }
     } finally {
-      if (await staging.exists()) await staging.delete(recursive: true);
+      try {
+        if (await staging.exists()) await staging.delete(recursive: true);
+      } catch (error) {
+        // Preserve the original pre-publication error, or successful publication.
+        if (publishedFormat != null) cleanupWarnings.add(error);
+      }
     }
+    return InstructionalInstallationResult(
+      format: publishedFormat,
+      contentDirectory: contentDirectory,
+      entryPointPath: entryPointPath,
+      launcherPath: launcherPath,
+      trackingOutcome: trackingOutcome,
+      trackingError: trackingError,
+      cleanupWarnings: cleanupWarnings,
+    );
   }
 }
 

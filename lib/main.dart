@@ -4,6 +4,8 @@ import 'services/animation_installation_coordinator.dart';
 import 'services/animation_preparation_service.dart';
 import 'services/animation_storage_service.dart';
 import 'services/location_service.dart';
+import 'services/module_installation_registry.dart';
+import 'package:path/path.dart' as p;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,6 +24,22 @@ import 'models/exam_models.dart';
 import 'l10n/app_localizations.dart';
 import 'package:wired_test/providers/cme_award_provider.dart';
 
+/// Registry availability must never prevent the application from starting.
+Future<void> initializeInstructionalRegistryForStartup({
+  required String? storageDirectory,
+  ModuleInstallationRegistry? registry,
+  void Function(String message)? log,
+}) async {
+  try {
+    await (registry ?? ModuleInstallationRegistry())
+        .initialize(storageDirectory: storageDirectory);
+  } catch (error, stack) {
+    (log ?? debugPrint)('Instructional installation registry unavailable; '
+        'continuing startup without identity tracking. Existing offline files '
+        'are preserved. Error: $error\n$stack');
+  }
+}
+
 Future<void> main() async {
   // Enable debug paint
   // debugPaintSizeEnabled = true; // Shows the boundaries of your widgets
@@ -33,6 +51,7 @@ Future<void> main() async {
   final apiBaseUrl = ApiConfig.forCurrentBuild();
   await dotenv.load(
     fileName: '.env',
+    isOptional: true,
     mergeWith: {'API_BASE_URL': apiBaseUrl},
   );
 
@@ -59,6 +78,12 @@ Future<void> main() async {
   final attemptsBox = await Hive.openBox<ExamAttempt>('exam_attempts');
   final retryBox = await Hive.openBox<PendingSubmission>('retry_queue');
   final examBox = await Hive.openBox('examBox');
+
+  // Use the established Hive location only for recovery-artifact preflight.
+  // initialize() itself opens the registry in Hive's existing configured root.
+  await initializeInstructionalRegistryForStartup(
+    storageDirectory: examBox.path == null ? null : p.dirname(examBox.path!),
+  );
 
   // Load stored auth data
   final authProvider = AuthProvider();
