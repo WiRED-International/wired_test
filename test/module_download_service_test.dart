@@ -1,6 +1,7 @@
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:archive/archive.dart';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -233,7 +234,28 @@ void main() {
 
       archive.addFile(linkEntry);
 
-      final zipBytes = ZipEncoder().encode(archive);
+      final zipBytes = Uint8List.fromList(ZipEncoder().encode(archive));
+      // archive 4.x writes DOS creator metadata and does not serialize the
+      // symbolicLink property. Encode Unix symlink metadata in this single-entry
+      // fixture's central-directory header so the decoder sees a real link.
+      var centralHeader = -1;
+      for (var offset = 0; offset <= zipBytes.length - 46; offset++) {
+        if (zipBytes[offset] == 0x50 &&
+            zipBytes[offset + 1] == 0x4b &&
+            zipBytes[offset + 2] == 0x01 &&
+            zipBytes[offset + 3] == 0x02) {
+          centralHeader = offset;
+          break;
+        }
+      }
+      expect(centralHeader, isNonNegative);
+      final metadata = ByteData.sublistView(zipBytes);
+      metadata.setUint8(centralHeader + 5, 3); // Unix creator OS.
+      metadata.setUint32(centralHeader + 38, 0xa1ff << 16, Endian.little);
+      final decodedLink = ZipDecoder().decodeBytes(zipBytes).single;
+      expect(decodedLink.mode & 0xf000, 0xa000); // S_IFLNK.
+      expect(decodedLink.isSymbolicLink, isTrue);
+      expect(decodedLink.symbolicLink, '../outside.txt');
       await zipFile.writeAsBytes(zipBytes);
 
       await expectLater(
