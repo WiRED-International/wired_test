@@ -1,4 +1,3 @@
-import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:wired_test/config/api_config.dart';
@@ -111,18 +110,15 @@ void main() {
             overrideUrl: 'https://WIDM.WIREDHEALTHRESOURCES.NET/apiv2/'),
         ApiConfig.productionUrl);
   });
-  test('empty bundled dotenv accepts resolved URL while preserving other values',
-      () async {
+  test('in-memory dotenv provides resolved URL without an asset', () {
     final env = DotEnv();
     final selected = ApiConfig.resolve(mode: ApiBuildMode.release);
-    await env.load(fileName: '.env', isOptional: true,
-        mergeWith: {'API_BASE_URL': selected});
+    env.loadFromString(isOptional: true, mergeWith: {'API_BASE_URL': selected});
     expect(env.env['API_BASE_URL'], selected);
     // Exercise unrelated values without depending on local .env contents.
     env.loadFromString(
         envString: 'API_BASE_URL=http://10.0.2.2:3000\nOTHER_SETTING=kept',
         mergeWith: {'API_BASE_URL': selected});
     expect(env.env, {'API_BASE_URL': selected, 'OTHER_SETTING': 'kept'});
-    expect(await rootBundle.loadString('.env'), isEmpty);
   });
 }

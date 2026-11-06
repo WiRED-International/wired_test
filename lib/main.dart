@@ -49,8 +49,7 @@ Future<void> main() async {
   // debugRepaintRainbowEnabled = true; // Shows repaint areas with a rainbow effect
   WidgetsFlutterBinding.ensureInitialized();
   final apiBaseUrl = ApiConfig.forCurrentBuild();
-  await dotenv.load(
-    fileName: '.env',
+  dotenv.loadFromString(
     isOptional: true,
     mergeWith: {'API_BASE_URL': apiBaseUrl},
   );
