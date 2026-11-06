@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:path/path.dart' as p;
+import 'package:wired_test/services/legacy_module_installation_service.dart';
 import 'package:wired_test/services/module_installation_registry.dart';
 import 'package:wired_test/services/module_installation_status_service.dart';
 
@@ -78,6 +79,66 @@ void main() {
     await Hive.close();
     await root.delete(recursive: true);
     await hiveRoot.delete(recursive: true);
+  });
+
+  group('Legacy Compiler content-ID contracts', () {
+    test('numeric directory with matching manifest content ID confirms',
+        () async {
+      await compiler(folder: '1565', id: '1565');
+      final result =
+          await inspect(id: 42, contentId: '1565', name: 'Compiler Test');
+      expect(result.state, InstructionalInstallationState.confirmed,
+          reason: result.reason);
+      expect(result.paths, contains(path('modules/1565/index.html')));
+    });
+
+    test('renamed directory and internal title confirm by content ID',
+        () async {
+      await compiler(folder: 'Old Folder', id: '1565');
+      await write(
+          'modules/Old Folder/module.json',
+          jsonEncode({
+            'module_id': '1565',
+            'module_title': 'Old Internal Title',
+          }));
+      final result =
+          await inspect(id: 42, contentId: '1565', name: 'New Catalog Title');
+      expect(result.state, InstructionalInstallationState.confirmed,
+          reason: result.reason);
+      expect(result.paths, contains(path('modules/Old Folder/index.html')));
+    });
+
+    test('matching directory title cannot override conflicting manifest ID',
+        () async {
+      await compiler(folder: 'Compiler Test', id: '9999');
+      final result =
+          await inspect(id: 42, contentId: '1565', name: 'Compiler Test');
+      expect(result.state, InstructionalInstallationState.conflict,
+          reason: result.reason);
+      expect(result.paths, contains(path('modules/Compiler Test/index.html')));
+    });
+
+    test('isolated sanitized-title collision cannot override manifest ID',
+        () async {
+      const requestedTitle = 'HIV/AIDS';
+      const installedTitle = 'HIV:AIDS';
+      final folder = legacyModuleFolderName(installedTitle);
+      expect(requestedTitle, isNot(installedTitle));
+      expect(legacyModuleFolderName(requestedTitle), folder);
+      await compiler(folder: folder, id: '9999');
+      await write(
+          'modules/$folder/module.json',
+          jsonEncode({
+            'module_id': '9999',
+            'module_title': installedTitle,
+          }));
+      expect(await Directory(path('modules')).list().length, 1);
+      final result =
+          await inspect(id: 42, contentId: '1565', name: requestedTitle);
+      expect(result.state, InstructionalInstallationState.conflict,
+          reason: result.reason);
+      expect(result.paths, contains(path('modules/$folder/index.html')));
+    });
   });
 
   test('compiler identity confirms renamed title and returns paths', () async {

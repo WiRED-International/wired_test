@@ -26,9 +26,6 @@ void main() {
   late File sentinel;
   late ModuleInstallationStatusService service;
   const sentinelContents = 'unrelated download must remain unchanged';
-  const idApiLimitation =
-      'isInstalled accepts only moduleName; the expected content module ID '
-      'cannot be supplied. Requires an explicitly approved API extension.';
 
   Future<File> writeFixture(String relativePath, String contents) async {
     final target = p.normalize(p.join(root.path, relativePath));
@@ -115,7 +112,8 @@ $metadata
     test('existing title-based detection decodes HTML entities', () async {
       await storyline('story-folder.htm',
           '<meta name="module-title" content="Health &amp; &quot;Safety&quot;">');
-      expect(await service.isInstalled(moduleName: 'Health & "Safety"'), isTrue);
+      expect(
+          await service.isInstalled(moduleName: 'Health & "Safety"'), isTrue);
     });
   });
 
@@ -150,42 +148,8 @@ $metadata
       await compiler('Malaria Treatment Advanced');
       await storyline('story-folder.htm',
           '<meta name="module-title" content="Malaria Treatment Advanced">');
-      expect(await service.isInstalled(moduleName: 'Malaria Treatment'), isFalse);
+      expect(
+          await service.isInstalled(moduleName: 'Malaria Treatment'), isFalse);
     });
-  });
-
-  // These are explicit pending contracts, not passing substitutes for ID tests.
-  // Do not use the directory name or API database id as a guessed content ID.
-  group('Content-ID contracts blocked by current public API', () {
-    test('numeric directory with matching manifest content ID is installed',
-        () async {
-      await compiler('1565', moduleId: '1565', title: 'Compiler Test');
-      fail('Supply expected content ID 1565, then require isTrue. '
-          '$idApiLimitation');
-    }, skip: idApiLimitation);
-
-    test('renamed compiler with matching content-ID metadata is installed',
-        () async {
-      await compiler('Old Title', moduleId: '1565', title: 'Old Title');
-      fail('Query New Title with expected content ID 1565, then require isTrue. '
-          '$idApiLimitation');
-    }, skip: idApiLimitation);
-
-    test('conflicting manifest content ID must not produce a positive match',
-        () async {
-      await compiler('Compiler Test', moduleId: '9999', title: 'Compiler Test');
-      fail('Query Compiler Test with expected content ID 1565, then require '
-          'isFalse despite the matching folder title. $idApiLimitation');
-    }, skip: idApiLimitation);
-
-    test('sanitized-title collision must not override conflicting manifest ID',
-        () async {
-      // Both titles map to HIV_AIDS, but are different instructional modules.
-      expect(legacyModuleFolderName('HIV/AIDS'),
-          legacyModuleFolderName('HIV:AIDS'));
-      await compiler('HIV_AIDS', moduleId: '9999', title: 'HIV:AIDS');
-      fail('Query HIV/AIDS with expected content ID 1565, then require isFalse. '
-          '$idApiLimitation');
-    }, skip: idApiLimitation);
   });
 }
