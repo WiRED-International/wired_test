@@ -280,9 +280,12 @@ class _MyHomePageState extends State<MyHomePage> {
                           child: const Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Text('Explore Modules',
-                                  style: TextStyle(fontSize: 16,
-                                      fontWeight: FontWeight.w600)),
+                              Flexible(
+                                child: Text('Explore Modules',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(fontSize: 16,
+                                        fontWeight: FontWeight.w600)),
+                              ),
                               SizedBox(width: 12),
                               Icon(Icons.arrow_forward_rounded, size: 19),
                             ],

@@ -31,7 +31,7 @@ class CustomBottomNavBar extends StatelessWidget {
 
     return Container(
       color: Colors.transparent,
-      height: barHeight,
+      constraints: BoxConstraints(minHeight: barHeight),
       padding: EdgeInsets.symmetric(
         vertical: baseSize * 0.01 * effectiveScale,
       ),
@@ -70,7 +70,7 @@ class CustomBottomNavBar extends StatelessWidget {
             iconSize: iconSize,
             fontSize: fontSize,
           ),
-        ],
+        ].map((item) => Expanded(child: item)).toList(),
       ),
     );
   }
@@ -98,6 +98,7 @@ class CustomBottomNavBar extends StatelessWidget {
             SizedBox(height: 1),
             Text(
               label,
+              textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.black,
                 fontSize: fontSize,
@@ -141,6 +142,7 @@ class CustomBottomNavBar extends StatelessWidget {
             SizedBox(height: 1),
             Text(
               label,
+              textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.black,
                 fontSize: fontSize,
