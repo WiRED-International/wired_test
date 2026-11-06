@@ -24,11 +24,19 @@ class ProgramModulesPage extends StatefulWidget {
     required this.title,
     required this.trainingType,
     this.specializationName,
+    this.catalogService,
+    this.installationStatus,
+    this.programDownloader,
+    this.locationService,
   });
 
   final String title;
   final String trainingType;
   final String? specializationName;
+  final ModuleCatalogService? catalogService;
+  final ModuleInstallationStatusService? installationStatus;
+  final ProgramDownloadService? programDownloader;
+  final LocationService? locationService;
 
   @override
   State<ProgramModulesPage> createState() => _ProgramModulesPageState();
@@ -37,25 +45,85 @@ class ProgramModulesPage extends StatefulWidget {
 class _ProgramModulesPageState extends State<ProgramModulesPage> {
   late Future<List<DownloadableModule>> _modules;
 
-  final ProgramDownloadService _programDownloader = ProgramDownloadService();
+  late final ProgramDownloadService _programDownloader =
+      widget.programDownloader ?? ProgramDownloadService();
 
   bool _downloadingProgram = false;
   ProgramDownloadProgress? _programProgress;
   String? _programError;
   String? _programMessage;
 
-  final ModuleInstallationStatusService _installationStatus =
-  ModuleInstallationStatusService();
+  late final ModuleInstallationStatusService _installationStatus =
+      widget.installationStatus ?? ModuleInstallationStatusService();
+  final Map<(int?, String), Future<InstructionalInstallationInspection>>
+      _installationChecks = {};
+  // onModuleInstalled is emitted only after the service verifies published files.
+  // Discard this session-only evidence on navigation, where files may be removed.
+  final Set<(int?, String)> _sessionPublications = {};
+  final Set<(int?, String)> _warningModules = {};
+  Future<List<InstructionalInstallationInspection>>? _summary;
+  int _statusGeneration = 0;
 
-  final Map<String, Future<bool>> _installationChecks = {};
+  (int?, String) _identity(DownloadableModule module) =>
+      (module.id, module.moduleId);
+  bool _isInstalled(DownloadableModule module,
+          InstructionalInstallationInspection inspection) =>
+      inspection.state == InstructionalInstallationState.confirmed ||
+      _sessionPublications.contains(_identity(module));
 
-  Future<bool> _isInstalled(DownloadableModule module) {
+  void _invalidateChecks({bool discardPublications = false}) {
+    _installationChecks.clear();
+    _summary = null;
+    _statusGeneration++;
+    if (discardPublications) {
+      _sessionPublications.clear();
+      _warningModules.clear();
+      _programMessage = null;
+      _programError = null;
+    }
+  }
+
+  Future<InstructionalInstallationInspection> _inspect(
+      DownloadableModule module) {
     return _installationChecks.putIfAbsent(
-      module.name,
-          () => _installationStatus.isInstalled(
-        moduleName: module.name,
-      ),
+      _identity(module),
+      () async {
+        try {
+          return await _installationStatus.inspectInstallation(
+              databaseId: module.id,
+              moduleId: module.moduleId,
+              moduleName: module.name);
+        } catch (error) {
+          return InstructionalInstallationInspection(
+              InstructionalInstallationState.unavailable,
+              'Installation check failed: $error', const []);
+        }
+      },
     );
+  }
+
+  String _statusLabel(InstructionalInstallationState state) => switch (state) {
+        InstructionalInstallationState.confirmed => 'Installed',
+        InstructionalInstallationState.notInstalled => 'Not downloaded',
+        InstructionalInstallationState.legacyCandidate =>
+          'Existing offline content; identity unverified',
+        InstructionalInstallationState.ambiguous =>
+          'Needs verification: multiple matches',
+        InstructionalInstallationState.conflict =>
+          'Installation identity conflict',
+        InstructionalInstallationState.invalidRecord =>
+          'Installation tracking needs attention',
+        InstructionalInstallationState.unavailable =>
+          'Installation status unavailable',
+      };
+
+  void _retryChecks() {
+    if (_downloadingProgram) return;
+    setState(() {
+      _invalidateChecks();
+      _programError = null;
+      _programMessage = null;
+    });
   }
 
   static const _blue = Color(0xFF0070C0);
@@ -64,12 +132,12 @@ class _ProgramModulesPageState extends State<ProgramModulesPage> {
   @override
   void initState() {
     super.initState();
-    _modules = ModuleCatalogService().fetchModules();
+    _modules = (widget.catalogService ?? ModuleCatalogService()).fetchModules();
   }
 
   List<DownloadableModule> _filterModules(
-      List<DownloadableModule> modules,
-      ) {
+    List<DownloadableModule> modules,
+  ) {
     final filtered = modules.where((module) {
       if (!module.belongsToTrainingType(widget.trainingType)) {
         return false;
@@ -85,75 +153,81 @@ class _ProgramModulesPageState extends State<ProgramModulesPage> {
     }).toList();
 
     filtered.sort(
-          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+      (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
     );
 
     return filtered;
   }
 
   Future<void> _downloadEntireProgram(
-      List<DownloadableModule> modules,
-      ) async {
+    List<DownloadableModule> modules,
+  ) async {
     if (_downloadingProgram) return;
-
-    // Identify modules that still need downloading.
-    final missing = <DownloadableModule>[];
-
-    try {
-      for (final module in modules) {
-        final installed = await _isInstalled(module);
-        if (!installed) missing.add(module);
-      }
-    } catch (error) {
-      if (!mounted) return;
-      setState(() {
-        _programError = 'Unable to check installed modules: $error';
-      });
-      return;
-    }
-
-    // Validate the entire queue before starting.
-    final unavailable = missing.where((module) {
-      final url = module.downloadLink;
-      return !module.isDownloadable ||
-          !RegExp(r'^[0-9]+$').hasMatch(module.moduleId) ||
-          url == null ||
-          Uri.tryParse(url)?.scheme != 'https';
-    }).toList();
-
-    if (unavailable.isNotEmpty) {
-      if (!mounted) return;
-      setState(() {
-        _programError =
-        '${unavailable.length} module(s) cannot currently be downloaded. '
-            'No downloads were started.';
-      });
-      return;
-    }
-
-    if (missing.isEmpty) {
-      if (!mounted) return;
-      setState(() {
-        _programMessage = 'All modules are already installed.';
-        _programError = null;
-      });
-      return;
-    }
-
-    if (!mounted) return;
 
     setState(() {
       _downloadingProgram = true;
       _programProgress = null;
       _programError = null;
       _programMessage = null;
+      _warningModules.clear();
+      _invalidateChecks();
     });
 
     try {
-      final locationService = LocationService();
+      final missing = <DownloadableModule>[];
+      final issues = <ProgramInstallationIssue>[];
+      for (final module in modules) {
+        final inspection = await _inspect(module);
+        if (_isInstalled(module, inspection)) continue;
+        if (inspection.state == InstructionalInstallationState.notInstalled) {
+          missing.add(module);
+        } else {
+          issues.add(ProgramInstallationIssue(module, inspection));
+        }
+      }
+      if (issues.isNotEmpty) {
+        throw ProgramDownloadBlockedException(
+            phase: 'preflight',
+            issues: issues,
+            remainingModules: modules.where(
+                (module) => !_sessionPublications.contains(_identity(module))));
+      }
+
+      // Validate the entire queue before starting.
+      final unavailable = missing.where((module) {
+        final url = module.downloadLink;
+        return !module.isDownloadable ||
+            !RegExp(r'^[0-9]+$').hasMatch(module.moduleId) ||
+            url == null ||
+            Uri.tryParse(url)?.scheme != 'https';
+      }).toList();
+
+      if (unavailable.isNotEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _programError =
+              '${unavailable.length} module(s) cannot currently be downloaded. '
+              'No downloads were started.';
+        });
+        return;
+      }
+
+      if (missing.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _programMessage = 'All modules are already installed.';
+          _programError = null;
+        });
+        return;
+      }
+
+      final locationService = widget.locationService ?? LocationService();
 
       await _programDownloader.downloadProgram(
-        modules: modules,
+        modules: modules
+            .where(
+                (module) => !_sessionPublications.contains(_identity(module)))
+            .toList(),
         onProgress: (progress) {
           if (!mounted) return;
           setState(() {
@@ -161,12 +235,15 @@ class _ProgramModulesPageState extends State<ProgramModulesPage> {
           });
         },
         onModuleInstalled: (module) async {
+          if (mounted) {
+            setState(() => _sessionPublications.add(_identity(module)));
+          }
           final databaseModuleId = module.id;
 
           if (databaseModuleId == null) {
             debugPrint(
               'Download statistics skipped: missing database ID '
-                  'for module ${module.moduleId}',
+              'for module ${module.moduleId}',
             );
             return;
           }
@@ -176,12 +253,31 @@ class _ProgramModulesPageState extends State<ProgramModulesPage> {
             null,
           );
         },
+        onInstallationWarning: (module, result) {
+          if (mounted) setState(() => _warningModules.add(_identity(module)));
+          debugPrint(
+              'Program module ${module.id}/${module.moduleId} installed with '
+              'tracking warning ${result.trackingError}; cleanup ${result.cleanupWarnings}');
+        },
       );
 
       if (!mounted) return;
 
       setState(() {
-        _programMessage = 'Program download completed successfully.';
+        _programMessage = _warningModules.isEmpty
+            ? 'Program download completed successfully.'
+            : 'Program download completed with warnings for ${_warningModules.length} module(s). '
+                'Successfully installed modules are available offline.';
+      });
+    } on ProgramDownloadBlockedException catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _programMessage = null;
+        _programError =
+            'Program download needs attention. Existing offline content is preserved.\n'
+            '${error.completedModules.length} module(s) completed during this download.\n'
+            '${error.issues.map((issue) => '${issue.module.name}: ${_statusLabel(issue.inspection.state)}. '
+                '${issue.inspection.reason}').join('\n')}';
       });
     } catch (error) {
       if (!mounted) return;
@@ -197,26 +293,52 @@ class _ProgramModulesPageState extends State<ProgramModulesPage> {
       if (mounted) {
         setState(() {
           _downloadingProgram = false;
-          _installationChecks.clear();
+          _invalidateChecks();
         });
       }
     }
   }
 
   Widget _buildProgramDownloadPanel(
-      List<DownloadableModule> modules,
-      ) {
-    return FutureBuilder<List<bool>>(
-      future: Future.wait(
-        modules.map(_isInstalled),
-      ),
+    List<DownloadableModule> modules,
+  ) {
+    return FutureBuilder<List<InstructionalInstallationInspection>>(
+      key: ValueKey(_statusGeneration),
+      future: _summary ??= Future.wait(modules.map(_inspect)),
       builder: (context, snapshot) {
         final installedCount = snapshot.hasData
-            ? snapshot.data!.where((installed) => installed).length
+            ? List.generate(modules.length, (index) => index)
+                .where((index) =>
+                    _isInstalled(modules[index], snapshot.data![index]))
+                .length
             : 0;
 
         final total = modules.length;
-        final remaining = total - installedCount;
+        final missing = snapshot.hasData
+            ? List.generate(modules.length, (index) => index)
+                .where((index) =>
+                    !_isInstalled(modules[index], snapshot.data![index]) &&
+                    snapshot.data![index].state ==
+                        InstructionalInstallationState.notInstalled)
+                .length
+            : 0;
+        final legacy = snapshot.hasData
+            ? List.generate(modules.length, (index) => index)
+                .where((index) =>
+                    !_isInstalled(modules[index], snapshot.data![index]) &&
+                    snapshot.data![index].state ==
+                        InstructionalInstallationState.legacyCandidate)
+                .length
+            : 0;
+        final unresolved =
+            snapshot.hasData ? total - installedCount - missing - legacy : 0;
+        final allInstalled =
+            snapshot.hasData && total > 0 && installedCount == total;
+        final needsRetry = snapshot.hasError ||
+            (snapshot.hasData &&
+                snapshot.data!.any((inspection) =>
+                    inspection.state ==
+                    InstructionalInstallationState.unavailable));
 
         return Container(
           margin: const EdgeInsets.fromLTRB(20, 0, 20, 16),
@@ -243,12 +365,24 @@ class _ProgramModulesPageState extends State<ProgramModulesPage> {
               Text(
                 snapshot.hasData
                     ? '$installedCount of $total modules installed'
-                    : 'Checking installed modules...',
+                    : snapshot.hasError
+                        ? 'Installation status could not be checked.'
+                        : 'Checking installed modules...',
                 style: const TextStyle(
                   fontSize: 14,
                   color: Color(0xFF526B7C),
                 ),
               ),
+              if (snapshot.hasData)
+                Text(
+                    '$missing missing; $legacy legacy; $unresolved need attention',
+                    style: const TextStyle(
+                        fontSize: 14, color: Color(0xFF526B7C))),
+              if (needsRetry && !_downloadingProgram)
+                TextButton.icon(
+                    onPressed: _retryChecks,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry installation checks')),
               const SizedBox(height: 12),
               LinearProgressIndicator(
                 value: snapshot.hasData && total > 0
@@ -288,7 +422,7 @@ class _ProgramModulesPageState extends State<ProgramModulesPage> {
                 if (_programProgress != null && _programProgress!.total > 0)
                   Text(
                     '${_programProgress!.completed} of '
-                        '${_programProgress!.total} remaining modules completed',
+                    '${_programProgress!.total} remaining modules completed',
                     style: const TextStyle(
                       fontSize: 13,
                       color: Color(0xFF526B7C),
@@ -299,21 +433,25 @@ class _ProgramModulesPageState extends State<ProgramModulesPage> {
                   height: 50,
                   child: ElevatedButton.icon(
                     onPressed: snapshot.hasData &&
-                        remaining > 0 &&
-                        !_downloadingProgram
+                            missing > 0 &&
+                            legacy == 0 &&
+                            unresolved == 0 &&
+                            !_downloadingProgram
                         ? () => _downloadEntireProgram(modules)
                         : null,
                     icon: Icon(
-                      remaining == 0 && snapshot.hasData
+                      allInstalled
                           ? Icons.check_circle_outline
                           : Icons.download_rounded,
                     ),
                     label: Text(
-                      snapshot.hasData && remaining == 0
+                      allInstalled
                           ? 'All Modules Installed'
                           : snapshot.hasData
-                          ? 'Download Remaining $remaining Modules'
-                          : 'Checking Modules...',
+                              ? legacy + unresolved > 0
+                                  ? 'Installation Needs Verification'
+                                  : 'Download Remaining $missing Modules'
+                              : 'Checking Modules...',
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _blue,
@@ -328,10 +466,13 @@ class _ProgramModulesPageState extends State<ProgramModulesPage> {
                 ),
               if (_programError != null) ...[
                 const SizedBox(height: 12),
-                Text(
-                  _programError!,
-                  style: const TextStyle(
-                    color: Color(0xFF9C3C2E),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 160),
+                  child: SingleChildScrollView(
+                    child: Text(
+                      _programError!,
+                      style: const TextStyle(color: Color(0xFF9C3C2E)),
+                    ),
                   ),
                 ),
               ],
@@ -364,17 +505,20 @@ class _ProgramModulesPageState extends State<ProgramModulesPage> {
     if (!mounted) return;
 
     setState(() {
-      _installationChecks.clear();
+      _invalidateChecks(discardPublications: true);
     });
   }
 
-  void _openNavigationPage(Widget page) {
+  Future<void> _openNavigationPage(Widget page) async {
     if (_downloadingProgram) return;
 
-    Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => page),
     );
+    if (mounted && page is ModuleLibrary) {
+      setState(() => _invalidateChecks(discardPublications: true));
+    }
   }
 
   Future<void> _openNavigationMenu() async {
@@ -406,26 +550,26 @@ class _ProgramModulesPageState extends State<ProgramModulesPage> {
         bottomNav: landscape
             ? null
             : CustomBottomNavBar(
-          onHomeTap: () => _openNavigationPage(const MyHomePage()),
-          onLibraryTap: () => _openNavigationPage(ModuleLibrary()),
-          onTrackerTap: () =>
-              _openNavigationPage(AuthGuard(child: CreditsTracker())),
-          onMenuTap: _openNavigationMenu,
-        ),
+                onHomeTap: () => _openNavigationPage(const MyHomePage()),
+                onLibraryTap: () => _openNavigationPage(ModuleLibrary()),
+                onTrackerTap: () =>
+                    _openNavigationPage(AuthGuard(child: CreditsTracker())),
+                onMenuTap: _openNavigationMenu,
+              ),
         child: landscape
             ? Row(
-          children: [
-            CustomSideNavBar(
-              onHomeTap: () => _openNavigationPage(const MyHomePage()),
-              onLibraryTap: () => _openNavigationPage(ModuleLibrary()),
-              onTrackerTap: () => _openNavigationPage(
-                AuthGuard(child: CreditsTracker()),
-              ),
-              onMenuTap: _openNavigationMenu,
-            ),
-            Expanded(child: _buildPageContent(landscape: true)),
-          ],
-        )
+                children: [
+                  CustomSideNavBar(
+                    onHomeTap: () => _openNavigationPage(const MyHomePage()),
+                    onLibraryTap: () => _openNavigationPage(ModuleLibrary()),
+                    onTrackerTap: () => _openNavigationPage(
+                      AuthGuard(child: CreditsTracker()),
+                    ),
+                    onMenuTap: _openNavigationMenu,
+                  ),
+                  Expanded(child: _buildPageContent(landscape: true)),
+                ],
+              )
             : _buildPageContent(landscape: false),
       ),
     );
@@ -504,15 +648,17 @@ class _ProgramModulesPageState extends State<ProgramModulesPage> {
                           if (!landscape) _buildProgramDownloadPanel(modules),
                           Expanded(
                             child: ListView.separated(
-                              padding: const EdgeInsets.fromLTRB(20, 8, 20, 120),
+                              padding:
+                                  const EdgeInsets.fromLTRB(20, 8, 20, 120),
                               itemCount: modules.length + (landscape ? 1 : 0),
                               separatorBuilder: (_, __) =>
-                              const SizedBox(height: 12),
+                                  const SizedBox(height: 12),
                               itemBuilder: (context, index) {
                                 if (landscape && index == 0) {
                                   return _buildProgramDownloadPanel(modules);
                                 }
-                                final module = modules[landscape ? index - 1 : index];
+                                final module =
+                                    modules[landscape ? index - 1 : index];
 
                                 return Material(
                                   color: Colors.white,
@@ -542,8 +688,13 @@ class _ProgramModulesPageState extends State<ProgramModulesPage> {
                                               ),
                                             ),
                                           ),
-                                          FutureBuilder<bool>(
-                                            future: _isInstalled(module),
+                                          FutureBuilder<
+                                              InstructionalInstallationInspection>(
+                                            key: ValueKey((
+                                              _identity(module),
+                                              _statusGeneration
+                                            )),
+                                            future: _inspect(module),
                                             builder: (context, snapshot) {
                                               if (snapshot.connectionState !=
                                                   ConnectionState.done) {
@@ -551,7 +702,7 @@ class _ProgramModulesPageState extends State<ProgramModulesPage> {
                                                   width: 18,
                                                   height: 18,
                                                   child:
-                                                  CircularProgressIndicator(
+                                                      CircularProgressIndicator(
                                                     strokeWidth: 2,
                                                   ),
                                                 );
@@ -560,7 +711,7 @@ class _ProgramModulesPageState extends State<ProgramModulesPage> {
                                               if (snapshot.hasError) {
                                                 return const Tooltip(
                                                   message:
-                                                  'Unable to check installation',
+                                                      'Unable to check installation',
                                                   child: Icon(
                                                     Icons.error_outline,
                                                     color: Colors.orange,
@@ -569,21 +720,41 @@ class _ProgramModulesPageState extends State<ProgramModulesPage> {
                                                 );
                                               }
 
+                                              final inspection = snapshot.data;
                                               final installed =
-                                                  snapshot.data ?? false;
+                                                  inspection != null &&
+                                                      _isInstalled(
+                                                          module, inspection);
+                                              final state = inspection?.state ??
+                                                  InstructionalInstallationState
+                                                      .unavailable;
 
                                               return Tooltip(
                                                 message: installed
-                                                    ? 'Installed'
-                                                    : 'Not installed',
+                                                    ? state ==
+                                                            InstructionalInstallationState
+                                                                .confirmed
+                                                        ? 'Installed'
+                                                        : 'Installed during this session; identity tracking unconfirmed'
+                                                    : _statusLabel(state),
                                                 child: Icon(
                                                   installed
                                                       ? Icons
-                                                      .check_circle_rounded
-                                                      : Icons.download_outlined,
+                                                          .check_circle_rounded
+                                                      : state ==
+                                                              InstructionalInstallationState
+                                                                  .notInstalled
+                                                          ? Icons
+                                                              .download_outlined
+                                                          : Icons.info_outline,
                                                   color: installed
                                                       ? const Color(0xFF548235)
-                                                      : const Color(0xFF78909C),
+                                                      : state ==
+                                                              InstructionalInstallationState
+                                                                  .notInstalled
+                                                          ? const Color(
+                                                              0xFF78909C)
+                                                          : Colors.orange,
                                                   size: 23,
                                                 ),
                                               );
@@ -632,5 +803,3 @@ class _ProgramModulesPageState extends State<ProgramModulesPage> {
     );
   }
 }
-
-
