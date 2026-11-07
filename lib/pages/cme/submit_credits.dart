@@ -66,10 +66,30 @@ class _SubmitCreditsState extends State<SubmitCredits> {
   late final PendingQuizScoreRepository _pendingScores;
   final _submittingIds = <String>{};
   final _submittedIds = <String>{};
+  late final AuthProvider _auth;
+  String? _sessionToken;
+  int _session = 0;
+
+  void _authChanged() {
+    final token = _auth.isLoggedIn ? _auth.authToken : null;
+    if (token == _sessionToken) return;
+    _sessionToken = token;
+    _session++;
+  }
+
+  @override
+  void dispose() {
+    _auth.removeListener(_authChanged);
+    _session++;
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
+    _auth = context.read<AuthProvider>();
+    _sessionToken = _auth.isLoggedIn ? _auth.authToken : null;
+    _auth.addListener(_authChanged);
     _pendingScores = context.read<PendingQuizScoreRepository>();
     futureModules = _loadPendingScores();
   }
@@ -152,6 +172,9 @@ class _SubmitCreditsState extends State<SubmitCredits> {
       return;
     }
 
+    final session = _session;
+    bool ownsSession() => session == _session &&
+        authProvider.isLoggedIn && authProvider.authToken == token;
     _submittingIds.add(id);
     var submissionAccepted = false;
     try {
@@ -202,6 +225,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
           _submittedIds
               .remove(id); // The preserved result has not been submitted.
         }
+        if (!ownsSession()) return;
         unawaited(cmeAwardProvider.fetchAwardedModules(forceRefresh: true));
         if (!context.mounted) return;
 
@@ -228,7 +252,9 @@ class _SubmitCreditsState extends State<SubmitCredits> {
               actions: [
                 TextButton(
                   onPressed: () {
+                    if (!context.mounted) return;
                     Navigator.of(context).pop();
+                    if (!mounted || !ownsSession()) return;
                     Navigator.pushReplacement(
                       context,
                       MaterialPageRoute(
@@ -281,7 +307,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                 'Your score remains saved on this device.';
         }
 
-        if (context.mounted) {
+        if (context.mounted && ownsSession()) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(errorMessage),
@@ -292,7 +318,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
     } catch (e) {
       if (submissionAccepted) {
         debugPrint('Score submitted; subsequent operation failed: $e');
-      } else if (context.mounted) {
+      } else if (context.mounted && ownsSession()) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
               content: Text(
