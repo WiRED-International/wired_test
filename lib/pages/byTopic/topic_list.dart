@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
+import '../../services/browse_catalog_repository.dart';
 
 import '../../widgets/browse/browse_state.dart';
 
@@ -64,17 +64,18 @@ class _TopicListState extends State<TopicList> {
     _subcategories = _fetchSubcategories();
   }
 
-  Future<List<SubCategory>> _fetchSubcategories() async {
+  Future<List<SubCategory>> _fetchSubcategories({bool forceRefresh = false}) async {
     final baseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
     final uri = Uri.parse(
       '${baseUrl.replaceAll(RegExp(r"/+$"), "")}/subCategories',
     );
-    final response = await http.get(uri).timeout(const Duration(seconds: 25));
-    if (response.statusCode != 200) {
-      throw Exception('Unable to load subcategories (HTTP ${response.statusCode}).');
-    }
+    final body = await BrowseCatalogRepository.shared.fetchListBody(
+      uri,
+      forceRefresh: forceRefresh,
+      headers: const {},
+    );
 
-    final decoded = jsonDecode(response.body);
+    final decoded = jsonDecode(body);
     if (decoded is! List) {
       throw const FormatException('Unexpected subcategory response.');
     }
@@ -96,7 +97,7 @@ class _TopicListState extends State<TopicList> {
 
   void _reload() {
     setState(() {
-      _subcategories = _fetchSubcategories();
+      _subcategories = _fetchSubcategories(forceRefresh: true);
     });
   }
 

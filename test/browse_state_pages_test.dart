@@ -1,3 +1,4 @@
+import 'package:wired_test/services/browse_catalog_repository.dart';
 import 'dart:async';
 import 'dart:convert';
 
@@ -12,6 +13,8 @@ import 'package:wired_test/pages/byTopic/topic_list.dart';
 import 'package:wired_test/pages/byTopic/module_by_topic.dart';
 
 void main() {
+  setUp(() => BrowseCatalogRepository.shared.clear());
+  tearDown(() => BrowseCatalogRepository.shared.clear());
   final cases = [
     (
       page: () => const ModuleByAlphabet(letter: 'A'),

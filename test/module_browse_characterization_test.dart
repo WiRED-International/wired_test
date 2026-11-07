@@ -1,3 +1,4 @@
+import 'package:wired_test/services/browse_catalog_repository.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -63,6 +64,8 @@ class _DetailsObserver extends NavigatorObserver {
 }
 
 void main() {
+  setUp(() => BrowseCatalogRepository.shared.clear());
+  tearDown(() => BrowseCatalogRepository.shared.clear());
   for (final alphabet in [true, false]) {
     final pageName = alphabet ? 'alphabet' : 'topic';
 
