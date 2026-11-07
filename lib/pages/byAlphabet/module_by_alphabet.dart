@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:http/http.dart' as http;
+import '../../services/browse_catalog_repository.dart';
 
 import '../../widgets/browse/browse_state.dart';
 
@@ -57,18 +57,15 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
     }
   }
 
-  Future<List<_AlphabetEntry>> _loadModules() async {
+  Future<List<_AlphabetEntry>> _loadModules({bool forceRefresh = false}) async {
     final baseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
     final uri = Uri.parse('${baseUrl.replaceAll(RegExp(r"/+$"), "")}/modules/');
-    final response = await http.get(uri, headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-    }).timeout(const Duration(seconds: 25));
+    final body = await BrowseCatalogRepository.shared.fetchListBody(
+      uri,
+      forceRefresh: forceRefresh,
+    );
 
-    if (response.statusCode != 200) {
-      throw Exception('Unable to load modules (HTTP ${response.statusCode}).');
-    }
-
-    final decoded = jsonDecode(response.body);
+    final decoded = jsonDecode(body);
     if (decoded is! List) {
       throw const FormatException('Unexpected module catalog response.');
     }
@@ -118,7 +115,7 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
 
   void _reload() {
     setState(() {
-      _modules = _loadModules();
+      _modules = _loadModules(forceRefresh: true);
     });
   }
 

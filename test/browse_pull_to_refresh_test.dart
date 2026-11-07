@@ -1,3 +1,4 @@
+import 'package:wired_test/services/browse_catalog_repository.dart';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -10,6 +11,8 @@ import 'package:wired_test/pages/byTopic/by_topic.dart';
 import 'package:wired_test/pages/byTopic/module_by_topic.dart';
 
 void main() {
+  setUp(() => BrowseCatalogRepository.shared.clear());
+  tearDown(() => BrowseCatalogRepository.shared.clear());
   final cases = [
     (
       name: 'alphabet modules',
