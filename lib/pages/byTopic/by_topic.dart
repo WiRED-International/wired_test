@@ -87,7 +87,9 @@ class _ByTopicState extends State<ByTopic> {
   }
 
   void _reload() {
-    setState(() => futureCategories = fetchCategories());
+    setState(() {
+      futureCategories = fetchCategories();
+    });
   }
 
   void _open(Widget page) {
@@ -175,6 +177,7 @@ class _ByTopicState extends State<ByTopic> {
         future: futureCategories,
         builder: (context, snapshot) {
           return CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               SliverToBoxAdapter(
                 child: Center(

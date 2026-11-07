@@ -116,7 +116,9 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
   }
 
   void _reload() {
-    setState(() => _modules = _loadModules());
+    setState(() {
+      _modules = _loadModules();
+    });
   }
 
   void _open(Widget page) {
@@ -181,6 +183,7 @@ class _ModuleByAlphabetState extends State<ModuleByAlphabet> {
               future: _modules,
               builder: (context, snapshot) {
                 return CustomScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
                   slivers: [
                     SliverToBoxAdapter(
                       child: Center(
