@@ -22,7 +22,6 @@ class AuthProvider with ChangeNotifier {
 
     try {
       _authToken = await storage.read(key: 'authToken');
-      debugPrint("🔑 Retrieved authToken: $_authToken");
 
       final expiryString = await storage.read(key: 'tokenExpiry');
 

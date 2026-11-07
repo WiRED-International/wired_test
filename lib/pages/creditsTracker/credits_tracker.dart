@@ -57,7 +57,6 @@ class _CreditsTrackerState extends State<CreditsTracker> {
 
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body) as Map<String, dynamic>;
-      print('API Response: $json');
       return User.fromJson(json); // Parse the top-level response directly
     } else {
       throw Exception('Failed to fetch user data: ${response.statusCode}');
