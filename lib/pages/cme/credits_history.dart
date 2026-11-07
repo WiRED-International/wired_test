@@ -30,8 +30,8 @@ class _CreditsHistoryState extends State<CreditsHistory> {
   late Future<User> userData;
   final _storage = const FlutterSecureStorage();
   bool showCreditsHistory = false;
-  Set<int> selectedCMEIndices = {};
-  bool selectAll = false;
+  // Identity within this loaded snapshot distinguishes duplicate/missing IDs.
+  final _selectedRecords = Set<Map>.identity();
   int? selectedYear;
 
   @override
@@ -72,6 +72,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
 
   void refreshScores() {
     setState(() {
+      _selectedRecords.clear();
       userData = fetchUserData();
     });
   }
@@ -132,7 +133,15 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                 .toLowerCase() ==
                 'cme',
           )
-              .toList();
+              .toList()
+            ..sort((a, b) => DateTime.parse(b['date_taken'])
+                .compareTo(DateTime.parse(a['date_taken'])));
+          final visibleScores = selectedYear == null
+              ? quizScores
+              : quizScores
+                  .where((q) =>
+                      DateTime.parse(q['date_taken']).year == selectedYear)
+                  .toList();
 
           final creditsEarned = user.creditsEarned ?? 0;
 
@@ -166,6 +175,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                   context,
                   user,
                   quizScores,
+                  visibleScores,
                   creditsEarned,
                   baseSize,
                   scale,
@@ -177,6 +187,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
             context,
             user,
             quizScores,
+            visibleScores,
             creditsEarned,
             baseSize,
             scale,
@@ -193,17 +204,15 @@ class _CreditsHistoryState extends State<CreditsHistory> {
       BuildContext context,
       User user,
       List<dynamic> quizScores,
+      List<dynamic> visibleScores,
       int creditsEarned,
       double baseSize,
       double scale,
       ) {
     final dateFormatter = DateFormat('MMM dd, yyyy');
-    quizScores.sort(
-          (a, b) =>
-          DateTime.parse(b['date_taken']).compareTo(DateTime.parse(a['date_taken'])),
-    );
-
     // ✅ ADD THIS HERE
+    final selectAll = visibleScores.isNotEmpty &&
+        visibleScores.every(_selectedRecords.contains);
     final currentYear = DateTime.now().year;
 
     final years = {
@@ -211,12 +220,6 @@ class _CreditsHistoryState extends State<CreditsHistory> {
       currentYear,
     }.toList()
       ..sort((a, b) => b.compareTo(a)); // newest first
-
-    final filtered = selectedYear == null
-        ? quizScores
-        : quizScores
-        .where((q) => DateTime.parse(q['date_taken']).year == selectedYear)
-        .toList();
 
     return Padding(
       padding: EdgeInsets.symmetric(
@@ -283,8 +286,9 @@ class _CreditsHistoryState extends State<CreditsHistory> {
 
                   // 🟢 Email Button
                   ElevatedButton.icon(
-                    onPressed: selectedCMEIndices.isNotEmpty
+                    onPressed: _selectedRecords.isNotEmpty
                         ? () async {
+                      final selected = _selectedSnapshot(quizScores);
                       final pdfBytes = await generateCMEPdf(
                         firstName: user.firstName ?? '',
                         lastName: user.lastName ?? '',
@@ -292,8 +296,9 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                         role: user.role ?? '',
                         country: user.country ?? '',
                         organization: user.organization ?? '',
-                        quizScores: quizScores,
-                        selectedIndices: selectedCMEIndices,
+                        quizScores: selected,
+                        selectedIndices: Set<int>.from(
+                            List.generate(selected.length, (i) => i)),
                       );
 
                       final file = await generateAndSavePdfToFile(
@@ -337,13 +342,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                   ElevatedButton(
                     onPressed: () {
                       setState(() {
-                        if (selectAll) {
-                          selectedCMEIndices.clear();
-                        } else {
-                          selectedCMEIndices =
-                          Set<int>.from(List.generate(quizScores.length, (i) => i));
-                        }
-                        selectAll = !selectAll;
+                        _toggleVisibleSelection(visibleScores, selectAll);
                       });
                     },
                     style: ElevatedButton.styleFrom(
@@ -376,13 +375,12 @@ class _CreditsHistoryState extends State<CreditsHistory> {
 
           // 🟣 CME History List
           Expanded(
-            child: filtered.isNotEmpty
+            child: visibleScores.isNotEmpty
                 ? ListView.builder(
-              itemCount: filtered.length,
+              itemCount: visibleScores.length,
               itemBuilder: (context, index) => _buildCreditCard(
                 context,
-                filtered[index],
-                index,
+                visibleScores[index],
                 dateFormatter,
                 baseSize,
                 scale,
@@ -410,10 +408,13 @@ class _CreditsHistoryState extends State<CreditsHistory> {
       BuildContext context,
       User user,
       List<dynamic> quizScores,
+      List<dynamic> visibleScores,
       int creditsEarned,
       double baseSize,
       double scale,
       ) {
+    final selectAll = visibleScores.isNotEmpty &&
+        visibleScores.every(_selectedRecords.contains);
     final currentYear = DateTime.now().year;
 
     final years = {
@@ -493,8 +494,9 @@ class _CreditsHistoryState extends State<CreditsHistory> {
 
                       // 🟢 Email Button
                       ElevatedButton.icon(
-                        onPressed: selectedCMEIndices.isNotEmpty
+                        onPressed: _selectedRecords.isNotEmpty
                             ? () async {
+                          final selected = _selectedSnapshot(quizScores);
                           final pdfBytes = await generateCMEPdf(
                             firstName: user.firstName ?? '',
                             lastName: user.lastName ?? '',
@@ -502,8 +504,9 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                             role: user.role ?? '',
                             country: user.country ?? '',
                             organization: user.organization ?? '',
-                            quizScores: quizScores,
-                            selectedIndices: selectedCMEIndices,
+                            quizScores: selected,
+                            selectedIndices: Set<int>.from(
+                                List.generate(selected.length, (i) => i)),
                           );
 
                           final file = await generateAndSavePdfToFile(
@@ -553,13 +556,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                 ElevatedButton(
                   onPressed: () {
                     setState(() {
-                      if (selectAll) {
-                        selectedCMEIndices.clear();
-                      } else {
-                        selectedCMEIndices =
-                        Set<int>.from(List.generate(quizScores.length, (i) => i));
-                      }
-                      selectAll = !selectAll;
+                      _toggleVisibleSelection(visibleScores, selectAll);
                     });
                   },
                   style: ElevatedButton.styleFrom(
@@ -595,11 +592,10 @@ class _CreditsHistoryState extends State<CreditsHistory> {
           Expanded(
             flex: 6,
             child: ListView.builder(
-              itemCount: quizScores.length,
+              itemCount: visibleScores.length,
               itemBuilder: (context, index) => _buildCreditCard(
                 context,
-                quizScores[index],
-                index,
+                visibleScores[index],
                 DateFormat('MMM dd, yyyy'),
                 baseSize,
                 scale,
@@ -614,7 +610,22 @@ class _CreditsHistoryState extends State<CreditsHistory> {
   // =====================================================
   // 🟩 Reusable Card
   // =====================================================
-  Widget _buildCreditCard(BuildContext context, dynamic quiz, int index,
+  // Detach selected records before PDF generation awaits its asset read.
+  List<dynamic> _selectedSnapshot(List<dynamic> orderedScores) =>
+      List<dynamic>.unmodifiable(jsonDecode(jsonEncode(
+          orderedScores.where(_selectedRecords.contains).toList())) as List);
+
+  void _toggleVisibleSelection(List<dynamic> visibleScores, bool allSelected) {
+    if (allSelected) {
+      _selectedRecords.removeAll(visibleScores);
+    } else {
+      _selectedRecords
+        ..clear()
+        ..addAll(visibleScores.cast<Map>());
+    }
+  }
+
+  Widget _buildCreditCard(BuildContext context, Map quiz,
       DateFormat formatter, double baseSize, double scale) {
     final module = quiz['module'];
     final moduleName = module?['name'] ?? 'Unknown';
@@ -647,10 +658,10 @@ class _CreditsHistoryState extends State<CreditsHistory> {
           InkWell(
             onTap: () {
               setState(() {
-                if (selectedCMEIndices.contains(index)) {
-                  selectedCMEIndices.remove(index);
+                if (_selectedRecords.contains(quiz)) {
+                  _selectedRecords.remove(quiz);
                 } else {
-                  selectedCMEIndices.add(index);
+                  _selectedRecords.add(quiz);
                 }
               });
             },
@@ -661,16 +672,16 @@ class _CreditsHistoryState extends State<CreditsHistory> {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
-                  color: selectedCMEIndices.contains(index)
+                  color: _selectedRecords.contains(quiz)
                       ? const Color(0xFF22C55E)
                       : Colors.grey.shade400,
                   width: 1.8,
                 ),
-                color: selectedCMEIndices.contains(index)
+                color: _selectedRecords.contains(quiz)
                     ? const Color(0xFF22C55E)
                     : Colors.white,
               ),
-              child: selectedCMEIndices.contains(index)
+              child: _selectedRecords.contains(quiz)
                   ? const Icon(
                 Icons.check,
                 color: Colors.white,
