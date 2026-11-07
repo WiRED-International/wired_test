@@ -4,7 +4,9 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import '../../providers/auth_guard.dart';
+import '../../providers/auth_provider.dart';
 import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
@@ -27,7 +29,36 @@ class CreditsHistory extends StatefulWidget {
 }
 
 class _CreditsHistoryState extends State<CreditsHistory> {
-  late Future<User> userData;
+  Future<User>? userData;
+  AuthProvider? _auth;
+  String? _sessionToken;
+  int _session = 0;
+
+  void _authChanged() {
+    if (!mounted) return;
+    final token = _auth!.isLoggedIn ? _auth!.authToken : null;
+    if (token == _sessionToken) return;
+    setState(() {
+      _session++;
+      _sessionToken = token;
+      _selectedRecords.clear();
+      userData = token == null ? null : fetchUserData();
+    });
+  }
+
+  void _checkSession(int session) {
+    if (!mounted || session != _session) {
+      throw StateError('Profile request no longer belongs to this page session');
+    }
+  }
+
+  @override
+  void dispose() {
+    _auth?.removeListener(_authChanged);
+    _session++;
+    super.dispose();
+  }
+
   final _storage = const FlutterSecureStorage();
   bool showCreditsHistory = false;
   // Identity within this loaded snapshot distinguishes duplicate/missing IDs.
@@ -37,7 +68,12 @@ class _CreditsHistoryState extends State<CreditsHistory> {
   @override
   void initState() {
     super.initState();
-    userData = fetchUserData();
+    // Nullable lookup preserves standalone page previews/tests. Production
+    // always supplies AuthProvider through the application provider tree.
+    _auth = context.read<AuthProvider?>();
+    _sessionToken = _auth?.isLoggedIn == true ? _auth!.authToken : null;
+    _auth?.addListener(_authChanged);
+    userData = _auth == null || _sessionToken != null ? fetchUserData() : null;
 
     // Default to current year
     selectedYear = DateTime.now().year;
@@ -47,11 +83,18 @@ class _CreditsHistoryState extends State<CreditsHistory> {
     return await _storage.read(key: 'authToken');
   }
 
-  Future<User> fetchUserData() async {
-    final token = await getAuthToken();
-    if (token == null) {
-      throw Exception('User is not logged in');
-    }
+  Future<User> fetchUserData() {
+    final load = _fetchUserData(_session, _sessionToken);
+    // Observe promptly even when a session changes before the next build.
+    load.ignore();
+    return load;
+  }
+
+  Future<User> _fetchUserData(int session, String? sessionToken) async {
+    final token = _auth == null ? await getAuthToken() : sessionToken;
+    _checkSession(session);
+    if (token == null) throw Exception('User not logged in');
+
     final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
 
     final response = await http.get(
@@ -62,6 +105,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
       },
     );
 
+    _checkSession(session);
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       return User.fromJson(json); // Parse the top-level response directly
@@ -71,6 +115,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
   }
 
   void refreshScores() {
+    if (!mounted || (_auth != null && _sessionToken == null)) return;
     setState(() {
       _selectedRecords.clear();
       userData = fetchUserData();
@@ -111,6 +156,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
       ),
 
       child: FutureBuilder<User>(
+        key: ValueKey(_session),
         future: userData,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -288,6 +334,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                   ElevatedButton.icon(
                     onPressed: _selectedRecords.isNotEmpty
                         ? () async {
+                      final session = _session;
                       final selected = _selectedSnapshot(quizScores);
                       final pdfBytes = await generateCMEPdf(
                         firstName: user.firstName ?? '',
@@ -301,8 +348,10 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                             List.generate(selected.length, (i) => i)),
                       );
 
+                      if (!context.mounted || !mounted || session != _session) return;
                       final file = await generateAndSavePdfToFile(
                           pdfBytes, 'cme_history.pdf');
+                      if (!context.mounted || !mounted || session != _session) return;
 
                       Navigator.push(
                         context,
@@ -496,6 +545,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                       ElevatedButton.icon(
                         onPressed: _selectedRecords.isNotEmpty
                             ? () async {
+                          final session = _session;
                           final selected = _selectedSnapshot(quizScores);
                           final pdfBytes = await generateCMEPdf(
                             firstName: user.firstName ?? '',
@@ -509,10 +559,12 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                                 List.generate(selected.length, (i) => i)),
                           );
 
+                          if (!context.mounted || !mounted || session != _session) return;
                           final file = await generateAndSavePdfToFile(
                             pdfBytes,
                             'cme_history.pdf',
                           );
+                          if (!context.mounted || !mounted || session != _session) return;
 
                           Navigator.push(
                             context,

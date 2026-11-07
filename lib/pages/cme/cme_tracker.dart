@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import '../../providers/auth_guard.dart';
+import '../../providers/auth_provider.dart';
 import '../../utils/custom_app_bar.dart';
 import '../../utils/custom_nav_bar.dart';
 import '../../utils/functions.dart';
@@ -33,14 +34,52 @@ class CMETracker extends StatefulWidget {
 
 class _CMETrackerState extends State<CMETracker> {
   final _storage = const FlutterSecureStorage();
-  late Future<User> userData;
+  Future<User>? userData;
+  AuthProvider? _auth;
+  String? _sessionToken;
+  int _session = 0;
+
+  void _authChanged() {
+    if (!mounted) return;
+    final token = _auth!.isLoggedIn ? _auth!.authToken : null;
+    if (token == _sessionToken) return;
+    setState(() {
+      _session++;
+      _sessionToken = token;
+      userData = token == null ? null : fetchUserData();
+    });
+    if (token != null) _scheduleScoresRefresh();
+  }
+
+  void _checkSession(int session) {
+    if (!mounted || session != _session) {
+      throw StateError('Profile request no longer belongs to this page session');
+    }
+  }
+
+  @override
+  void dispose() {
+    _auth?.removeListener(_authChanged);
+    _session++;
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
-    userData = fetchUserData();
+    // Nullable lookup preserves standalone page previews/tests. Production
+    // always supplies AuthProvider through the application provider tree.
+    _auth = context.read<AuthProvider?>();
+    _sessionToken = _auth?.isLoggedIn == true ? _auth!.authToken : null;
+    _auth?.addListener(_authChanged);
+    userData = _auth == null || _sessionToken != null ? fetchUserData() : null;
+    if (_auth == null || _sessionToken != null) _scheduleScoresRefresh();
+  }
+
+  void _scheduleScoresRefresh() {
+    final session = _session;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
+      if (!mounted || session != _session) return;
       Provider.of<QuizScoreProvider>(context, listen: false).fetchQuizScores();
     });
   }
@@ -49,9 +88,21 @@ class _CMETrackerState extends State<CMETracker> {
     return await _storage.read(key: 'authToken');
   }
 
-  Future<User> fetchUserData() async {
-    if (widget.loadUser != null) return widget.loadUser!();
-    final token = await getAuthToken();
+  Future<User> fetchUserData() {
+    final load = _fetchUserData(_session, _sessionToken);
+    // Observe promptly even when a session changes before the next build.
+    load.ignore();
+    return load;
+  }
+
+  Future<User> _fetchUserData(int session, String? sessionToken) async {
+    if (widget.loadUser != null) {
+      final user = await widget.loadUser!();
+      _checkSession(session);
+      return user;
+    }
+    final token = _auth == null ? await getAuthToken() : sessionToken;
+    _checkSession(session);
     if (token == null) throw Exception('User not logged in');
 
     final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
@@ -65,6 +116,7 @@ class _CMETrackerState extends State<CMETracker> {
       },
     );
 
+    _checkSession(session);
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       return User.fromJson(json);
@@ -75,13 +127,21 @@ class _CMETrackerState extends State<CMETracker> {
 
   // ✅ Refresh user + quiz scores
   Future<void> refreshData() async {
+    if (!mounted || (_auth != null && _sessionToken == null)) return;
+    final session = _session;
+    final profile = fetchUserData();
     setState(() {
-      userData = fetchUserData();
+      userData = profile;
     });
-    await Future.wait([
-      userData,
-      Provider.of<QuizScoreProvider>(context, listen: false).fetchQuizScores(),
-    ]);
+    try {
+      await Future.wait([
+        profile,
+        Provider.of<QuizScoreProvider>(context, listen: false).fetchQuizScores(),
+      ]);
+    } catch (_) {
+      if (!mounted || session != _session) return;
+      rethrow;
+    }
   }
 
   // =====================================================
@@ -169,6 +229,7 @@ class _CMETrackerState extends State<CMETracker> {
                 ),
                 Expanded(
                   child: FutureBuilder<User>(
+                    key: ValueKey(_session),
                     future: userData,
                     builder: (context, userSnapshot) {
                       if (userSnapshot.connectionState ==
@@ -180,6 +241,9 @@ class _CMETrackerState extends State<CMETracker> {
                             child: Text('Error: ${userSnapshot.error}'));
                       }
 
+                      if (!userSnapshot.hasData) {
+                        return const Center(child: Text('No data available'));
+                      }
                       final user = userSnapshot.data!;
                       final totals = user.cmeCredits;
 
@@ -243,6 +307,7 @@ class _CMETrackerState extends State<CMETracker> {
               ],
             )
           : FutureBuilder<User>(
+              key: ValueKey(_session),
               future: userData,
               builder: (context, userSnapshot) {
                 if (userSnapshot.connectionState == ConnectionState.waiting) {
@@ -252,6 +317,9 @@ class _CMETrackerState extends State<CMETracker> {
                   return Center(child: Text('Error: ${userSnapshot.error}'));
                 }
 
+                if (!userSnapshot.hasData) {
+                  return const Center(child: Text('No data available'));
+                }
                 final user = userSnapshot.data!;
                 final totals = user.cmeCredits;
 
@@ -301,8 +369,9 @@ class _CMETrackerState extends State<CMETracker> {
   ) {
     return RefreshIndicator(
       onRefresh: () async {
+        final session = _session;
         await refreshData();
-        if (!context.mounted) return;
+        if (!context.mounted || session != _session) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('✅ Refresh complete.'),
@@ -499,10 +568,11 @@ class _CMETrackerState extends State<CMETracker> {
             flex: 6,
             child: RefreshIndicator(
               onRefresh: () async {
+                final session = _session;
                 await refreshData();
 
                 // ✅ Show confirmation when refresh completes
-                if (context.mounted) {
+                if (context.mounted && session == _session) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
                       content: Text('✅ Refresh complete.'),
