@@ -48,31 +48,12 @@ class _TrainingProgram {
   }
 }
 
-class _Specialization {
-  const _Specialization({
-    required this.id,
-    required this.name,
-  });
-
-  final int id;
-  final String name;
-
-  factory _Specialization.fromJson(Map<String, dynamic> json) {
-    return _Specialization(
-      id: json['id'] as int,
-      name: json['name'] as String,
-    );
-  }
-}
-
 class _Catalog {
   const _Catalog({
     required this.programs,
-    required this.specializations,
   });
 
   final List<_TrainingProgram> programs;
-  final List<_Specialization> specializations;
 }
 
 class _ByPackagesState extends State<ByPackages> {
@@ -111,12 +92,9 @@ class _ByPackagesState extends State<ByPackages> {
   }
 
   Future<_Catalog> _fetchCatalog() async {
-    final results = await Future.wait([
-      _fetchList('/learning-catalog/programs'),
-      _fetchList('/learning-catalog/specializations'),
-    ]);
+    final results = await _fetchList('/learning-catalog/programs');
 
-    final programs = results[0]
+    final programs = results
         .map((item) => _TrainingProgram.fromJson(
               item as Map<String, dynamic>,
             ))
@@ -135,16 +113,8 @@ class _ByPackagesState extends State<ByPackages> {
     programs.sort((a, b) =>
         (order[a.trainingType] ?? 99).compareTo(order[b.trainingType] ?? 99));
 
-    final specializations = results[1]
-        .map((item) => _Specialization.fromJson(
-              item as Map<String, dynamic>,
-            ))
-        .toList()
-      ..sort((a, b) => a.name.compareTo(b.name));
-
     return _Catalog(
       programs: programs,
-      specializations: specializations,
     );
   }
 
