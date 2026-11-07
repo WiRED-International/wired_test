@@ -45,8 +45,11 @@ class _MenuState extends State<Menu> {
   bool _isDeletingAccount = false;
   AuthProvider? _deletionAuth;
   VoidCallback? _deletionAuthListener;
+  VoidCallback? _invalidateDeletion;
 
   void _detachDeletionListener() {
+    _invalidateDeletion?.call();
+    _invalidateDeletion = null;
     final listener = _deletionAuthListener;
     if (listener != null) _deletionAuth?.removeListener(listener);
     _deletionAuth = null;
@@ -124,6 +127,7 @@ class _MenuState extends State<Menu> {
     var invalidated = false;
     var signingOut = false;
     var logoutObserved = false;
+    _invalidateDeletion = () => invalidated = true;
     try {
       final auth = context.read<AuthProvider>();
       final token = auth.authToken;
@@ -185,7 +189,11 @@ class _MenuState extends State<Menu> {
       }
       deletionConfirmed = true;
       signingOut = true;
-      await auth.logOut();
+      final loggedOut = await auth.logOut(
+        // Capture operation-local data, not the page State or BuildContext.
+        ifOwned: () => !invalidated && auth.isLoggedIn && auth.authToken == token,
+      );
+      if (!loggedOut) return;
       if (!mounted || invalidated || !logoutObserved ||
           auth.isLoggedIn || auth.authToken != null) {
         return;

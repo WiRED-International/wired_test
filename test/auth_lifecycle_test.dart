@@ -152,16 +152,29 @@ void main() {
       if (method == 'write' && key == 'tokenExpiry') await gate.future;
     };
     var notifications = 0;
-    auth.addListener(() => notifications++);
+    final publishedTokens = <String?>[];
+    final publishedCredentials = <Map<String, String>>[];
+    auth.addListener(() {
+      notifications++;
+      publishedTokens.add(auth.authToken);
+      publishedCredentials.add(Map.of(storage.values));
+    });
     final pending = auth.logIn(token, expiry);
     await tester
         .runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
-    expect(auth.isLoggedIn, isTrue); // In-memory mutation precedes persistence.
+    expect(auth.isLoggedIn, isFalse); // Keep the committed signed-out state.
+    expect(auth.authToken, isNull);
     expect(notifications, 0);
     expect(storage.values['tokenExpiry'], isNull);
     gate.complete();
     await pending;
+    expect(auth.isLoggedIn, isTrue);
+    expect(auth.authToken, token);
     expect(notifications, 1);
+    expect(publishedTokens, [token]);
+    expect(publishedCredentials, [
+      {'authToken': token, 'tokenExpiry': expiry.toUtc().toIso8601String()},
+    ]);
     final restarted = AuthProvider();
     await restarted.loadStoredAuthData();
     expect(restarted.isLoggedIn, isTrue);
@@ -213,7 +226,7 @@ void main() {
   });
 
   testWidgets(
-      'CHARACTERIZATION login persistence failure propagates before notification',
+      'CHARACTERIZATION login persistence failure preserves committed session without notification',
       (tester) async {
     storage.before = (method, key) async {
       if (method == 'write' && key == 'tokenExpiry') {
@@ -224,7 +237,9 @@ void main() {
     auth.addListener(() => notifications++);
     await expectLater(
         auth.logIn(token, expiry), throwsA(isA<PlatformException>()));
-    expect(auth.isLoggedIn, isTrue);
+    expect(auth.isLoggedIn, isFalse);
+    expect(auth.authToken, isNull);
+    expect(auth.isTokenExpired(), isTrue);
     expect(notifications, 0);
     expect(storage.values['authToken'], token);
     expect(storage.values['tokenExpiry'], isNull);
@@ -400,4 +415,71 @@ void main() {
       }, () => client);
     });
   }
+  testWidgets(
+      'Login persists credentials exactly once through AuthProvider and restores them',
+      (tester) async {
+    await http.runWithClient(() async {
+      final expiryWrite = Completer<void>();
+      final release = Completer<void>();
+      storage.before = (method, key) async {
+        if (method == 'write' && key == 'tokenExpiry') {
+          expiryWrite.complete();
+          await release.future;
+        }
+      };
+      await mount(tester, Login());
+      final profile = tester.element(find.byType(Login)).read<UserProvider>();
+      await submit(tester);
+      await tester.runAsync(() async {
+        respond();
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      });
+      await tester.pump();
+      expect(expiryWrite.isCompleted, isTrue);
+      expect(storage.calls.where((c) => c == 'write:authToken'), hasLength(1));
+      expect(auth.authToken, isNull);
+      expect(storage.values['user_id'], isNull);
+      expect(profile.firstName, isNull);
+      expect(scores.fetches, 0);
+      expect(navigation.replacements, 0);
+      release.complete();
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)));
+      expect(auth.authToken, token);
+      expect(storage.values['tokenExpiry'], expiry.toUtc().toIso8601String());
+      expect(storage.calls.where((c) => c == 'write:authToken'), hasLength(1));
+      expect(storage.values['user_id'], '1');
+      expect(profile.firstName, 'Test');
+      expect(scores.fetches, 1);
+      expect(navigation.replacements, 1);
+      final restarted = AuthProvider();
+      await restarted.loadStoredAuthData();
+      expect(restarted.authToken, token);
+      expect(restarted.isLoggedIn, isTrue);
+      restarted.dispose();
+      await tester.pumpWidget(const SizedBox.shrink());
+    }, () => client);
+  });
+
+  testWidgets(
+      'disposed Login ignores a delayed successful HTTP response without any dependent writes',
+      (tester) async {
+    await http.runWithClient(() async {
+      await mount(tester, Login());
+      final profile = tester.element(find.byType(Login)).read<UserProvider>();
+      await submit(tester);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.runAsync(() async {
+        respond();
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      });
+      expect(auth.authToken, isNull);
+      expect(auth.isLoggedIn, isFalse);
+      expect(storage.calls.where((c) => c.startsWith('write:')), isEmpty);
+      expect(profile.firstName, isNull);
+      expect(scores.fetches, 0);
+      expect(navigation.replacements, 0);
+      expect(tester.takeException(), isNull);
+    }, () => client);
+  });
 }

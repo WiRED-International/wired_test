@@ -518,4 +518,47 @@ void main() {
       expect(tester.takeException(), isNull);
     }, () => client);
   });
+  for (final reused in [false, true]) {
+    testWidgets(
+        'deletion logout queued behind ${reused ? 'reused-token logout/login cycle' : 'pending B login'} preserves the newer session',
+        (tester) async {
+      await http.runWithClient(() async {
+        await mount(tester);
+        await deleteFromPage(tester);
+        final entered = Completer<void>();
+        final release = Completer<void>();
+        beforeStorage = (method, key) async {
+          if (method == (reused ? 'delete' : 'write') &&
+              key == (reused ? 'authToken' : 'tokenExpiry')) {
+            entered.complete();
+            await release.future;
+          }
+        };
+        final pendingLogout = reused ? auth.logOut() : null;
+        final nextToken = reused ? 'account-A' : 'account-B';
+        final login = auth.logIn(nextToken, expiry);
+        await tester.runAsync(() async {
+          await entered.future;
+        });
+        expect(auth.authToken, 'account-A');
+        await finish(
+            tester, 200); // A's successful DELETE queues conditional logout.
+        expect(navigation.replacements, 0);
+        release.complete();
+        await tester.runAsync(() async {
+          if (pendingLogout != null) await pendingLogout;
+          await login;
+        });
+        await flush(tester);
+        expect(stored['authToken'], nextToken);
+        expect(stored['tokenExpiry'], expiry.toIso8601String());
+        expect(auth.authToken, nextToken);
+        expect(auth.isLoggedIn, isTrue);
+        expect(navigation.replacements, 0);
+        expect(deletes, hasLength(1));
+        expect(errors, isEmpty);
+        await tester.pumpWidget(const SizedBox.shrink());
+      }, () => client);
+    });
+  }
 }
