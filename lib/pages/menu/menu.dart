@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
@@ -41,6 +42,23 @@ class _MenuState extends State<Menu> {
   final _storage = const FlutterSecureStorage();
   bool showCreditsHistory = false;
   bool _isLoggingOut = false;
+  bool _isDeletingAccount = false;
+  AuthProvider? _deletionAuth;
+  VoidCallback? _deletionAuthListener;
+
+  void _detachDeletionListener() {
+    final listener = _deletionAuthListener;
+    if (listener != null) _deletionAuth?.removeListener(listener);
+    _deletionAuth = null;
+    _deletionAuthListener = null;
+  }
+
+  @override
+  void dispose() {
+    _detachDeletionListener();
+    super.dispose();
+  }
+
   bool isTablet(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final diagonal = sqrt(size.width * size.width + size.height * size.height);
@@ -99,45 +117,94 @@ class _MenuState extends State<Menu> {
     });
   }
 
-  Future<void> deleteAccount(BuildContext context) async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    final token = authProvider.authToken;
+  Future<void> deleteAccount() async {
+    if (!mounted || _isDeletingAccount || _isLoggingOut) return;
+    _isDeletingAccount = true;
+    var deletionConfirmed = false;
+    var invalidated = false;
+    var signingOut = false;
+    var logoutObserved = false;
+    try {
+      final auth = context.read<AuthProvider>();
+      final token = auth.authToken;
+      if (!auth.isLoggedIn || token == null) return;
+      String? observedToken = token;
+      var observedLoggedIn = auth.isLoggedIn;
+      _deletionAuth = auth;
+      _deletionAuthListener = () {
+        if (observedToken == auth.authToken &&
+            observedLoggedIn == auth.isLoggedIn) {
+          return;
+        }
+        observedToken = auth.authToken;
+        observedLoggedIn = auth.isLoggedIn;
+        // Our successful logout is the one expected session transition.
+        if (signingOut && !logoutObserved &&
+            !auth.isLoggedIn && auth.authToken == null) {
+          logoutObserved = true;
+        } else {
+          invalidated = true;
+        }
+      };
+      auth.addListener(_deletionAuthListener!);
+      bool ownsSession() => mounted && !invalidated &&
+          auth.isLoggedIn && auth.authToken == token;
 
-    final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
-
-    final apiEndpoint = '/auth/delete-account';
-
-    if (token == null) {
-      print("Error: No authentication token found.");
-      return;
-    }
-
-    final response = await http.delete(
-      Uri.parse('$apiBaseUrl$apiEndpoint'),
-      headers: {
-        'Authorization': 'Bearer $token', // Only send the token
-        'Content-Type': 'application/json',
-      },
-    );
-
-    if (response.statusCode == 200) {
-      print("Account deleted successfully.");
-      authProvider.logOut();
-
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => Login()),
-        );
-      }
-    } else {
-      print("Error: ${response.body}");
-
-      if (mounted) {
+      final decision = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text("Delete Account"),
+          content: Text("Are you sure? This cannot be undone."),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: Text("Cancel"),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: Text("Delete"),
+            ),
+          ],
+        ),
+      );
+      if (decision != true || !ownsSession()) return;
+      final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
+      final response = await http.delete(
+        Uri.parse('$apiBaseUrl/auth/delete-account'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 15));
+      if (!mounted || !ownsSession()) return;
+      if (response.statusCode != 200) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to delete account. Please try again.")),
+          const SnackBar(content: Text("Failed to delete account. Please try again.")),
+        );
+        return;
+      }
+      deletionConfirmed = true;
+      signingOut = true;
+      await auth.logOut();
+      if (!mounted || invalidated || !logoutObserved ||
+          auth.isLoggedIn || auth.authToken != null) {
+        return;
+      }
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => Login()),
+      );
+    } catch (_) {
+      if (mounted && !invalidated) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(deletionConfirmed
+              ? "Account deletion was confirmed, but local sign-out failed. Please try signing out."
+              : "Unable to confirm account deletion. The request may have reached the server. Please check your connection and try again.")),
         );
       }
+    } finally {
+      _detachDeletionListener();
+      _isDeletingAccount = false;
     }
   }
 
@@ -442,7 +509,7 @@ class _MenuState extends State<Menu> {
             iconSize: iconBase,
             padding: padding,
             onTap: () async {
-              if (_isLoggingOut) return;
+              if (_isLoggingOut || _isDeletingAccount) return;
               _isLoggingOut = true;
               try {
                 await Provider.of<AuthProvider>(context, listen: false).logOut();
@@ -473,31 +540,7 @@ class _MenuState extends State<Menu> {
             fontSize: fontBase,
             iconSize: iconBase,
             padding: padding,
-            onTap: () async {
-              bool confirmDelete = await showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: Text("Delete Account"),
-                  content: Text("Are you sure? This cannot be undone."),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: Text("Cancel"),
-                    ),
-                    TextButton(
-                      onPressed: () async {
-                        Navigator.pop(context, true);
-                        await deleteAccount(context);
-                      },
-                      child: Text("Delete"),
-                    ),
-                  ],
-                ),
-              );
-              if (confirmDelete == true) {
-                await deleteAccount(context);
-              }
-            },
+            onTap: deleteAccount,
           ),
         ],
       ),
