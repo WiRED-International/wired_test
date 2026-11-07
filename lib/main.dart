@@ -105,7 +105,15 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => UserProvider()),
 
         // 🧮 Quiz and module progress tracking
-        ChangeNotifierProvider(create: (_) => QuizScoreProvider()),
+        ChangeNotifierProxyProvider<AuthProvider, QuizScoreProvider>(
+          create: (context) => QuizScoreProvider()
+            ..syncAuthProvider(context.read<AuthProvider>()),
+          update: (context, auth, previous) {
+            final provider = previous ?? QuizScoreProvider();
+            provider.syncAuthProvider(auth);
+            return provider;
+          },
+        ),
 
         // 🟢 CME credit award tracking
         ChangeNotifierProxyProvider<AuthProvider, CmeAwardProvider>(
