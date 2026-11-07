@@ -79,15 +79,6 @@ class _LoginState extends State<Login> {
         );
 
         if (response.statusCode == 200) {
-          // Successfully logged in
-          final responseData = json.decode(response.body);
-          final authToken = responseData['token'];
-          final userId = responseData['user']['id'];
-
-          if (authToken is String && authToken.isNotEmpty && userId != null) {
-              await _storage.write(key: 'authToken', value: authToken);
-          }
-
           return response;
         } else {
           if (mounted) {
