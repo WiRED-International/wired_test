@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
+import '../../widgets/browse/browse_state.dart';
+
 import '../../models/downloadable_module.dart';
 import '../../widgets/browse/module_browse_card.dart';
 import '../../providers/auth_guard.dart';
@@ -39,7 +41,6 @@ class _TopicEntry {
 
 class _ModuleByTopicState extends State<ModuleByTopic> {
   static const _blue = Color(0xFF16466A);
-  static const _green = Color(0xFF358347);
 
   late Future<List<_TopicEntry>> _modules;
 
@@ -216,25 +217,25 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
                     if (snapshot.connectionState != ConnectionState.done)
                       const SliverFillRemaining(
                         hasScrollBody: false,
-                        child: Center(child: CircularProgressIndicator()),
+                        child: BrowseState.loading(),
                       )
                     else if (snapshot.hasError)
                       SliverFillRemaining(
                         hasScrollBody: false,
-                        child: _message(
-                          Icons.wifi_off_rounded,
-                          'Unable to load modules',
-                          'Check your connection and try again.',
-                          retry: true,
+                        child: BrowseState.message(
+                          icon: Icons.wifi_off_rounded,
+                          title: 'Unable to load modules',
+                          detail: 'Check your connection and try again.',
+                          onRetry: _reload,
                         ),
                       )
                     else if ((snapshot.data ?? []).isEmpty)
                         SliverFillRemaining(
                           hasScrollBody: false,
-                          child: _message(
-                            Icons.search_off_rounded,
-                            'No modules found',
-                            'There are no modules listed under this subtopic.',
+                          child: BrowseState.message(
+                            icon: Icons.search_off_rounded,
+                            title: 'No modules found',
+                            detail: 'There are no modules listed under this subtopic.',
                           ),
                         )
                       else
@@ -296,42 +297,4 @@ class _ModuleByTopicState extends State<ModuleByTopic> {
     );
   }
 
-  Widget _message(IconData icon, String title, String detail,
-      {bool retry = false}) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: _green, size: 48),
-            const SizedBox(height: 14),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.w700,
-                color: _blue,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              detail,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF607889)),
-            ),
-            if (retry) ...[
-              const SizedBox(height: 18),
-              ElevatedButton.icon(
-                onPressed: _reload,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Try Again'),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
 }

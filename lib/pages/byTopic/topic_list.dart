@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 
+import '../../widgets/browse/browse_state.dart';
+
 import '../../providers/auth_guard.dart';
 import '../../utils/app_layout.dart';
 import '../../utils/custom_app_bar.dart';
@@ -93,7 +95,9 @@ class _TopicListState extends State<TopicList> {
   }
 
   void _reload() {
-    setState(() => _subcategories = _fetchSubcategories());
+    setState(() {
+      _subcategories = _fetchSubcategories();
+    });
   }
 
   void _open(Widget page) {
@@ -193,27 +197,25 @@ class _TopicListState extends State<TopicList> {
                   if (snapshot.connectionState != ConnectionState.done)
                     const SliverFillRemaining(
                       hasScrollBody: false,
-                      child: Center(
-                        child: CircularProgressIndicator(color: Color(0xFF0070C0)),
-                      ),
+                      child: BrowseState.loading(indicatorColor: Color(0xFF0070C0)),
                     )
                   else if (snapshot.hasError)
                     SliverFillRemaining(
                       hasScrollBody: false,
-                      child: _message(
-                        Icons.wifi_off_rounded,
-                        'Unable to load subtopics',
-                        'Check your internet connection and try again.',
-                        retry: true,
+                      child: BrowseState.message(
+                        icon: Icons.wifi_off_rounded,
+                        title: 'Unable to load subtopics',
+                        detail: 'Check your internet connection and try again.',
+                        onRetry: _reload,
                       ),
                     )
                   else if ((snapshot.data ?? []).isEmpty)
                       SliverFillRemaining(
                         hasScrollBody: false,
-                        child: _message(
-                          Icons.search_off_rounded,
-                          'No subtopics available',
-                          'There are no subtopics listed under this category.',
+                        child: BrowseState.message(
+                          icon: Icons.search_off_rounded,
+                          title: 'No subtopics available',
+                          detail: 'There are no subtopics listed under this category.',
                         ),
                       )
                     else
@@ -313,42 +315,4 @@ class _TopicListState extends State<TopicList> {
     );
   }
 
-  Widget _message(IconData icon, String title, String detail,
-      {bool retry = false}) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, color: _green, size: 48),
-            const SizedBox(height: 14),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.w700,
-                color: _blue,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              detail,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Color(0xFF607889)),
-            ),
-            if (retry) ...[
-              const SizedBox(height: 18),
-              ElevatedButton.icon(
-                onPressed: _reload,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Try Again'),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
 }
