@@ -86,7 +86,6 @@ class _LoginState extends State<Login> {
 
           if (authToken is String && authToken.isNotEmpty && userId != null) {
               await _storage.write(key: 'authToken', value: authToken);
-              await _storage.write(key: 'user_id', value: userId.toString());
           }
 
           return response;
@@ -115,53 +114,66 @@ class _LoginState extends State<Login> {
       _isLoggingIn = true;
     });
 
-    final response = await _submitForm();
+    try {
+      final response = await _submitForm();
 
-    if (response != null) {
-      // Parse the response
-      final responseData = json.decode(response.body);
-      final authToken = responseData['token'];
-      final userId = responseData['user']['id'];
+      if (!mounted) return;
 
-      if (authToken != null && authToken.isNotEmpty) {
-        final normalizedTokenPayload = normalizeBase64(authToken.split('.')[1]);
-        final decodedPayload = json.decode(utf8.decode(base64.decode(normalizedTokenPayload)));
-        final expiryTimestamp = decodedPayload['exp'];
-        final expiry = DateTime.fromMillisecondsSinceEpoch(expiryTimestamp * 1000);
+      if (response != null) {
+        // Parse the response
+        final responseData = json.decode(response.body);
+        final authToken = responseData['token'];
+        final userId = responseData['user']['id'];
 
-        // Update AuthProvider
-        Provider.of<AuthProvider>(context, listen: false).logIn(authToken, expiry);
+        if (authToken != null && authToken.isNotEmpty) {
+          final normalizedTokenPayload = normalizeBase64(authToken.split('.')[1]);
+          final decodedPayload = json.decode(utf8.decode(base64.decode(normalizedTokenPayload)));
+          final expiryTimestamp = decodedPayload['exp'];
+          final expiry = DateTime.fromMillisecondsSinceEpoch(expiryTimestamp * 1000);
 
-        // Extract user data
-        final userProvider = Provider.of<UserProvider>(context, listen: false);
-        final user = responseData['user'] ?? {};
-        userProvider.setUser(
-          user['firstName'] ?? 'Unknown',
-          user['lastName'] ?? 'Unknown',
-          user['email'] ?? 'unknown@example.com',
-          user['createdAt'] ?? 'Unknown',
-        );
+          // Update AuthProvider
+          await Provider.of<AuthProvider>(context, listen: false).logIn(authToken, expiry);
+          if (!mounted) return;
 
-        // Store user_id securely
-        await _storage.write(key: 'user_id', value: userId.toString());
-
-        // Fetch quiz scores once and cache them
-        final quizProvider = Provider.of<QuizScoreProvider>(context, listen: false);
-        await quizProvider.fetchQuizScores();
-
-        // Navigate to credits tracker
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => CreditsTracker()),
+          // Extract user data
+          final userProvider = Provider.of<UserProvider>(context, listen: false);
+          final user = responseData['user'] ?? {};
+          userProvider.setUser(
+            user['firstName'] ?? 'Unknown',
+            user['lastName'] ?? 'Unknown',
+            user['email'] ?? 'unknown@example.com',
+            user['createdAt'] ?? 'Unknown',
           );
+
+          // Store user_id securely
+          await _storage.write(key: 'user_id', value: userId.toString());
+          if (!mounted) return;
+
+          // Fetch quiz scores once and cache them
+          final quizProvider = Provider.of<QuizScoreProvider>(context, listen: false);
+          await quizProvider.fetchQuizScores();
+
+          // Navigate to credits tracker
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => CreditsTracker()),
+            );
+          }
         }
       }
-    }
 
-    setState(() {
-      _isLoggingIn = false; // Reset login state after completion
-    });
+    } catch (_) {
+      if (mounted) {
+        _showErrorAlert("An unexpected error occurred. Please try again.");
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoggingIn = false;
+        });
+      }
+    }
   }
 
   void _showErrorAlert(String message) {

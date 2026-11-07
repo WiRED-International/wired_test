@@ -40,6 +40,7 @@ class _MenuState extends State<Menu> {
   late Future<User> userData;
   final _storage = const FlutterSecureStorage();
   bool showCreditsHistory = false;
+  bool _isLoggingOut = false;
   bool isTablet(BuildContext context) {
     final size = MediaQuery.of(context).size;
     final diagonal = sqrt(size.width * size.width + size.height * size.height);
@@ -440,12 +441,25 @@ class _MenuState extends State<Menu> {
             fontSize: fontBase,
             iconSize: iconBase,
             padding: padding,
-            onTap: () {
-              Provider.of<AuthProvider>(context, listen: false).logOut();
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => Login()),
-              );
+            onTap: () async {
+              if (_isLoggingOut) return;
+              _isLoggingOut = true;
+              try {
+                await Provider.of<AuthProvider>(context, listen: false).logOut();
+                if (!context.mounted) return;
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => Login()),
+                );
+              } catch (_) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Unable to log out. Please try again.")),
+                  );
+                }
+              } finally {
+                _isLoggingOut = false;
+              }
             },
           ),
 
