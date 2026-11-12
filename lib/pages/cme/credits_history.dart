@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -20,6 +22,8 @@ import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
 import '../module_library.dart';
 import '../../models/user.dart';
+
+enum _ProfileFailure { authentication, permission, server }
 
 class CreditsHistory extends StatefulWidget {
   const CreditsHistory({Key? key}) : super(key: key);
@@ -97,21 +101,58 @@ class _CreditsHistoryState extends State<CreditsHistory> {
 
     final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
 
-    final response = await http.get(
-      Uri.parse('$apiBaseUrl/users/me'),
-      headers: {
-        'Authorization': 'Bearer $token', // Include the token in the header
-        'Content-Type': 'application/json',
-      },
-    );
+    final client = http.Client();
+    final http.Response response;
+    try {
+      response = await client.get(
+        Uri.parse('$apiBaseUrl/users/me'),
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 30));
+    } finally {
+      client.close();
+    }
 
     _checkSession(session);
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       return User.fromJson(json); // Parse the top-level response directly
     } else {
-      throw Exception('Failed to fetch user data: ${response.statusCode}');
+      if (response.statusCode == 401) throw _ProfileFailure.authentication;
+      if (response.statusCode == 403) throw _ProfileFailure.permission;
+      throw _ProfileFailure.server;
     }
+  }
+
+  Widget _profileError(Object? error) {
+    final String message;
+    if (error == _ProfileFailure.authentication) {
+      message = 'Your session could not be verified. Please log in again.';
+    } else if (error == _ProfileFailure.permission) {
+      message =
+          'You do not have permission to load this profile. Please contact support if this continues.';
+    } else if (error is TimeoutException ||
+        error is http.ClientException ||
+        error is SocketException) {
+      message =
+          'Your profile could not be loaded. Check your connection and try again.';
+    } else {
+      message = 'Your profile could not be loaded. Please try again.';
+    }
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(message, textAlign: TextAlign.center),
+          TextButton(
+            onPressed: refreshScores,
+            child: const Text('Retry'),
+          ),
+        ]),
+      ),
+    );
   }
 
   void refreshScores() {
@@ -162,7 +203,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           } else if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return _profileError(snapshot.error);
           } else if (!snapshot.hasData) {
             return const Center(child: Text('No data available'));
           }
