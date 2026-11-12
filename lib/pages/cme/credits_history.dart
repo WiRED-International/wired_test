@@ -37,6 +37,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
   AuthProvider? _auth;
   String? _sessionToken;
   int _session = 0;
+  bool _exporting = false;
 
   void _authChanged() {
     if (!mounted) return;
@@ -381,44 +382,8 @@ class _CreditsHistoryState extends State<CreditsHistory> {
 
                   // 🟢 Email Button
                   ElevatedButton.icon(
-                    onPressed: _selectedRecords.isNotEmpty
-                        ? () async {
-                      final session = _session;
-                      late final File file;
-                      try {
-                        final selected = _selectedSnapshot(quizScores);
-                        final pdfBytes = await generateCMEPdf(
-                          firstName: user.firstName ?? '',
-                          lastName: user.lastName ?? '',
-                          email: user.email ?? '',
-                          role: user.role ?? '',
-                          country: user.country ?? '',
-                          organization: user.organization ?? '',
-                          quizScores: selected,
-                          selectedIndices: Set<int>.from(
-                              List.generate(selected.length, (i) => i)),
-                        );
-
-                        if (!context.mounted || !mounted || session != _session) return;
-                        file = await generateAndSavePdfToFile(
-                            pdfBytes, 'cme_history.pdf');
-                      } catch (_) {
-                        if (!mounted || session != _session) return;
-                        ScaffoldMessenger.of(this.context).showSnackBar(const SnackBar(
-                          content: Text(
-                              'The PDF could not be created. Please try exporting again.'),
-                        ));
-                        return;
-                      }
-                      if (!context.mounted || !mounted || session != _session) return;
-
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => PdfPreviewScreen(pdfFile: file),
-                        ),
-                      );
-                    }
+                    onPressed: _selectedRecords.isNotEmpty && !_exporting
+                        ? () => _exportHistory(context, user, quizScores)
                         : null,
                     icon: const Icon(Icons.email_outlined,
                         color: Colors.black87, size: 18),
@@ -605,47 +570,8 @@ class _CreditsHistoryState extends State<CreditsHistory> {
 
                       // 🟢 Email Button
                       ElevatedButton.icon(
-                        onPressed: _selectedRecords.isNotEmpty
-                            ? () async {
-                          final session = _session;
-                          late final File file;
-                          try {
-                            final selected = _selectedSnapshot(quizScores);
-                            final pdfBytes = await generateCMEPdf(
-                              firstName: user.firstName ?? '',
-                              lastName: user.lastName ?? '',
-                              email: user.email ?? '',
-                              role: user.role ?? '',
-                              country: user.country ?? '',
-                              organization: user.organization ?? '',
-                              quizScores: selected,
-                              selectedIndices: Set<int>.from(
-                                  List.generate(selected.length, (i) => i)),
-                            );
-
-                            if (!context.mounted || !mounted || session != _session) return;
-                            file = await generateAndSavePdfToFile(
-                              pdfBytes,
-                              'cme_history.pdf',
-                            );
-                          } catch (_) {
-                            if (!mounted || session != _session) return;
-                            ScaffoldMessenger.of(this.context).showSnackBar(const SnackBar(
-                              content: Text(
-                                  'The PDF could not be created. Please try exporting again.'),
-                            ));
-                            return;
-                          }
-                          if (!context.mounted || !mounted || session != _session) return;
-
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  PdfPreviewScreen(pdfFile: file),
-                            ),
-                          );
-                        }
+                        onPressed: _selectedRecords.isNotEmpty && !_exporting
+                            ? () => _exportHistory(context, user, quizScores)
                             : null,
                         icon: const Icon(Icons.email_outlined,
                             color: Colors.black87, size: 18),
@@ -734,6 +660,66 @@ class _CreditsHistoryState extends State<CreditsHistory> {
   // =====================================================
   // 🟩 Reusable Card
   // =====================================================
+  Future<void> _exportHistory(
+      BuildContext exportContext, User user, List<dynamic> quizScores) async {
+    if (_exporting || !mounted) return;
+    final session = _session;
+    setState(() {
+      _exporting = true;
+    });
+    File? file;
+    var handedToPreview = false;
+    try {
+      try {
+        final selected = _selectedSnapshot(quizScores);
+        final pdfBytes = await generateCMEPdf(
+          firstName: user.firstName ?? '',
+          lastName: user.lastName ?? '',
+          email: user.email ?? '',
+          role: user.role ?? '',
+          country: user.country ?? '',
+          organization: user.organization ?? '',
+          quizScores: selected,
+          selectedIndices: Set<int>.from(
+              List.generate(selected.length, (i) => i)),
+        );
+        if (!exportContext.mounted || !mounted || session != _session) return;
+        file = await generateAndSavePdfToFile(pdfBytes, 'cme_history.pdf');
+      } catch (_) {
+        if (!mounted || session != _session) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'The PDF could not be created. Please try exporting again.'),
+        ));
+        return;
+      }
+      if (!exportContext.mounted || !mounted || session != _session) return;
+      final previewFile = file;
+      Navigator.push(
+        exportContext,
+        MaterialPageRoute(
+          builder: (_) => PdfPreviewScreen(pdfFile: previewFile),
+        ),
+      );
+      handedToPreview = true;
+    } finally {
+      if (file != null && !handedToPreview) {
+        // Only this export's file and now-empty unique directory are ours.
+        try {
+          if (await file.exists()) await file.delete();
+          await file.parent.delete();
+        } catch (_) {
+          // Cleanup must not mask a generation, write, or navigation failure.
+        }
+      }
+      if (mounted) {
+        setState(() {
+          _exporting = false;
+        });
+      }
+    }
+  }
+
   // Detach selected records before PDF generation awaits its asset read.
   List<dynamic> _selectedSnapshot(List<dynamic> orderedScores) =>
       List<dynamic>.unmodifiable(jsonDecode(jsonEncode(

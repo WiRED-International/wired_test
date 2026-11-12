@@ -24,7 +24,7 @@ class _OutputDirectory extends PathProviderPlatform {
   Completer<String?>? pending;
   Completer<void>? started;
   @override
-  Future<String?> getApplicationDocumentsPath() async {
+  Future<String?> getTemporaryPath() async {
     if (started != null && !started!.isCompleted) started!.complete();
     return pending == null ? path : await pending!.future;
   }
@@ -32,12 +32,14 @@ class _OutputDirectory extends PathProviderPlatform {
 
 class _ExportObserver extends NavigatorObserver {
   Future<String>? exportedText;
+  final files = <File>[];
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
     if (previousRoute == null || route is! MaterialPageRoute) return;
     final page = route.builder(navigator!.context);
     expect(page, isA<PdfPreviewScreen>());
     final file = (page as PdfPreviewScreen).pdfFile;
+    files.add(file);
     exportedText = () async {
       final document = PdfDocument(inputBytes: await file.readAsBytes());
       try {
@@ -216,6 +218,140 @@ void main() {
 
   for (final landscape in [false, true]) {
     final layout = landscape ? 'landscape' : 'portrait';
+    testWidgets(
+        '$layout sequential exports and separate page instances own independent PDFs',
+        (tester) async {
+      await withHistory(tester, [
+        record('FirstLesson', year, 3),
+        record('SecondLesson', year, 1)
+      ], (observer) async {
+        await select(tester, 'FirstLesson');
+        await export(tester, observer);
+        final first = observer.files.single;
+        final firstBytes = await tester.runAsync(first.readAsBytes);
+        await select(tester, 'FirstLesson');
+        await select(tester, 'SecondLesson');
+        observer.exportedText = null;
+        final secondText = await export(tester, observer);
+        final second = observer.files.last;
+        expect(first.path, isNot(second.path));
+        expect(secondText, contains('SecondLesson'));
+        expect(secondText, isNot(contains('FirstLesson')));
+        expect(await tester.runAsync(first.readAsBytes), firstBytes);
+
+        // Replace the page State while retaining the same storage root.
+        await tester.pumpWidget(ChangeNotifierProvider<AuthProvider>.value(
+          value: auth,
+          child: MaterialApp(
+              navigatorObservers: [observer],
+              home: CreditsHistory(key: UniqueKey())),
+        ));
+        await tester.pumpAndSettle();
+        await select(tester, 'FirstLesson');
+        observer.exportedText = null;
+        await export(tester, observer);
+        expect(observer.files.map((file) => file.path).toSet(), hasLength(3));
+        for (final file in observer.files) {
+          expect(file.uri.pathSegments.last, 'cme_history.pdf');
+        }
+        await tester.runAsync(first.delete);
+        expect(await tester.runAsync(second.exists), isTrue);
+      }, landscape: landscape);
+    });
+
+    testWidgets('$layout repeated taps and rotation share one busy guard',
+        (tester) async {
+      await withHistory(tester, [record('SelectedLesson', year, 3)],
+          (observer) async {
+        await select(tester, 'SelectedLesson');
+        paths.started = Completer<void>();
+        paths.pending = Completer<String?>();
+        final button = tester.widget<ElevatedButton>(find.ancestor(
+            of: find.text('Email'),
+            matching:
+                find.byWidgetPredicate((widget) => widget is ElevatedButton)));
+        final dynamic callback = button.onPressed!;
+        Future<void>? operation;
+        Future<void>? duplicate;
+        await tester.runAsync(() async {
+          operation = callback() as Future<void>;
+          duplicate = callback() as Future<
+              void>; // Invoke the old callback again before any rebuild.
+        });
+        await waitFor(tester, () => paths.started!.isCompleted);
+        tester.view.physicalSize =
+            landscape ? const Size(800, 1200) : const Size(1600, 1000);
+        await tester.pumpAndSettle();
+        final rotated = tester.widget<ElevatedButton>(find.ancestor(
+            of: find.text('Email'),
+            matching:
+                find.byWidgetPredicate((widget) => widget is ElevatedButton)));
+        expect(rotated.onPressed, isNull);
+        await tester.runAsync(() async {
+          paths.pending!.complete(paths.path);
+          await Future.wait([operation!, duplicate!]);
+        });
+        await tester.pumpAndSettle();
+        expect(observer.files, hasLength(1));
+        final text = await tester.runAsync(() => observer.exportedText!);
+        expect(text, contains('SelectedLesson'));
+        await tester.pumpAndSettle();
+        final allocated =
+            await tester.runAsync(() => Directory(paths.path).list().toList());
+        expect(allocated!.map((entry) => entry.path),
+            [observer.files.single.parent.path]);
+        final enabled = tester.widget<ElevatedButton>(find.ancestor(
+            of: find.text('Email'),
+            matching:
+                find.byWidgetPredicate((widget) => widget is ElevatedButton)));
+        expect(enabled.onPressed, isNotNull);
+      }, landscape: landscape);
+    });
+
+    for (final transition in ['dispose', 'switch', 'reuse']) {
+      testWidgets(
+          '$layout stale completed write after $transition cleans only its own export',
+          (tester) async {
+        await withHistory(tester, [record('SelectedLesson', year, 3)],
+            (observer) async {
+          await select(tester, 'SelectedLesson');
+          await export(tester, observer);
+          final earlier = observer.files.single;
+          paths.started = Completer<void>();
+          paths.pending = Completer<String?>();
+          final button = tester.widget<ElevatedButton>(find.ancestor(
+              of: find.text('Email'),
+              matching: find
+                  .byWidgetPredicate((widget) => widget is ElevatedButton)));
+          Future<void>? staleOperation;
+          await tester.runAsync(() async {
+            final dynamic callback = button.onPressed!;
+            staleOperation = callback() as Future<void>;
+          });
+          await waitFor(tester, () => paths.started!.isCompleted);
+          if (transition == 'dispose') {
+            await tester.pumpWidget(const SizedBox.shrink());
+          } else {
+            if (transition == 'reuse') await auth.logOut();
+            await auth.logIn(
+                transition == 'reuse' ? 'A' : 'B', DateTime.utc(2099));
+            await tester.pumpAndSettle();
+          }
+          await tester.runAsync(() async {
+            paths.pending!.complete(paths.path);
+            await staleOperation;
+          });
+          await tester.pumpAndSettle();
+          expect(observer.files, hasLength(1));
+          expect(find.byType(SnackBar), findsNothing);
+          final remaining = await tester
+              .runAsync(() => Directory(paths.path).list().toList());
+          expect(remaining!.map((entry) => entry.path), [earlier.parent.path]);
+          expect(await tester.runAsync(earlier.exists), isTrue);
+        }, landscape: landscape);
+      });
+    }
+
     testWidgets('$layout navigation errors are not PDF creation failures',
         (tester) async {
       await withHistory(tester, [record('SelectedLesson', year, 3)],
@@ -229,7 +365,8 @@ void main() {
           // Invoke the async callback directly so its navigation error is observed.
           final dynamic callback = button.onPressed!;
           await expectLater(callback(), throwsA(same(navigationFailure)));
-          expect(await File('${paths.path}/cme_history.pdf').exists(), isTrue);
+          // Navigation failure must not leak the unclaimed export.
+          expect(await Directory(paths.path).list().toList(), isEmpty);
         });
         await tester.pumpAndSettle();
         expect(find.text(failureMessage), findsNothing);
