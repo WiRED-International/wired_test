@@ -221,13 +221,18 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                 'cme',
           )
               .toList()
-            ..sort((a, b) => DateTime.parse(b['date_taken'])
-                .compareTo(DateTime.parse(a['date_taken'])));
+            ..sort((a, b) {
+              final aDate = parseCreditHistoryDate(a['date_taken']);
+              final bDate = parseCreditHistoryDate(b['date_taken']);
+              if (aDate == null) return bDate == null ? 0 : 1;
+              if (bDate == null) return -1;
+              return bDate.compareTo(aDate);
+            });
           final visibleScores = selectedYear == null
               ? quizScores
               : quizScores
                   .where((q) =>
-                      DateTime.parse(q['date_taken']).year == selectedYear)
+                      parseCreditHistoryDate(q['date_taken'])?.year == selectedYear)
                   .toList();
 
           final creditsEarned = user.creditsEarned ?? 0;
@@ -303,7 +308,10 @@ class _CreditsHistoryState extends State<CreditsHistory> {
     final currentYear = DateTime.now().year;
 
     final years = {
-      ...quizScores.map((q) => DateTime.parse(q['date_taken']).year),
+      ...quizScores
+          .map((q) => parseCreditHistoryDate(q['date_taken']))
+          .whereType<DateTime>()
+          .map((date) => date.year),
       currentYear,
     }.toList()
       ..sort((a, b) => b.compareTo(a)); // newest first
@@ -508,7 +516,10 @@ class _CreditsHistoryState extends State<CreditsHistory> {
     final currentYear = DateTime.now().year;
 
     final years = {
-      ...quizScores.map((q) => DateTime.parse(q['date_taken']).year),
+      ...quizScores
+          .map((q) => parseCreditHistoryDate(q['date_taken']))
+          .whereType<DateTime>()
+          .map((date) => date.year),
       currentYear,
     }.toList()
       ..sort((a, b) => b.compareTo(a));
@@ -723,7 +734,8 @@ class _CreditsHistoryState extends State<CreditsHistory> {
     final module = quiz['module'];
     final moduleName = module?['name'] ?? 'Unknown';
     final moduleId = module?['module_id']?.toString() ?? 'N/A';
-    final date = formatter.format(DateTime.parse(quiz['date_taken']));
+    final parsedDate = parseCreditHistoryDate(quiz['date_taken']);
+    final date = parsedDate == null ? 'Invalid date' : formatter.format(parsedDate);
     final scoreVal = quiz['score'];
     final double score = (scoreVal is num)
         ? scoreVal.toDouble()
