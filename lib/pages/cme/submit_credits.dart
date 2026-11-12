@@ -345,45 +345,53 @@ class _SubmitCreditsState extends State<SubmitCredits> {
         ]),
       );
 
-  void _showDeleteConfirmation(String fileName, String moduleId) {
-    showDialog(
+  Future<void> _showDeleteConfirmation(ModuleFile moduleFile) async {
+    final session = _session;
+    final pendingEntry = moduleFile.pendingEntry;
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (BuildContext context) {
+      builder: (BuildContext dialogContext) {
         return AlertDialog(
           title: Text("Delete Module"),
           content: Text(
-              "Are you sure you want to remove this saved score for the module: $fileName? If you already submitted this score, it will still be stored in your account."),
+              "Are you sure you want to remove this saved score for the module: ${moduleFile.moduleName}? If you already submitted this score, it will still be stored in your account."),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(); // Close the modal
-              },
+              onPressed: () => Navigator.of(dialogContext).pop(false),
               child: Text("Do not delete"),
             ),
             TextButton(
-              onPressed: () async {
-                Navigator.of(context).pop(); // Close the modal
-
-                final removed = await deleteStoredScore(moduleId);
-                if (!context.mounted) return;
-                if (!removed) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                    content: Text(
-                        'The saved score could not be removed. Please try again.'),
-                  ));
-                }
-
-                // 🔁 Force FutureBuilder + UI to rebuild
-                setState(() {
-                  futureModules = _loadPendingScores();
-                });
-              },
+              onPressed: () => Navigator.of(dialogContext).pop(true),
               child: Text("Yes, delete"),
             ),
           ],
         );
       },
     );
+    if (confirmed != true || !mounted || session != _session) return;
+
+    PendingScoreRemovalOutcome? outcome;
+    try {
+      outcome = await _pendingScores.removeIfUnchanged(
+          moduleFile.moduleId!, pendingEntry);
+    } catch (error) {
+      debugPrint('Error deleting saved score: $error');
+    }
+    if (!mounted || session != _session) return;
+
+    setState(() {
+      futureModules = _loadPendingScores();
+    });
+    if (outcome == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text(
+            'The saved score could not be removed. Please try again.'),
+      ));
+    } else if (outcome == PendingScoreRemovalOutcome.changed) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('A newer saved score was kept. Review it before deleting.'),
+      ));
+    }
   }
 
   Future<PendingScoreRemovalOutcome?> _cleanupSubmittedScore(
@@ -393,16 +401,6 @@ class _SubmitCreditsState extends State<SubmitCredits> {
     } catch (error) {
       debugPrint('Score submitted; local cleanup failed: $error');
       return null;
-    }
-  }
-
-  Future<bool> deleteStoredScore(String moduleId) async {
-    try {
-      await _pendingScores.remove(moduleId);
-      return true;
-    } catch (e) {
-      print("❌ Error deleting module score from SecureStorage: $e");
-      return false;
     }
   }
 
@@ -668,8 +666,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                   icon: Icons.delete,
                                   backgroundColor: const Color(0xFFD32F2F),
                                   onTap: () => _showDeleteConfirmation(
-                                    moduleFile.moduleName,
-                                    moduleFile.moduleId!,
+                                    moduleFile,
                                   ),
                                   baseSize: baseSize,
                                   scale: scale,
@@ -853,8 +850,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                                         backgroundColor:
                                             const Color(0xFFD32F2F),
                                         onTap: () => _showDeleteConfirmation(
-                                          moduleFile.moduleName,
-                                          moduleFile.moduleId!,
+                                          moduleFile,
                                         ),
                                         baseSize: baseSize,
                                         scale: scale,
