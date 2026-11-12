@@ -20,7 +20,7 @@ class _OutputDirectory extends PathProviderPlatform {
   _OutputDirectory(this.path);
   final String path;
   @override
-  Future<String?> getApplicationDocumentsPath() async => path;
+  Future<String?> getTemporaryPath() async => path;
 }
 
 class _ExportObserver extends NavigatorObserver {
