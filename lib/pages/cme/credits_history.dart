@@ -384,22 +384,32 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                     onPressed: _selectedRecords.isNotEmpty
                         ? () async {
                       final session = _session;
-                      final selected = _selectedSnapshot(quizScores);
-                      final pdfBytes = await generateCMEPdf(
-                        firstName: user.firstName ?? '',
-                        lastName: user.lastName ?? '',
-                        email: user.email ?? '',
-                        role: user.role ?? '',
-                        country: user.country ?? '',
-                        organization: user.organization ?? '',
-                        quizScores: selected,
-                        selectedIndices: Set<int>.from(
-                            List.generate(selected.length, (i) => i)),
-                      );
+                      late final File file;
+                      try {
+                        final selected = _selectedSnapshot(quizScores);
+                        final pdfBytes = await generateCMEPdf(
+                          firstName: user.firstName ?? '',
+                          lastName: user.lastName ?? '',
+                          email: user.email ?? '',
+                          role: user.role ?? '',
+                          country: user.country ?? '',
+                          organization: user.organization ?? '',
+                          quizScores: selected,
+                          selectedIndices: Set<int>.from(
+                              List.generate(selected.length, (i) => i)),
+                        );
 
-                      if (!context.mounted || !mounted || session != _session) return;
-                      final file = await generateAndSavePdfToFile(
-                          pdfBytes, 'cme_history.pdf');
+                        if (!context.mounted || !mounted || session != _session) return;
+                        file = await generateAndSavePdfToFile(
+                            pdfBytes, 'cme_history.pdf');
+                      } catch (_) {
+                        if (!mounted || session != _session) return;
+                        ScaffoldMessenger.of(this.context).showSnackBar(const SnackBar(
+                          content: Text(
+                              'The PDF could not be created. Please try exporting again.'),
+                        ));
+                        return;
+                      }
                       if (!context.mounted || !mounted || session != _session) return;
 
                       Navigator.push(
@@ -598,24 +608,34 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                         onPressed: _selectedRecords.isNotEmpty
                             ? () async {
                           final session = _session;
-                          final selected = _selectedSnapshot(quizScores);
-                          final pdfBytes = await generateCMEPdf(
-                            firstName: user.firstName ?? '',
-                            lastName: user.lastName ?? '',
-                            email: user.email ?? '',
-                            role: user.role ?? '',
-                            country: user.country ?? '',
-                            organization: user.organization ?? '',
-                            quizScores: selected,
-                            selectedIndices: Set<int>.from(
-                                List.generate(selected.length, (i) => i)),
-                          );
+                          late final File file;
+                          try {
+                            final selected = _selectedSnapshot(quizScores);
+                            final pdfBytes = await generateCMEPdf(
+                              firstName: user.firstName ?? '',
+                              lastName: user.lastName ?? '',
+                              email: user.email ?? '',
+                              role: user.role ?? '',
+                              country: user.country ?? '',
+                              organization: user.organization ?? '',
+                              quizScores: selected,
+                              selectedIndices: Set<int>.from(
+                                  List.generate(selected.length, (i) => i)),
+                            );
 
-                          if (!context.mounted || !mounted || session != _session) return;
-                          final file = await generateAndSavePdfToFile(
-                            pdfBytes,
-                            'cme_history.pdf',
-                          );
+                            if (!context.mounted || !mounted || session != _session) return;
+                            file = await generateAndSavePdfToFile(
+                              pdfBytes,
+                              'cme_history.pdf',
+                            );
+                          } catch (_) {
+                            if (!mounted || session != _session) return;
+                            ScaffoldMessenger.of(this.context).showSnackBar(const SnackBar(
+                              content: Text(
+                                  'The PDF could not be created. Please try exporting again.'),
+                            ));
+                            return;
+                          }
                           if (!context.mounted || !mounted || session != _session) return;
 
                           Navigator.push(
