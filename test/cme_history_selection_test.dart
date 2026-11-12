@@ -14,6 +14,7 @@ import 'package:path_provider_platform_interface/path_provider_platform_interfac
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:wired_test/pages/cme/credits_history.dart';
 import 'package:wired_test/utils/pdf_preview_screen.dart';
+import 'package:wired_test/utils/functions.dart';
 
 class _OutputDirectory extends PathProviderPlatform {
   _OutputDirectory(this.path);
@@ -84,8 +85,8 @@ void main() {
         landscape ? const Size(1600, 1000) : const Size(800, 1200);
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);
-    final output = (await tester.runAsync(
-        () => Directory.systemTemp.createTemp('cme_history_test_')))!;
+    final output = (await tester
+        .runAsync(() => Directory.systemTemp.createTemp('cme_history_test_')))!;
     final originalPaths = PathProviderPlatform.instance;
     PathProviderPlatform.instance = _OutputDirectory(output.path);
     addTearDown(() async {
@@ -123,6 +124,8 @@ void main() {
   }
 
   Future<void> chooseYear(WidgetTester tester, int? selectedYear) async {
+    await tester.ensureVisible(find.byType(DropdownButton<int>));
+    await tester.pumpAndSettle();
     await tester.tap(find.byType(DropdownButton<int>));
     await tester.pumpAndSettle();
     await tester.tap(find.text(selectedYear?.toString() ?? 'All Years').last);
@@ -288,7 +291,8 @@ void main() {
       await tester.pumpAndSettle();
       final text = await export(tester, observer);
       expect(text.indexOf('CurrentAlpha'), greaterThanOrEqualTo(0));
-      expect(text.indexOf('CurrentAlpha'), lessThan(text.indexOf('CurrentBeta')));
+      expect(
+          text.indexOf('CurrentAlpha'), lessThan(text.indexOf('CurrentBeta')));
       expect(text, isNot(contains('OldAlpha')));
       expect(text, isNot(contains('OldBeta')));
     });
@@ -309,5 +313,96 @@ void main() {
         expect(text, isNot(contains('FirstAttempt')));
       });
     });
+  }
+
+  test('valid date formatting remains unchanged', () {
+    expect(formatDate('$year-03-01T12:00:00Z'), 'Mar 01, $year');
+  });
+
+  final invalidDates = <String, dynamic>{
+    'null': null,
+    'missing': null,
+    'empty': '',
+    'malformed': 'not-a-date',
+    'number': 123,
+    'boolean': true,
+    'map': {'year': 2026},
+    'list': [2026, 1, 1],
+  };
+  for (final entry in invalidDates.entries) {
+    test('PDF formatter tolerates ${entry.key} date', () {
+      expect(formatDate(entry.value), 'Invalid date');
+    });
+    for (final landscape in [false, true]) {
+      testWidgets(
+          '${landscape ? 'landscape' : 'portrait'} handles ${entry.key} date in filters, selection and PDF',
+          (tester) async {
+        final invalid = record('InvalidRecord', year, 2);
+        if (entry.key == 'missing') {
+          invalid.remove('date_taken');
+        } else {
+          invalid['date_taken'] = entry.value;
+        }
+        await withHistory(tester, [
+          invalid,
+          record('CurrentValid', year, 3),
+          record('OldValid', year - 1, 1),
+        ], (observer) async {
+          // Default specific-year filtering must neither crash nor invent a year.
+          expect(find.text('CurrentValid'), findsOneWidget);
+          expect(find.text('InvalidRecord'), findsNothing);
+          expect(find.text('Date Submitted: Mar 01, $year'), findsOneWidget);
+          await chooseYear(tester, null);
+          expect(
+              tester.widget<ListView>(find.byType(ListView)).semanticChildCount,
+              3);
+          await tester.scrollUntilVisible(find.text('InvalidRecord'), 200,
+              scrollable: find.byType(Scrollable).last);
+          await tester.pumpAndSettle();
+          expect(find.text('InvalidRecord'), findsOneWidget);
+          expect(find.text('Date Submitted: Invalid date'), findsOneWidget);
+          await select(tester, 'InvalidRecord');
+          final individual =
+              (await export(tester, observer)).replaceAll(RegExp(r'\s+'), ' ');
+          expect(individual, contains('InvalidRecord'));
+          expect(individual, contains('Invalid date'));
+          expect(individual, isNot(contains('CurrentValid')));
+          expect(individual, isNot(contains('OldValid')));
+          expect(individual, isNot(contains('Mar 01, $year')));
+
+          observer.exportedText = null;
+          await tester.ensureVisible(find.text('Select All'));
+          await tester.tap(find.text('Select All'));
+          await tester.pumpAndSettle();
+          final all =
+              (await export(tester, observer)).replaceAll(RegExp(r'\s+'), ' ');
+          expect(all, contains('CurrentValid'));
+          expect(all, contains('OldValid'));
+          expect(all, contains('InvalidRecord'));
+          expect(all, contains('Invalid date'));
+          expect(all, contains('Mar 01, $year'));
+          expect(
+              all.indexOf('CurrentValid'), lessThan(all.indexOf('OldValid')));
+          expect(
+              all.indexOf('OldValid'), lessThan(all.indexOf('InvalidRecord')));
+
+          // A year-specific Select All replaces the hidden invalid selection.
+          observer.exportedText = null;
+          await chooseYear(tester, year);
+          await tester.ensureVisible(find.text('Deselect All'));
+          await tester
+              .tap(find.text('Deselect All')); // Deselect the visible row.
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Select All')); // Select just this year.
+          await tester.pumpAndSettle();
+          final specificYear =
+              (await export(tester, observer)).replaceAll(RegExp(r'\s+'), ' ');
+          expect(specificYear, contains('CurrentValid'));
+          expect(specificYear, isNot(contains('InvalidRecord')));
+          expect(specificYear, isNot(contains('OldValid')));
+          expect(specificYear, isNot(contains('Invalid date')));
+        }, landscape: landscape);
+      });
+    }
   }
 }

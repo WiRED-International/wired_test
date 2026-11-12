@@ -20,14 +20,14 @@ TextStyle responsiveTextStyle(BuildContext context, double baseSize) {
   );
 }
 
+// Keep invalid history dates explicit rather than assigning a substitute date.
+DateTime? parseCreditHistoryDate(Object? value) =>
+    value is String ? DateTime.tryParse(value) : null;
+
 // Function to format timestamp
-String formatDate(String timestamp) {
-  try {
-    final DateTime date = DateTime.parse(timestamp); // Parse the timestamp
-    return DateFormat('MMM dd, yyyy').format(date); // Format to "Month Year"
-  } catch (e) {
-    return 'Invalid date'; // Handle invalid timestamps
-  }
+String formatDate(Object? timestamp) {
+  final date = parseCreditHistoryDate(timestamp);
+  return date == null ? 'Invalid date' : DateFormat('MMM dd, yyyy').format(date);
 }
 
 // Function to pad base64 string
