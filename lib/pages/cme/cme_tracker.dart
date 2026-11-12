@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:intl/intl.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
@@ -22,6 +24,8 @@ import '../../models/user.dart';
 import '../../models/cme_credit_totals.dart';
 import 'cme_totals_card.dart';
 import '../../../providers/quiz_score_provider.dart';
+
+enum _ProfileFailure { authentication, permission, server }
 
 class CMETracker extends StatefulWidget {
   const CMETracker({super.key, this.loadUser});
@@ -108,26 +112,68 @@ class _CMETrackerState extends State<CMETracker> {
     final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
     final url = Uri.parse('$apiBaseUrl/users/me');
 
-    final response = await http.get(
-      url,
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
+    final client = http.Client();
+    final http.Response response;
+    try {
+      response = await client.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer $token',
+          'Content-Type': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 30));
+    } finally {
+      client.close();
+    }
 
     _checkSession(session);
     if (response.statusCode == 200) {
       final json = jsonDecode(response.body) as Map<String, dynamic>;
       return User.fromJson(json);
     } else {
-      throw Exception('Failed to fetch user data: ${response.statusCode}');
+      if (response.statusCode == 401) throw _ProfileFailure.authentication;
+      if (response.statusCode == 403) throw _ProfileFailure.permission;
+      throw _ProfileFailure.server;
     }
   }
 
+  Widget _profileError(Object? error) {
+    final String message;
+    if (error == _ProfileFailure.authentication) {
+      message = 'Your session could not be verified. Please log in again.';
+    } else if (error == _ProfileFailure.permission) {
+      message =
+          'You do not have permission to load this profile. Please contact support if this continues.';
+    } else if (error is TimeoutException ||
+        error is http.ClientException ||
+        error is SocketException) {
+      message =
+          'Your profile could not be loaded. Check your connection and try again.';
+    } else {
+      message = 'Your profile could not be loaded. Please try again.';
+    }
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(message, textAlign: TextAlign.center),
+          TextButton(
+            onPressed: () {
+              if (!mounted || (_auth != null && _sessionToken == null)) return;
+              setState(() {
+                userData = fetchUserData();
+              });
+            },
+            child: const Text('Retry'),
+          ),
+        ]),
+      ),
+    );
+  }
+
   // ✅ Refresh user + quiz scores
-  Future<void> refreshData() async {
-    if (!mounted || (_auth != null && _sessionToken == null)) return;
+  Future<bool> refreshData() async {
+    if (!mounted || (_auth != null && _sessionToken == null)) return false;
     final session = _session;
     final profile = fetchUserData();
     setState(() {
@@ -138,9 +184,10 @@ class _CMETrackerState extends State<CMETracker> {
         profile,
         Provider.of<QuizScoreProvider>(context, listen: false).fetchQuizScores(),
       ]);
+      return mounted && session == _session;
     } catch (_) {
-      if (!mounted || session != _session) return;
-      rethrow;
+      // The profile FutureBuilder displays the error and offers Retry.
+      return false;
     }
   }
 
@@ -237,8 +284,7 @@ class _CMETrackerState extends State<CMETracker> {
                         return const Center(child: CircularProgressIndicator());
                       }
                       if (userSnapshot.hasError) {
-                        return Center(
-                            child: Text('Error: ${userSnapshot.error}'));
+                        return _profileError(userSnapshot.error);
                       }
 
                       if (!userSnapshot.hasData) {
@@ -314,7 +360,7 @@ class _CMETrackerState extends State<CMETracker> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (userSnapshot.hasError) {
-                  return Center(child: Text('Error: ${userSnapshot.error}'));
+                  return _profileError(userSnapshot.error);
                 }
 
                 if (!userSnapshot.hasData) {
@@ -370,9 +416,9 @@ class _CMETrackerState extends State<CMETracker> {
     return RefreshIndicator(
       onRefresh: () async {
         final session = _session;
-        await refreshData();
-        if (!context.mounted || session != _session) return;
-        ScaffoldMessenger.of(context).showSnackBar(
+        if (!await refreshData()) return;
+        if (!mounted || session != _session) return;
+        ScaffoldMessenger.of(this.context).showSnackBar(
           const SnackBar(
             content: Text('✅ Refresh complete.'),
             backgroundColor: Color(0xFF16A34A),
@@ -569,11 +615,11 @@ class _CMETrackerState extends State<CMETracker> {
             child: RefreshIndicator(
               onRefresh: () async {
                 final session = _session;
-                await refreshData();
+                if (!await refreshData()) return;
 
                 // ✅ Show confirmation when refresh completes
-                if (context.mounted && session == _session) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                if (mounted && session == _session) {
+                  ScaffoldMessenger.of(this.context).showSnackBar(
                     const SnackBar(
                       content: Text('✅ Refresh complete.'),
                       backgroundColor: Color(0xFF16A34A),
