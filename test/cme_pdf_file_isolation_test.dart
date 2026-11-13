@@ -65,4 +65,62 @@ void main() {
         [kept.parent.path]);
     expect(await kept.readAsBytes(), [7]);
   });
+
+  test('sweep removes only old recognized exports and keeps recent PDFs',
+      () async {
+    final old = await generateAndSavePdfToFile(
+        Uint8List.fromList([1]), 'cme_history.pdf');
+    final recent = await generateAndSavePdfToFile(
+        Uint8List.fromList([2]), 'cme_history.pdf');
+    final unrelated = await Directory('${root.path}/other_export').create();
+    final unrelatedFile =
+        await File('${unrelated.path}/keep.pdf').writeAsString('keep');
+    final unknown =
+        await Directory('${root.path}/cme_history_unknown').create();
+    await File('${unknown.path}/other.txt').writeAsString('keep');
+    final empty = await Directory('${root.path}/cme_history_empty').create();
+    final now = DateTime.now().add(const Duration(days: 8));
+    await recent.setLastModified(now.subtract(const Duration(days: 1)));
+    await cleanupOldCmePdfExports(root: root, now: now);
+    expect(await old.parent.exists(), isFalse);
+    expect(await recent.readAsBytes(), [2]);
+    expect(await unrelatedFile.readAsString(), 'keep');
+    expect(await unknown.exists(), isTrue);
+    expect(await empty.exists(), isFalse);
+  });
+
+  test('current exports survive automatic sweep before another export',
+      () async {
+    final first = await generateAndSavePdfToFile(
+        Uint8List.fromList([1]), 'cme_history.pdf');
+    await generateAndSavePdfToFile(Uint8List.fromList([2]), 'cme_history.pdf');
+    expect(await first.readAsBytes(), [1]);
+  });
+
+  test('active old PDF is retained until all preview pins are released',
+      () async {
+    final file = await generateAndSavePdfToFile(
+        Uint8List.fromList([1]), 'cme_history.pdf');
+    final now = DateTime.now().add(const Duration(days: 8));
+    retainCmePdf(file);
+    retainCmePdf(file);
+    try {
+      await cleanupOldCmePdfExports(root: root, now: now);
+      expect(await file.exists(), isTrue);
+      releaseCmePdf(file);
+      await cleanupOldCmePdfExports(root: root, now: now);
+      expect(await file.exists(), isTrue);
+    } finally {
+      releaseCmePdf(file);
+    }
+    await cleanupOldCmePdfExports(root: root, now: now);
+    expect(await file.parent.exists(), isFalse);
+  });
+
+  test('cleanup enumeration failure does not prevent PDF creation', () async {
+    await cleanupOldCmePdfExports(root: Directory('${root.path}/missing'));
+    final file = await generateAndSavePdfToFile(
+        Uint8List.fromList([7]), 'cme_history.pdf');
+    expect(await file.readAsBytes(), [7]);
+  });
 }
