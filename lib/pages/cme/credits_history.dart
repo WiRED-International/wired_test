@@ -177,7 +177,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
         scale: scale,
       ),
 
-      bottomNav: CustomBottomNavBar(
+      bottomNav: isLandscape ? null : CustomBottomNavBar(
         onHomeTap: () => _navigateTo(context, const MyHomePage()),
         onLibraryTap: () => _navigateTo(context, ModuleLibrary()),
         onTrackerTap: () =>
@@ -338,100 +338,17 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                 mainAxisAlignment: MainAxisAlignment.start,
                 children: [
                   // 🟢 All Years Dropdown
-                  Container(
-                    height: baseSize * 0.085,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: EdgeInsets.symmetric(horizontal: baseSize * 0.035 * scale),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<int>(
-                        value: selectedYear,
-                        icon: const Icon(Icons.arrow_drop_down, color: Colors.black54),
-                        onChanged: (int? year) => setState(() => selectedYear = year),
-                        items: [
-                          null,
-                          ...years,
-                        ].map<DropdownMenuItem<int>>((year) {
-                          return DropdownMenuItem<int>(
-                            value: year,
-                            child: Text(
-                              year?.toString() ?? 'All Years',
-                              style: TextStyle(
-                                fontSize: baseSize * 0.034 * scale,
-                                color: Colors.black87,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    ),
-                  ),
+                  _buildYearDropdown(years, baseSize, scale),
 
                   SizedBox(width: baseSize * 0.03),
 
                   // 🟢 Email Button
-                  ElevatedButton.icon(
-                    onPressed: _selectedRecords.isNotEmpty && !_exporting
-                        ? () => _exportHistory(context, user, quizScores)
-                        : null,
-                    icon: const Icon(Icons.email_outlined,
-                        color: Colors.black87, size: 18),
-                    label: Text(
-                      "Email",
-                      style: TextStyle(
-                        color: Colors.black87,
-                        fontSize: baseSize * 0.032 * scale,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      elevation: 0,
-                      padding: EdgeInsets.symmetric(
-                        horizontal: baseSize * 0.05 * scale,
-                        vertical: baseSize * 0.018 * scale,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: BorderSide(color: Colors.grey.shade300),
-                      ),
-                    ),
-                  ),
+                  _buildExportButton(context, user, quizScores, baseSize, scale),
 
                   SizedBox(width: baseSize * 0.03),
 
                   // 🟢 Select / Deselect All Button
-                  ElevatedButton(
-                    onPressed: () {
-                      setState(() {
-                        _toggleVisibleSelection(visibleScores, selectAll);
-                      });
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      elevation: 0,
-                      padding: EdgeInsets.symmetric(
-                        horizontal: baseSize * 0.05 * scale,
-                        vertical: baseSize * 0.018 * scale,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        side: BorderSide(color: Colors.grey.shade300),
-                      ),
-                    ),
-                    child: Text(
-                      selectAll ? "Deselect All" : "Select All",
-                      style: TextStyle(
-                        color: Colors.black87,
-                        fontSize: baseSize * 0.032 * scale,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
+                  _buildSelectAllButton(visibleScores, selectAll, baseSize, scale),
                 ],
               ),
             ),
@@ -522,72 +439,12 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                     mainAxisAlignment: MainAxisAlignment.start,
                     children: [
                       // 🟢 All Years Dropdown
-                      Container(
-                        height: baseSize * 0.085,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        padding: EdgeInsets.symmetric(
-                            horizontal: baseSize * 0.035 * scale),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<int>(
-                            value: selectedYear,
-                            icon: const Icon(Icons.arrow_drop_down,
-                                color: Colors.black54),
-                            onChanged: (int? year) =>
-                                setState(() => selectedYear = year),
-                            items: [
-                              null,
-                              ...years,
-                            ].map<DropdownMenuItem<int>>((year) {
-                              return DropdownMenuItem<int>(
-                                value: year,
-                                child: Text(
-                                  year?.toString() ?? 'All Years',
-                                  style: TextStyle(
-                                    fontSize: baseSize * 0.034 * scale,
-                                    color: Colors.black87,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ),
+                      _buildYearDropdown(years, baseSize, scale),
 
                       SizedBox(width: baseSize * 0.03),
 
                       // 🟢 Email Button
-                      ElevatedButton.icon(
-                        onPressed: _selectedRecords.isNotEmpty && !_exporting
-                            ? () => _exportHistory(context, user, quizScores)
-                            : null,
-                        icon: const Icon(Icons.email_outlined,
-                            color: Colors.black87, size: 18),
-                        label: Text(
-                          "Email",
-                          style: TextStyle(
-                            color: Colors.black87,
-                            fontSize: baseSize * 0.032 * scale,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          elevation: 0,
-                          padding: EdgeInsets.symmetric(
-                            horizontal: baseSize * 0.05 * scale,
-                            vertical: baseSize * 0.018 * scale,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            side: BorderSide(color: Colors.grey.shade300),
-                          ),
-                        ),
-                      ),
+                      _buildExportButton(context, user, quizScores, baseSize, scale),
                     ],
                   ),
                 ),
@@ -595,33 +452,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                 SizedBox(height: baseSize * 0.025 * scale),
 
                 // 🔸 Second row: Select All / Deselect All
-                ElevatedButton(
-                  onPressed: () {
-                    setState(() {
-                      _toggleVisibleSelection(visibleScores, selectAll);
-                    });
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    elevation: 0,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: baseSize * 0.05 * scale,
-                      vertical: baseSize * 0.018 * scale,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      side: BorderSide(color: Colors.grey.shade300),
-                    ),
-                  ),
-                  child: Text(
-                    selectAll ? "Deselect All" : "Select All",
-                    style: TextStyle(
-                      color: Colors.black87,
-                      fontSize: baseSize * 0.032 * scale,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
+                _buildSelectAllButton(visibleScores, selectAll, baseSize, scale),
 
                 SizedBox(height: baseSize * 0.05),
               ],
@@ -645,6 +476,103 @@ class _CreditsHistoryState extends State<CreditsHistory> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildYearDropdown(List<int> years, double baseSize, double scale) {
+    return Container(
+      height: baseSize * 0.085,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: EdgeInsets.symmetric(horizontal: baseSize * 0.035 * scale),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<int>(
+          value: selectedYear,
+          icon: const Icon(Icons.arrow_drop_down, color: Colors.black54),
+          onChanged: (int? year) => setState(() => selectedYear = year),
+          items: [
+            null,
+            ...years,
+          ].map<DropdownMenuItem<int>>((year) {
+            return DropdownMenuItem<int>(
+              value: year,
+              child: Text(
+                year?.toString() ?? 'All Years',
+                style: TextStyle(
+                  fontSize: baseSize * 0.034 * scale,
+                  color: Colors.black87,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExportButton(BuildContext context, User user, List<dynamic> quizScores,
+      double baseSize, double scale) {
+    return ElevatedButton.icon(
+      onPressed: _selectedRecords.isNotEmpty && !_exporting
+          ? () => _exportHistory(context, user, quizScores)
+          : null,
+      icon: const Icon(Icons.email_outlined,
+          color: Colors.black87, size: 18),
+      label: Text(
+        "Email",
+        style: TextStyle(
+          color: Colors.black87,
+          fontSize: baseSize * 0.032 * scale,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        padding: EdgeInsets.symmetric(
+          horizontal: baseSize * 0.05 * scale,
+          vertical: baseSize * 0.018 * scale,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: Colors.grey.shade300),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSelectAllButton(List<dynamic> visibleScores, bool selectAll,
+      double baseSize, double scale) {
+    return ElevatedButton(
+      onPressed: () {
+        setState(() {
+          _toggleVisibleSelection(visibleScores, selectAll);
+        });
+      },
+      style: ElevatedButton.styleFrom(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        padding: EdgeInsets.symmetric(
+          horizontal: baseSize * 0.05 * scale,
+          vertical: baseSize * 0.018 * scale,
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: Colors.grey.shade300),
+        ),
+      ),
+      child: Text(
+        selectAll ? "Deselect All" : "Select All",
+        style: TextStyle(
+          color: Colors.black87,
+          fontSize: baseSize * 0.032 * scale,
+          fontWeight: FontWeight.w500,
+        ),
       ),
     );
   }

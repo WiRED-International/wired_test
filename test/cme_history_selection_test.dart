@@ -15,6 +15,8 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:wired_test/pages/cme/credits_history.dart';
 import 'package:wired_test/utils/pdf_preview_screen.dart';
 import 'package:wired_test/utils/functions.dart';
+import 'package:wired_test/utils/custom_nav_bar.dart';
+import 'package:wired_test/utils/side_nav_bar.dart';
 
 class _OutputDirectory extends PathProviderPlatform {
   _OutputDirectory(this.path);
@@ -163,6 +165,24 @@ void main() {
     await tester.pumpAndSettle();
     return text;
   }
+
+  testWidgets('history shows only the orientation-appropriate navigation bar',
+      (tester) async {
+    await withHistory(tester, mixedYears(), (_) async {
+      expect(find.byType(CustomBottomNavBar), findsOneWidget);
+      expect(find.byType(CustomSideNavBar), findsNothing);
+
+      tester.view.physicalSize = const Size(1600, 1000);
+      await tester.pumpAndSettle();
+      expect(find.byType(CustomBottomNavBar), findsNothing);
+      expect(find.byType(CustomSideNavBar), findsOneWidget);
+
+      tester.view.physicalSize = const Size(800, 1200);
+      await tester.pumpAndSettle();
+      expect(find.byType(CustomBottomNavBar), findsOneWidget);
+      expect(find.byType(CustomSideNavBar), findsNothing);
+    });
+  });
 
   testWidgets('portrait mixed-year list filters and sorts newest first',
       (tester) async {
