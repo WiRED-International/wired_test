@@ -54,7 +54,6 @@ double getScalingFactor(BuildContext context) {
 Future<bool> checkIfUserIsLoggedIn() async {
   final _storage = const FlutterSecureStorage();
   final token = await _storage.read(key: 'authToken');
-  debugPrint("Retrieved Token: $token"); // Debugging output
 
   bool isLoggedIn = token != null && token.isNotEmpty;
   debugPrint("User is logged in: $isLoggedIn"); // Debugging output
