@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -14,6 +15,8 @@ import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 import 'email_success_screen.dart';
+
+enum _EmailOutcome { accepted, rejected, uncertain, notSent }
 
 class PdfPreviewScreen extends StatefulWidget {
   final File pdfFile;
@@ -134,7 +137,7 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
       final pdfBytes = await pdfFile.readAsBytes();
       if (!_ownsSession(token)) return;
 
-      final success = await sendPdfToBackendWithRecipient(
+      final outcome = await sendPdfToBackendWithRecipient(
         pdfBytes,
         token: token!,
         recipientEmail: result['email']!,
@@ -142,11 +145,13 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
         message: result['message']!,
       );
 
-      if (success) _emailSent = true;
+      if (outcome == _EmailOutcome.accepted) _emailSent = true;
       if (!_ownsSession(token)) return;
-      if (success) {
+      if (outcome == _EmailOutcome.accepted) {
         // Delete the local file
-        if (await pdfFile.exists()) {
+        final exists = await pdfFile.exists();
+        if (!_ownsSession(token)) return;
+        if (exists) {
           await pdfFile.delete();
         }
 
@@ -163,7 +168,14 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
       } else {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to send email")),
+          SnackBar(
+              content: Text(switch (outcome) {
+            _EmailOutcome.uncertain =>
+              'The email may have been sent. Check with the recipient before retrying.',
+            _EmailOutcome.rejected =>
+              'The server rejected the email request. Please try again later.',
+            _ => 'Email was not sent. Please check your session and try again.',
+          })),
         );
       }
     } catch (_) {
@@ -171,7 +183,7 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(_emailSent
               ? 'Email sent, but the preview could not be closed.'
-              : 'Failed to send email'),
+              : 'Email was not sent. Please try again.'),
         ));
       }
     } finally {
@@ -241,7 +253,7 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
     );
   }
 
-  Future<bool> sendPdfToBackendWithRecipient(
+  Future<_EmailOutcome> sendPdfToBackendWithRecipient(
     Uint8List pdfBytes, {
     required String token,
     required String recipientEmail,
@@ -271,8 +283,21 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
       ),
     );
 
-    if (!_ownsSession(token) || _auth!.isLoading) return false;
-    final response = await request.send();
-    return response.statusCode == 200;
+    if (!_ownsSession(token) || _auth!.isLoading) return _EmailOutcome.notSent;
+    final client = http.Client();
+    try {
+      // Bound the upload/response wait, not the recipient dialog. A timeout
+      // cannot retract server processing or establish that email was not sent.
+      final response =
+          await client.send(request).timeout(const Duration(seconds: 30));
+      return response.statusCode == 200
+          ? _EmailOutcome.accepted
+          : _EmailOutcome.rejected;
+    } catch (_) {
+      // Once sending has begun, transport failures cannot prove rejection.
+      return _EmailOutcome.uncertain;
+    } finally {
+      client.close();
+    }
   }
 }
