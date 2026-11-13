@@ -288,18 +288,6 @@ class _RegisterState extends State<Register> {
     }
   }
 
-  InputDecoration _inputDecoration(String label, {String? hintText}) {
-    return InputDecoration(
-      labelText: label,
-      hintText: hintText,
-      border: const OutlineInputBorder(),
-      contentPadding: const EdgeInsets.symmetric(
-        vertical: 14,  // 🟢 Normalize vertical padding
-        horizontal: 12,
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     double scalingFactor = getScalingFactor(context);
