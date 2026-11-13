@@ -5,7 +5,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:wired_test/pages/creditsTracker/credits_tracker.dart';
@@ -53,16 +52,8 @@ class ModuleFile {
             jsonDecode(jsonEncode(pendingEntry)) as Map<String, dynamic>);
 }
 
-enum DisplayType { modules, resources }
-
 class _SubmitCreditsState extends State<SubmitCredits> {
   late Future<List<ModuleFile>> futureModules;
-  late Future<List<FileSystemEntity>> futureResources; // For PDF resources
-  List<ModuleFile> modules = [];
-  // List<FileSystemEntity> resources = []; // Store PDF files
-  DisplayType selectedType =
-      DisplayType.modules; // To track whether Modules or Resources are selected
-  final secureStorage = const FlutterSecureStorage();
   late final PendingQuizScoreRepository _pendingScores;
   final _submittingIds = <String>{};
   final _submittedIds = <String>{};
@@ -124,12 +115,6 @@ class _SubmitCreditsState extends State<SubmitCredits> {
         print(
             "📦 Loaded ${storedScores.length} pending quiz scores from Secure Storage");
         fetchedModules.sort((a, b) => a.moduleName.compareTo(b.moduleName));
-
-        if (mounted) {
-          setState(() {
-            modules = fetchedModules;
-          });
-        }
 
         return fetchedModules;
       } else {
@@ -402,15 +387,6 @@ class _SubmitCreditsState extends State<SubmitCredits> {
       debugPrint('Score submitted; local cleanup failed: $error');
       return null;
     }
-  }
-
-  Future<void> saveModuleInfo(String moduleId, String moduleName) async {
-    Map<String, String> moduleInfo = {
-      "module_id": moduleId,
-      "module_name": moduleName,
-    };
-    await secureStorage.write(
-        key: "module_info", value: jsonEncode(moduleInfo));
   }
 
   @override
