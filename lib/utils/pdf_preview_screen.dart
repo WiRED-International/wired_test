@@ -29,8 +29,8 @@ class PdfPreviewScreen extends StatefulWidget {
 
 class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
   AuthProvider? _auth;
-  String? _originalToken;
-  bool _invalidated = false;
+  // Only logout cancels pending work; previews are not permanently account-bound.
+  int _logoutGeneration = 0;
   bool _emailBusy = false;
   bool _emailSent = false;
 
@@ -39,47 +39,30 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
   @override
   void initState() {
     super.initState();
-    // As in CME pages, observe transitions directly, including logout/login
-    // with the same token before a rebuild. Never adopt a replacement session.
     _auth = context.read<AuthProvider?>();
-    _originalToken = _auth?.authToken;
-    _invalidated = !_hasOriginalAuthentication();
     _auth?.addListener(_authChanged);
   }
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // A replacement/removed provider cannot take ownership of this PDF.
-    if (!identical(Provider.of<AuthProvider?>(context), _auth)) {
-      _invalidated = true;
-    }
-  }
-
-  bool _hasOriginalAuthentication() {
+  bool _hasAuthentication() {
     final auth = _auth;
-    final token = _originalToken;
+    final token = auth?.authToken;
     return auth != null &&
         auth.isLoggedIn &&
+        !auth.isLoading &&
         token != null &&
         token.trim().isNotEmpty &&
-        auth.authToken == token &&
         !auth.isTokenExpired();
   }
 
   void _authChanged() {
-    if (!_hasOriginalAuthentication()) _invalidated = true;
+    if (_auth?.isLoggedIn != true) _logoutGeneration++;
   }
 
-  bool _ownsSession(String? token) =>
-      mounted &&
-      !_invalidated &&
-      token == _originalToken &&
-      _hasOriginalAuthentication();
+  bool _canContinue(int logoutGeneration) =>
+      mounted && logoutGeneration == _logoutGeneration && _hasAuthentication();
 
   @override
   void dispose() {
-    _invalidated = true;
     _auth?.removeListener(_authChanged);
     super.dispose();
   }
@@ -123,39 +106,41 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
     // Set synchronously: callbacks already queued before a rebuild also stop.
     if (_emailBusy || _emailSent || !mounted) return;
     setState(() => _emailBusy = true);
+    final logoutGeneration = _logoutGeneration;
     try {
-      final token = _originalToken;
-      if (!_ownsSession(token) || _auth!.isLoading) {
+      final token = _auth?.authToken;
+      if (!_canContinue(logoutGeneration)) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Please log in and export a new PDF before emailing.'),
+          content: Text('Please log in before emailing.'),
         ));
         return;
       }
       final result = await promptEmailForm(context);
-      if (result == null || !_ownsSession(token)) return;
+      if (result == null || !_canContinue(logoutGeneration)) return;
 
       final pdfBytes = await pdfFile.readAsBytes();
-      if (!_ownsSession(token)) return;
+      if (!_canContinue(logoutGeneration)) return;
 
       final outcome = await sendPdfToBackendWithRecipient(
         pdfBytes,
         token: token!,
+        logoutGeneration: logoutGeneration,
         recipientEmail: result['email']!,
         senderName: result['name']!,
         message: result['message']!,
       );
 
       if (outcome == _EmailOutcome.accepted) _emailSent = true;
-      if (!_ownsSession(token)) return;
+      if (!_canContinue(logoutGeneration)) return;
       if (outcome == _EmailOutcome.accepted) {
         // Delete the local file
         final exists = await pdfFile.exists();
-        if (!_ownsSession(token)) return;
+        if (!_canContinue(logoutGeneration)) return;
         if (exists) {
           await pdfFile.delete();
         }
 
-        if (!_ownsSession(token)) return;
+        if (!_canContinue(logoutGeneration)) return;
 
         if (!mounted) return;
 
@@ -179,7 +164,7 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
         );
       }
     } catch (_) {
-      if (mounted && _ownsSession(_originalToken)) {
+      if (mounted && _canContinue(logoutGeneration)) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(_emailSent
               ? 'Email sent, but the preview could not be closed.'
@@ -256,6 +241,7 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
   Future<_EmailOutcome> sendPdfToBackendWithRecipient(
     Uint8List pdfBytes, {
     required String token,
+    required int logoutGeneration,
     required String recipientEmail,
     required String senderName,
     required String message,
@@ -283,7 +269,9 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
       ),
     );
 
-    if (!_ownsSession(token) || _auth!.isLoading) return _EmailOutcome.notSent;
+    if (!_canContinue(logoutGeneration)) {
+      return _EmailOutcome.notSent;
+    }
     final client = http.Client();
     try {
       // Bound the upload/response wait, not the recipient dialog. A timeout
