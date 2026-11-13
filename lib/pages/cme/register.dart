@@ -391,6 +391,147 @@ class _RegisterState extends State<Register> {
     );
   }
 
+  Widget _buildFirstNameField() {
+    return _buildTextField(
+      controller: _firstNameController,
+      label: "First Name",
+      hintText: "Enter your first name",
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return "Please enter your first name";
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _buildLastNameField() {
+    return _buildTextField(
+      controller: _lastNameController,
+      label: "Last Name",
+      hintText: "Enter your last name",
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return "Please enter your last name";
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _buildEmailField() {
+    return _buildTextField(
+      controller: _emailController,
+      label: "Email",
+      hintText: "Enter your email",
+      validator: _validateEmail,
+    );
+  }
+
+  Widget _buildPasswordField() {
+    return _buildTextField(
+      controller: _passwordController,
+      label: "Password",
+      hintText: "Enter your password",
+      validator: _validatePassword,
+    );
+  }
+
+  Widget _buildConfirmPasswordField() {
+    return _buildTextField(
+      controller: _confirmPasswordController,
+      label: "Confirm Password",
+      hintText: "Confirm your password",
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return "Please confirm your password";
+        }
+        if (value != _passwordController.text) {
+          return "Passwords do not match";
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _buildRegisterButton({
+    required double widthFactor,
+    required double height,
+    required Widget label,
+  }) {
+    return Semantics(
+      label: 'Register Button',
+      hint: 'Tap to register',
+      child: GestureDetector(
+        onTap: () async {
+          bool isSuccess = await _submitForm(); // Wait for submission result
+          if (isSuccess) {
+            // Navigate to RegistrationConfirm if successful
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => RegistrationConfirm()),
+            );
+          }
+        },
+        child: FractionallySizedBox(
+          widthFactor: widthFactor,
+          child: Container(
+            height: height,
+            decoration: BoxDecoration(
+              color: Color(0xFF0070C0),
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.5),
+                  spreadRadius: 1,
+                  blurRadius: 5,
+                  offset: const Offset(
+                      1, 3), // changes position of shadow
+                ),
+              ],
+            ),
+            child: label,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoginLink(double fontSize, double spacing, FontWeight linkWeight) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          "Already have an account?",
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: FontWeight.w500,
+            color: Colors.black,
+          ),
+        ),
+        SizedBox(
+          width: spacing,
+        ),
+        GestureDetector(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => Login()),
+            );
+          },
+          child: Text(
+            "Login",
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: linkWeight,
+              color: Color(0xFF0070C0),
+            ),
+          ),
+        )
+      ],
+    );
+  }
+
   Widget _buildPortraitLayout(scalingFactor) {
     final double fieldSpacing = scalingFactor * (isTablet(context) ? 12 : 15);
     return Center(
@@ -417,42 +558,17 @@ class _RegisterState extends State<Register> {
               // First Name
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 10 : 10)),
-                child: _buildTextField(
-                  controller: _firstNameController,
-                  label: "First Name",
-                  hintText: "Enter your first name",
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return "Please enter your first name";
-                    }
-                    return null;
-                  },
-                ),
+                child: _buildFirstNameField(),
               ),
               // Last Name
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 10 : 10)),
-                child: _buildTextField(
-                  controller: _lastNameController,
-                  label: "Last Name",
-                  hintText: "Enter your last name",
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return "Please enter your last name";
-                    }
-                    return null;
-                  },
-                ),
+                child: _buildLastNameField(),
               ),
               // Email
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 10 : 10)),
-                child: _buildTextField(
-                  controller: _emailController,
-                  label: "Email",
-                  hintText: "Enter your email",
-                  validator: _validateEmail,
-                ),
+                child: _buildEmailField(),
               ),
               // Country
               Padding(
@@ -468,94 +584,45 @@ class _RegisterState extends State<Register> {
 
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 10 : 10)),
-                child: _buildTextField(
-                  controller: _passwordController,
-                  label: "Password",
-                  hintText: "Enter your password",
-                  validator: _validatePassword,
-                ),
+                child: _buildPasswordField(),
               ),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 10 : 10)),
-                child: _buildTextField(
-                  controller: _confirmPasswordController,
-                  label: "Confirm Password",
-                  hintText: "Confirm your password",
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return "Please confirm your password";
-                    }
-                    if (value != _passwordController.text) {
-                      return "Passwords do not match";
-                    }
-                    return null;
-                  },
-                ),
+                child: _buildConfirmPasswordField(),
               ),
               SizedBox(
                 height: scalingFactor * (isTablet(context) ? 25 : 25),
               ),
-              Semantics(
-                label: 'Register Button',
-                hint: 'Tap to register',
-                child: GestureDetector(
-                  onTap: () async {
-                    bool isSuccess = await _submitForm(); // Wait for submission result
-                    if (isSuccess) {
-                      // Navigate to RegistrationConfirm if successful
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => RegistrationConfirm()),
+              _buildRegisterButton(
+                widthFactor: isTablet(context) ? 0.5 : 0.7,
+                height: scalingFactor * (isTablet(context) ? 30 : 40),
+                label: LayoutBuilder(
+                    builder: (context, constraints) {
+                      double buttonWidth = constraints.maxWidth;
+                      double fontSize = buttonWidth * 0.2;
+                      double padding = buttonWidth * 0.02;
+                      return Padding(
+                        padding: EdgeInsets.all(padding),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.fitWidth,
+                                child: Text(
+                                  "Register",
+                                  style: TextStyle(
+                                    fontSize: fontSize,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
                       );
                     }
-                  },
-                  child: FractionallySizedBox(
-                    widthFactor: isTablet(context) ? 0.5 : 0.7,
-                    child: Container(
-                      height: scalingFactor * (isTablet(context) ? 30 : 40),
-                      decoration: BoxDecoration(
-                        color: Color(0xFF0070C0),
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.5),
-                            spreadRadius: 1,
-                            blurRadius: 5,
-                            offset: const Offset(
-                                1, 3), // changes position of shadow
-                          ),
-                        ],
-                      ),
-                      child: LayoutBuilder(
-                          builder: (context, constraints) {
-                            double buttonWidth = constraints.maxWidth;
-                            double fontSize = buttonWidth * 0.2;
-                            double padding = buttonWidth * 0.02;
-                            return Padding(
-                              padding: EdgeInsets.all(padding),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Flexible(
-                                    child: FittedBox(
-                                      fit: BoxFit.fitWidth,
-                                      child: Text(
-                                        "Register",
-                                        style: TextStyle(
-                                          fontSize: fontSize,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
-                      ),
-                    ),
-                  ),
                 ),
               ),
               SizedBox(
@@ -563,37 +630,10 @@ class _RegisterState extends State<Register> {
               ),
               Padding(
                 padding: EdgeInsets.only(bottom: scalingFactor * (isTablet(context) ? 55 : 55)),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      "Already have an account?",
-                      style: TextStyle(
-                        fontSize: scalingFactor * (isTablet(context) ? 16 : 18),
-                        fontWeight: FontWeight.w500,
-                        color: Colors.black,
-                      ),
-                    ),
-                    SizedBox(
-                      width: scalingFactor * (isTablet(context) ? 10 : 10),
-                    ),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => Login()),
-                        );
-                      },
-                      child: Text(
-                        "Login",
-                        style: TextStyle(
-                          fontSize: scalingFactor * (isTablet(context) ? 16 : 18),
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF0070C0),
-                        ),
-                      ),
-                    )
-                  ],
+                child: _buildLoginLink(
+                  scalingFactor * (isTablet(context) ? 16 : 18),
+                  scalingFactor * (isTablet(context) ? 10 : 10),
+                  FontWeight.w500,
                 ),
               ),
             ],
@@ -639,26 +679,9 @@ class _RegisterState extends State<Register> {
                     flex: 1,
                     child: Column(
                       children: [
-                        _buildTextField(
-                          controller: _firstNameController,
-                          label: "First Name",
-                          hintText: "Enter your first name",
-                          validator: (v) =>
-                          v == null || v.isEmpty ? "Please enter your first name" : null,
-                        ),
-                        _buildTextField(
-                          controller: _lastNameController,
-                          label: "Last Name",
-                          hintText: "Enter your last name",
-                          validator: (v) =>
-                          v == null || v.isEmpty ? "Please enter your last name" : null,
-                        ),
-                        _buildTextField(
-                          controller: _emailController,
-                          label: "Email",
-                          hintText: "Enter your email",
-                          validator: _validateEmail,
-                        ),
+                        _buildFirstNameField(),
+                        _buildLastNameField(),
+                        _buildEmailField(),
                         _buildCountryDropdown(),
                       ],
                     ),
@@ -672,26 +695,8 @@ class _RegisterState extends State<Register> {
                     child: Column(
                       children: [
                         _buildOrganizationDropdown(),
-                        _buildTextField(
-                          controller: _passwordController,
-                          label: "Password",
-                          hintText: "Enter your password",
-                          validator: _validatePassword,
-                        ),
-                        _buildTextField(
-                          controller: _confirmPasswordController,
-                          label: "Confirm Password",
-                          hintText: "Confirm your password",
-                          validator: (v) {
-                            if (v == null || v.isEmpty) {
-                              return "Please confirm your password";
-                            }
-                            if (v != _passwordController.text) {
-                              return "Passwords do not match";
-                            }
-                            return null;
-                          },
-                        ),
+                        _buildPasswordField(),
+                        _buildConfirmPasswordField(),
                       ],
                     ),
                   ),
@@ -701,45 +706,16 @@ class _RegisterState extends State<Register> {
               SizedBox(height: fieldSpacing * 2),
 
               // 🟩 Register button
-              Semantics(
-                label: 'Register Button',
-                hint: 'Tap to register',
-                child: GestureDetector(
-                  onTap: () async {
-                    bool isSuccess = await _submitForm();
-                    if (isSuccess) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => RegistrationConfirm()),
-                      );
-                    }
-                  },
-                  child: FractionallySizedBox(
-                    widthFactor: tablet ? 0.4 : 0.5,
-                    child: Container(
-                      height: scalingFactor * (tablet ? 35 : 45),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0070C0),
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.5),
-                            spreadRadius: 1,
-                            blurRadius: 5,
-                            offset: const Offset(1, 3),
-                          ),
-                        ],
-                      ),
-                      child: Center(
-                        child: Text(
-                          "Register",
-                          style: TextStyle(
-                            fontSize: scalingFactor * (tablet ? 18 : 20),
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
+              _buildRegisterButton(
+                widthFactor: tablet ? 0.4 : 0.5,
+                height: scalingFactor * (tablet ? 35 : 45),
+                label: Center(
+                  child: Text(
+                    "Register",
+                    style: TextStyle(
+                      fontSize: scalingFactor * (tablet ? 18 : 20),
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
                     ),
                   ),
                 ),
@@ -749,35 +725,10 @@ class _RegisterState extends State<Register> {
               // 🟨 Footer
               Padding(
                 padding: EdgeInsets.only(bottom: scalingFactor * 25),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      "Already have an account?",
-                      style: TextStyle(
-                        fontSize: scalingFactor * (tablet ? 16 : 18),
-                        fontWeight: FontWeight.w500,
-                        color: Colors.black,
-                      ),
-                    ),
-                    SizedBox(width: scalingFactor * 10),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (context) => Login()),
-                        );
-                      },
-                      child: Text(
-                        "Login",
-                        style: TextStyle(
-                          fontSize: scalingFactor * (tablet ? 16 : 18),
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF0070C0),
-                        ),
-                      ),
-                    ),
-                  ],
+                child: _buildLoginLink(
+                  scalingFactor * (tablet ? 16 : 18),
+                  scalingFactor * 10,
+                  FontWeight.w600,
                 ),
               ),
             ],
