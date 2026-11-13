@@ -28,6 +28,8 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
   AuthProvider? _auth;
   String? _originalToken;
   bool _invalidated = false;
+  bool _emailBusy = false;
+  bool _emailSent = false;
 
   File get pdfFile => widget.pdfFile;
 
@@ -108,63 +110,82 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
         child: ElevatedButton.icon(
           icon: Icon(Icons.send),
           label: Text("Email CME History"),
-          onPressed: () async {
-            final token = _originalToken;
-            if (!_ownsSession(token) || _auth!.isLoading) {
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content:
-                    Text('Please log in and export a new PDF before emailing.'),
-              ));
-              return;
-            }
-            final result = await promptEmailForm(context);
-            if (result == null || !_ownsSession(token)) return;
-
-            final pdfBytes = await pdfFile.readAsBytes();
-            if (!_ownsSession(token)) return;
-
-            final success = await sendPdfToBackendWithRecipient(
-              pdfBytes,
-              token: token!,
-              recipientEmail: result['email']!,
-              senderName: result['name']!,
-              message: result['message']!,
-            );
-
-            if (!_ownsSession(token)) return;
-            if (success) {
-              // Delete the local file
-              if (await pdfFile.exists()) {
-                await pdfFile.delete();
-              }
-
-              if (!_ownsSession(token)) return;
-
-              if (!context.mounted) return;
-
-              // Navigate to success screen
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(
-                    builder: (_) =>
-                        EmailSuccessScreen(email: result['email']!)),
-              );
-            } else {
-              if (!context.mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text("Failed to send email")),
-              );
-            }
-          },
+          onPressed: _emailBusy || _emailSent ? null : _emailPdf,
         ),
       ),
     );
+  }
+
+  Future<void> _emailPdf() async {
+    // Set synchronously: callbacks already queued before a rebuild also stop.
+    if (_emailBusy || _emailSent || !mounted) return;
+    setState(() => _emailBusy = true);
+    try {
+      final token = _originalToken;
+      if (!_ownsSession(token) || _auth!.isLoading) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Please log in and export a new PDF before emailing.'),
+        ));
+        return;
+      }
+      final result = await promptEmailForm(context);
+      if (result == null || !_ownsSession(token)) return;
+
+      final pdfBytes = await pdfFile.readAsBytes();
+      if (!_ownsSession(token)) return;
+
+      final success = await sendPdfToBackendWithRecipient(
+        pdfBytes,
+        token: token!,
+        recipientEmail: result['email']!,
+        senderName: result['name']!,
+        message: result['message']!,
+      );
+
+      if (success) _emailSent = true;
+      if (!_ownsSession(token)) return;
+      if (success) {
+        // Delete the local file
+        if (await pdfFile.exists()) {
+          await pdfFile.delete();
+        }
+
+        if (!_ownsSession(token)) return;
+
+        if (!mounted) return;
+
+        // Navigate to success screen
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+              builder: (_) => EmailSuccessScreen(email: result['email']!)),
+        );
+      } else {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Failed to send email")),
+        );
+      }
+    } catch (_) {
+      if (mounted && _ownsSession(_originalToken)) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(_emailSent
+              ? 'Email sent, but the preview could not be closed.'
+              : 'Failed to send email'),
+        ));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _emailBusy = false);
+      }
+    }
   }
 
   Future<Map<String, String>?> promptEmailForm(BuildContext context) async {
     String email = '';
     String name = '';
     String message = '';
+    bool submitted = false;
 
     return showDialog<Map<String, String>>(
       context: context,
@@ -198,11 +219,13 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
                 onPressed: () => Navigator.pop(context), child: Text('Cancel')),
             TextButton(
               onPressed: () {
+                if (submitted) return;
                 if (email.isEmpty || name.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Name and email are required')),
                   );
                 } else {
+                  submitted = true;
                   Navigator.pop(context, {
                     'email': email,
                     'name': name,

@@ -31,12 +31,25 @@ class _Auth extends AuthProvider {
 
 class _Pdf extends Fake implements File {
   Completer<Uint8List>? pending;
+  bool failRead = false;
+  bool failCleanup = false;
+  @override
+  Future<bool> exists() async {
+    if (failCleanup) throw FileSystemException("cleanup failed");
+    return false;
+  }
+
   final bytes = Uint8List.fromList([37, 80, 68, 70]);
   @override
   String get path => 'preview.pdf';
   @override
-  Future<Uint8List> readAsBytes() async =>
-      pending == null ? bytes : await pending!.future;
+  Future<Uint8List> readAsBytes() async {
+    if (failRead) {
+      failRead = false;
+      throw FileSystemException('read failed');
+    }
+    return pending == null ? bytes : await pending!.future;
+  }
 }
 
 void main() {
@@ -45,6 +58,7 @@ void main() {
   late _Pdf pdf;
   late List<http.Request> requests;
   late MockClient client;
+  Completer<http.Response>? response;
   const printing = MethodChannel('net.nfet.printing');
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -54,12 +68,15 @@ void main() {
     auth = _Auth();
     pdf = _Pdf();
     requests = [];
+    response = null;
     shares = [];
     dotenv.loadFromString(envString: 'API_BASE_URL=https://example.invalid');
     client = MockClient((request) async {
       requests.add(request);
       // Keep the preview/file mounted; success handling is unchanged.
-      return http.Response('{}', 403);
+      return response == null
+          ? http.Response('{}', 403)
+          : await response!.future;
     });
     messenger.setMockMethodCallHandler(printing, (call) async {
       shares.add(call);
@@ -191,4 +208,125 @@ void main() {
       }, () => client);
     });
   }
+
+  ElevatedButton emailButton(WidgetTester tester) =>
+      tester.widget<ElevatedButton>(
+          find.byWidgetPredicate((widget) => widget is ElevatedButton));
+
+  testWidgets('rapid callbacks open one dialog and cancellation releases guard',
+      (tester) async {
+    await mount(tester);
+    final action = emailButton(tester).onPressed!;
+    action();
+    action(); // No frame between callbacks.
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(emailButton(tester).onPressed, isNull);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(emailButton(tester).onPressed, isNotNull);
+    await dialog(tester);
+    expect(find.byType(AlertDialog), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+  });
+
+  for (final stage in ['read', 'response']) {
+    testWidgets(
+        'guard blocks repeated confirmation and actions during pending $stage',
+        (tester) async {
+      await http.runWithClient(() async {
+        await mount(tester);
+        final action = emailButton(tester).onPressed!;
+        await dialog(tester);
+        await tester.enterText(
+            find.byType(TextField).at(0), 'recipient@example.com');
+        await tester.enterText(find.byType(TextField).at(1), 'Sender');
+        if (stage == 'read') pdf.pending = Completer<Uint8List>();
+        if (stage == 'response') response = Completer<http.Response>();
+        final confirm = tester
+            .widget<TextButton>(find.widgetWithText(TextButton, 'Send'))
+            .onPressed!;
+        confirm();
+        confirm();
+        await tester.pumpAndSettle();
+        action();
+        expect(emailButton(tester).onPressed, isNull);
+        expect(requests, hasLength(stage == 'read' ? 0 : 1));
+        if (stage == 'read') pdf.pending!.complete(pdf.bytes);
+        if (stage == 'response') response!.complete(http.Response('{}', 403));
+        await tester.pumpAndSettle();
+        expect(requests, hasLength(1));
+        expect(emailButton(tester).onPressed, isNotNull);
+      }, () => client);
+    });
+  }
+
+  testWidgets('explicit rejection permits a later submission', (tester) async {
+    await http.runWithClient(() async {
+      await mount(tester);
+      await dialog(tester);
+      await submit(tester);
+      await dialog(tester);
+      await submit(tester);
+      expect(requests, hasLength(2));
+    }, () => client);
+  });
+
+  testWidgets('PDF read failure releases guard without uploading',
+      (tester) async {
+    await http.runWithClient(() async {
+      await mount(tester);
+      await dialog(tester);
+      pdf.failRead = true;
+      await submit(tester);
+      expect(requests, isEmpty);
+      expect(emailButton(tester).onPressed, isNotNull);
+      pdf.failRead = false;
+      await dialog(tester);
+      await submit(tester);
+      expect(requests, hasLength(1));
+    }, () => client);
+  });
+
+  testWidgets('confirmed success stays blocked after cleanup failure',
+      (tester) async {
+    await http.runWithClient(() async {
+      await mount(tester);
+      final action = emailButton(tester).onPressed!;
+      response = Completer<http.Response>()
+        ..complete(http.Response('{"message":"Email sent successfully"}', 200));
+      pdf.failCleanup = true;
+      await dialog(tester);
+      await submit(tester);
+      expect(emailButton(tester).onPressed, isNull);
+      action();
+      await tester.pumpAndSettle();
+      expect(requests, hasLength(1));
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(find.byType(SfPdfViewer), findsOneWidget);
+    }, () => client);
+  });
+
+  testWidgets(
+      'session invalidation during upload cannot produce another request',
+      (tester) async {
+    await http.runWithClient(() async {
+      await mount(tester);
+      final action = emailButton(tester).onPressed!;
+      response = Completer<http.Response>();
+      await dialog(tester);
+      await submit(tester);
+      auth.change('B');
+      action();
+      response!.complete(http.Response('{}', 403));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 300));
+      action();
+      await tester.pumpAndSettle();
+      expect(requests, hasLength(1));
+      expect(requests.single.headers['authorization'], 'Bearer A');
+      expect(find.byType(AlertDialog), findsNothing);
+    }, () => client);
+  });
 }
