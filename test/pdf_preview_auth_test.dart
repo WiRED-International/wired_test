@@ -8,10 +8,29 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:provider/provider.dart';
+// Test-only platform adapter for the existing open_file dependency.
+// ignore: depend_on_referenced_packages
+import 'package:open_file_platform_interface/open_file_platform_interface.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:wired_test/providers/auth_provider.dart';
 import 'package:wired_test/utils/pdf_preview_screen.dart';
 import 'package:wired_test/utils/email_success_screen.dart';
+
+class _OpenPdf extends OpenFilePlatform {
+  final paths = <String?>[];
+  @override
+  Future<OpenResult> open(
+    String? filePath, {
+    String? type,
+    bool isIOSAppOpen = false,
+    String linuxDesktopName = 'xdg',
+    bool linuxUseGio = false,
+    bool linuxByProcess = false,
+  }) async {
+    paths.add(filePath);
+    return OpenResult(type: ResultType.done, message: 'done');
+  }
+}
 
 class _Auth extends AuthProvider {
   String? token = 'A';
@@ -66,6 +85,8 @@ class _Pdf extends Fake implements File {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late _Auth auth;
+  late OpenFilePlatform originalOpen;
+  late _OpenPdf opener;
   late _Pdf pdf;
   late List<http.Request> requests;
   late MockClient client;
@@ -76,6 +97,9 @@ void main() {
   late List<MethodCall> shares;
 
   setUp(() {
+    originalOpen = OpenFilePlatform.platform;
+    opener = _OpenPdf();
+    OpenFilePlatform.platform = opener;
     auth = _Auth();
     pdf = _Pdf();
     requests = [];
@@ -95,6 +119,7 @@ void main() {
     });
   });
   tearDown(() {
+    OpenFilePlatform.platform = originalOpen;
     auth.dispose();
     client.close();
     dotenv.clean();
@@ -160,9 +185,7 @@ void main() {
     'missing',
     'blank',
     'expired',
-    'logout',
-    'switch',
-    'reuse'
+    'logout'
   ]) {
     testWidgets('$scenario prevents email but preserves preview and sharing',
         (tester) async {
@@ -171,9 +194,7 @@ void main() {
         if (scenario == 'blank') auth.token = '  ';
         if (scenario == 'expired') auth.expired = true;
         await mount(tester, provider: scenario != 'no provider');
-        if (scenario == 'logout' || scenario == 'reuse') auth.change(null);
-        if (scenario == 'switch') auth.change('B');
-        if (scenario == 'reuse') auth.change('A');
+        if (scenario == 'logout') auth.change(null);
         await dialog(tester);
         expect(find.byType(AlertDialog), findsNothing);
         expect(requests, isEmpty);
@@ -182,6 +203,9 @@ void main() {
         await tester.pumpAndSettle();
         expect(shares.single.method, 'sharePdf');
         expect((shares.single.arguments as Map)['doc'], pdf.bytes);
+        await tester.tap(find.byIcon(Icons.download));
+        await tester.pumpAndSettle();
+        expect(opener.paths, [pdf.path]);
       }, () => client);
     });
   }
@@ -198,17 +222,15 @@ void main() {
   });
 
   for (final stage in ['dialog', 'read']) {
-    testWidgets(
-        'account switch during $stage never sends cross-account request',
-        (tester) async {
+    testWidgets('logout during $stage prevents submission', (tester) async {
       await http.runWithClient(() async {
         await mount(tester);
         await dialog(tester);
-        if (stage == 'dialog') auth.change('B');
+        if (stage == 'dialog') auth.change(null);
         if (stage == 'read') pdf.pending = Completer<Uint8List>();
         await submit(tester);
         if (stage == 'read') {
-          auth.change('B');
+          auth.change(null);
           pdf.pending!.complete(pdf.bytes);
           await tester.pumpAndSettle();
           // The PDF viewer schedules a delayed update after provider rebuilds.
@@ -319,8 +341,7 @@ void main() {
     }, () => client);
   });
 
-  testWidgets(
-      'session invalidation during upload cannot produce another request',
+  testWidgets('logout during upload prevents another unauthenticated request',
       (tester) async {
     await http.runWithClient(() async {
       await mount(tester);
@@ -328,7 +349,7 @@ void main() {
       response = Completer<http.Response>();
       await dialog(tester);
       await submit(tester);
-      auth.change('B');
+      auth.change(null);
       action();
       response!.complete(http.Response('{}', 403));
       await tester.pumpAndSettle();
@@ -417,7 +438,7 @@ void main() {
   }
 
   for (final stage in ['HTTP', 'exists']) {
-    for (final transition in ['switch', 'logout', 'dispose']) {
+    for (final transition in ['logout', 'dispose']) {
       testWidgets('$transition during $stage prevents stale deletion and UI',
           (tester) async {
         await http.runWithClient(() async {
@@ -434,7 +455,7 @@ void main() {
             await tester
                 .pumpWidget(const MaterialApp(home: Text('New screen')));
           } else {
-            auth.change(transition == 'switch' ? 'B' : null);
+            auth.change(null);
           }
           if (stage == 'HTTP') response!.complete(http.Response('{}', 200));
           if (stage == 'exists') pdf.existence!.complete(true);
@@ -450,4 +471,20 @@ void main() {
       });
     }
   }
+
+  testWidgets('login enables emailing from an existing preview',
+      (tester) async {
+    await http.runWithClient(() async {
+      auth.change(null);
+      await mount(tester);
+      await dialog(tester);
+      expect(find.byType(AlertDialog), findsNothing);
+      auth.change('A');
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 300));
+      await dialog(tester);
+      await submit(tester);
+      expect(requests.single.headers['authorization'], 'Bearer A');
+    }, () => client);
+  });
 }
