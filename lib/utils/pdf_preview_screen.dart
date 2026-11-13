@@ -6,14 +6,78 @@ import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:open_file/open_file.dart';
 import 'package:printing/printing.dart';
 import 'package:http/http.dart' as http;
+// Existing multipart MIME dependency, also supplied by http/printing.
+// ignore: depend_on_referenced_packages
 import 'package:http_parser/http_parser.dart';
 
+import 'package:provider/provider.dart';
+
+import '../providers/auth_provider.dart';
 import 'email_success_screen.dart';
 
-class PdfPreviewScreen extends StatelessWidget {
+class PdfPreviewScreen extends StatefulWidget {
   final File pdfFile;
 
   const PdfPreviewScreen({super.key, required this.pdfFile});
+
+  @override
+  State<PdfPreviewScreen> createState() => _PdfPreviewScreenState();
+}
+
+class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
+  AuthProvider? _auth;
+  String? _originalToken;
+  bool _invalidated = false;
+
+  File get pdfFile => widget.pdfFile;
+
+  @override
+  void initState() {
+    super.initState();
+    // As in CME pages, observe transitions directly, including logout/login
+    // with the same token before a rebuild. Never adopt a replacement session.
+    _auth = context.read<AuthProvider?>();
+    _originalToken = _auth?.authToken;
+    _invalidated = !_hasOriginalAuthentication();
+    _auth?.addListener(_authChanged);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // A replacement/removed provider cannot take ownership of this PDF.
+    if (!identical(Provider.of<AuthProvider?>(context), _auth)) {
+      _invalidated = true;
+    }
+  }
+
+  bool _hasOriginalAuthentication() {
+    final auth = _auth;
+    final token = _originalToken;
+    return auth != null &&
+        auth.isLoggedIn &&
+        token != null &&
+        token.trim().isNotEmpty &&
+        auth.authToken == token &&
+        !auth.isTokenExpired();
+  }
+
+  void _authChanged() {
+    if (!_hasOriginalAuthentication()) _invalidated = true;
+  }
+
+  bool _ownsSession(String? token) =>
+      mounted &&
+      !_invalidated &&
+      token == _originalToken &&
+      _hasOriginalAuthentication();
+
+  @override
+  void dispose() {
+    _invalidated = true;
+    _auth?.removeListener(_authChanged);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,30 +109,48 @@ class PdfPreviewScreen extends StatelessWidget {
           icon: Icon(Icons.send),
           label: Text("Email CME History"),
           onPressed: () async {
+            final token = _originalToken;
+            if (!_ownsSession(token) || _auth!.isLoading) {
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content:
+                    Text('Please log in and export a new PDF before emailing.'),
+              ));
+              return;
+            }
             final result = await promptEmailForm(context);
-            if (result == null) return;
+            if (result == null || !_ownsSession(token)) return;
 
             final pdfBytes = await pdfFile.readAsBytes();
+            if (!_ownsSession(token)) return;
 
             final success = await sendPdfToBackendWithRecipient(
               pdfBytes,
+              token: token!,
               recipientEmail: result['email']!,
               senderName: result['name']!,
               message: result['message']!,
             );
 
+            if (!_ownsSession(token)) return;
             if (success) {
               // Delete the local file
               if (await pdfFile.exists()) {
                 await pdfFile.delete();
               }
 
+              if (!_ownsSession(token)) return;
+
+              if (!context.mounted) return;
+
               // Navigate to success screen
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(builder: (_) => EmailSuccessScreen(email: result['email']!)),
+                MaterialPageRoute(
+                    builder: (_) =>
+                        EmailSuccessScreen(email: result['email']!)),
               );
             } else {
+              if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text("Failed to send email")),
               );
@@ -137,11 +219,12 @@ class PdfPreviewScreen extends StatelessWidget {
   }
 
   Future<bool> sendPdfToBackendWithRecipient(
-      Uint8List pdfBytes, {
-        required String recipientEmail,
-        required String senderName,
-        required String message,
-      }) async {
+    Uint8List pdfBytes, {
+    required String token,
+    required String recipientEmail,
+    required String senderName,
+    required String message,
+  }) async {
     final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
     final apiEndpoint = '/email/upload-pdf';
 
@@ -149,6 +232,8 @@ class PdfPreviewScreen extends StatelessWidget {
       'POST',
       Uri.parse('$apiBaseUrl$apiEndpoint'),
     );
+
+    request.headers['Authorization'] = 'Bearer $token';
 
     request.fields['recipient'] = recipientEmail;
     request.fields['senderName'] = senderName;
@@ -163,12 +248,8 @@ class PdfPreviewScreen extends StatelessWidget {
       ),
     );
 
+    if (!_ownsSession(token) || _auth!.isLoading) return false;
     final response = await request.send();
     return response.statusCode == 200;
   }
 }
-
-
-
-
-
