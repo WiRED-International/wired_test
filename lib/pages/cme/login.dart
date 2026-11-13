@@ -316,6 +316,110 @@ class _LoginState extends State<Login> {
     );
   }
 
+  Widget _buildEmailField() {
+    return _buildTextField(
+      controller: _emailController,
+      label: "Email",
+      hintText: "Enter your email",
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return "Please enter your email";
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _buildPasswordField() {
+    return _buildTextField(
+      controller: _passwordController,
+      label: "Password",
+      hintText: "Enter your password",
+      validator: (value) {
+        if (value == null || value.isEmpty) {
+          return "Please enter your password";
+        }
+        return null;
+      },
+    );
+  }
+
+  Widget _buildForgotPasswordLink() {
+    return Align(
+      alignment: Alignment.centerRight,
+      child: TextButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const ForgotPassword(),
+            ),
+          );
+        },
+        child: const Text("Forgot Password?"),
+      ),
+    );
+  }
+
+  Widget _buildLoginButton({required double widthFactor, required double height}) {
+    return Semantics(
+      label: 'Login Button',
+      hint: 'Tap to login',
+      child: GestureDetector(
+        onTap: _isLoggingIn ? null : _handleLogin,
+        child: FractionallySizedBox(
+          widthFactor: widthFactor,
+          child: Container(
+            height: height,
+            decoration: BoxDecoration(
+              color: _isLoggingIn ? Colors.grey : Color(0xFF0070C0),
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.5),
+                  spreadRadius: 1,
+                  blurRadius: 5,
+                  offset: const Offset(
+                      1, 3), // changes position of shadow
+                ),
+              ],
+            ),
+            child: _isLoggingIn
+                ? const Center(child: CircularProgressIndicator(color: Colors.white)) // Show spinner when logging in
+                : LayoutBuilder(
+                builder: (context, constraints) {
+                  double buttonWidth = constraints.maxWidth;
+                  double fontSize = buttonWidth * 0.2;
+                  double padding = buttonWidth * 0.02;
+                  return Padding(
+                    padding: EdgeInsets.all(padding),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.fitWidth,
+                            child: Text(
+                              "Login",
+                              style: TextStyle(
+                                fontSize: fontSize,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildPortraitLayout(scalingFactor) {
     return Center(
       child: Form(
@@ -339,104 +443,19 @@ class _LoginState extends State<Login> {
               ),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 5 : 5)),
-                child: _buildTextField(
-                  controller: _emailController,
-                  label: "Email",
-                  hintText: "Enter your email",
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return "Please enter your email";
-                    }
-                    return null;
-                  },
-                ),
+                child: _buildEmailField(),
               ),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 5 : 5)),
-                child: _buildTextField(
-                  controller: _passwordController,
-                  label: "Password",
-                  hintText: "Enter your password",
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return "Please enter your password";
-                    }
-                    return null;
-                  },
-                ),
+                child: _buildPasswordField(),
               ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ForgotPassword(),
-                      ),
-                    );
-                  },
-                  child: const Text("Forgot Password?"),
-                ),
-              ),
+              _buildForgotPasswordLink(),
               SizedBox(
                 height: scalingFactor * (isTablet(context) ? 25 : 25),
               ),
-              Semantics(
-                label: 'Login Button',
-                hint: 'Tap to login',
-                child: GestureDetector(
-                  onTap: _isLoggingIn ? null : _handleLogin,
-                  child: FractionallySizedBox(
-                    widthFactor: isTablet(context) ? 0.5 : 0.7,
-                    child: Container(
-                      height: scalingFactor * (isTablet(context) ? 30 : 40),
-                      decoration: BoxDecoration(
-                        color: _isLoggingIn ? Colors.grey : Color(0xFF0070C0),
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.5),
-                            spreadRadius: 1,
-                            blurRadius: 5,
-                            offset: const Offset(
-                                1, 3), // changes position of shadow
-                          ),
-                        ],
-                      ),
-                      child: _isLoggingIn
-                          ? const Center(child: CircularProgressIndicator(color: Colors.white)) // Show spinner when logging in
-                          : LayoutBuilder(
-                          builder: (context, constraints) {
-                            double buttonWidth = constraints.maxWidth;
-                            double fontSize = buttonWidth * 0.2;
-                            double padding = buttonWidth * 0.02;
-                            return Padding(
-                              padding: EdgeInsets.all(padding),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Flexible(
-                                    child: FittedBox(
-                                      fit: BoxFit.fitWidth,
-                                      child: Text(
-                                        "Login",
-                                        style: TextStyle(
-                                          fontSize: fontSize,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
-                      ),
-                    ),
-                  ),
-                ),
+              _buildLoginButton(
+                widthFactor: isTablet(context) ? 0.5 : 0.7,
+                height: scalingFactor * (isTablet(context) ? 30 : 40),
               ),
               SizedBox(
                 height: scalingFactor * (isTablet(context) ? 35 : 25),
@@ -503,104 +522,19 @@ class _LoginState extends State<Login> {
               ),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 100 : 100)),
-                child: _buildTextField(
-                  controller: _emailController,
-                  label: "Email",
-                  hintText: "Enter your email",
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return "Please enter your email";
-                    }
-                    return null;
-                  },
-                ),
+                child: _buildEmailField(),
               ),
               Padding(
                 padding: EdgeInsets.symmetric(horizontal: scalingFactor * (isTablet(context) ? 100 : 100)),
-                child: _buildTextField(
-                  controller: _passwordController,
-                  label: "Password",
-                  hintText: "Enter your password",
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return "Please enter your password";
-                    }
-                    return null;
-                  },
-                ),
+                child: _buildPasswordField(),
               ),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const ForgotPassword(),
-                      ),
-                    );
-                  },
-                  child: const Text("Forgot Password?"),
-                ),
-              ),
+              _buildForgotPasswordLink(),
               SizedBox(
                 height: scalingFactor * (isTablet(context) ? 20 : 20),
               ),
-              Semantics(
-                label: 'Login Button',
-                hint: 'Tap to login',
-                child: GestureDetector(
-                  onTap: _isLoggingIn ? null : _handleLogin,
-                  child: FractionallySizedBox(
-                    widthFactor: isTablet(context) ? 0.3 : 0.3,
-                    child: Container(
-                      height: scalingFactor * (isTablet(context) ? 30 : 30),
-                      decoration: BoxDecoration(
-                        color: _isLoggingIn ? Colors.grey : Color(0xFF0070C0),
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.5),
-                            spreadRadius: 1,
-                            blurRadius: 5,
-                            offset: const Offset(
-                                1, 3), // changes position of shadow
-                          ),
-                        ],
-                      ),
-                      child: _isLoggingIn
-                          ? const Center(child: CircularProgressIndicator(color: Colors.white)) // Show spinner when logging in
-                          : LayoutBuilder(
-                          builder: (context, constraints) {
-                            double buttonWidth = constraints.maxWidth;
-                            double fontSize = buttonWidth * 0.2;
-                            double padding = buttonWidth * 0.02;
-                            return Padding(
-                              padding: EdgeInsets.all(padding),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Flexible(
-                                    child: FittedBox(
-                                      fit: BoxFit.fitWidth,
-                                      child: Text(
-                                        "Login",
-                                        style: TextStyle(
-                                          fontSize: fontSize,
-                                          fontWeight: FontWeight.w500,
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }
-                      ),
-                    ),
-                  ),
-                ),
+              _buildLoginButton(
+                widthFactor: isTablet(context) ? 0.3 : 0.3,
+                height: scalingFactor * (isTablet(context) ? 30 : 30),
               ),
               Padding(
                 padding: EdgeInsets.symmetric(vertical: scalingFactor * (isTablet(context) ? 35 : 20)),
