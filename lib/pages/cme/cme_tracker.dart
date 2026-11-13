@@ -275,129 +275,97 @@ class _CMETrackerState extends State<CMETracker> {
                   scale: scale,
                 ),
                 Expanded(
-                  child: FutureBuilder<User>(
-                    key: ValueKey(_session),
-                    future: userData,
-                    builder: (context, userSnapshot) {
-                      if (userSnapshot.connectionState ==
-                          ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      if (userSnapshot.hasError) {
-                        return _profileError(userSnapshot.error);
-                      }
+                  child: _buildSubmissionContent((context, totals, recentCredits) {
+                    final orientation =
+                        MediaQuery.of(context).orientation;
 
-                      if (!userSnapshot.hasData) {
-                        return const Center(child: Text('No data available'));
-                      }
-                      final user = userSnapshot.data!;
-                      final totals = user.cmeCredits;
-
-                      return Consumer<QuizScoreProvider>(
-                        builder: (context, quizProvider, child) {
-                          final quizScores = List<Map<String, dynamic>>.from(
-                              quizProvider.quizScores);
-
-                          final cmeScores = quizScores
-                              .where((q) =>
-                                  (q['credit_type']?.toString().toLowerCase() ==
-                                      'cme'))
-                              .toList();
-
-                          cmeScores.sort((a, b) => (b['date_taken'] ?? '')
-                              .compareTo(a['date_taken'] ?? ''));
-
-                          final recentCredits = cmeScores.take(3).toList();
-
-                          final orientation =
-                              MediaQuery.of(context).orientation;
-
-                          return AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 400),
-                            switchInCurve: Curves.easeIn,
-                            switchOutCurve: Curves.easeOut,
-                            transitionBuilder: (child, animation) =>
-                                FadeTransition(
-                                    opacity: animation, child: child),
-                            child: orientation == Orientation.landscape
-                                ? KeyedSubtree(
-                                    key: const ValueKey('landscape'),
-                                    child: _buildLandscapeLayout(
-                                      context,
-                                      screenWidth,
-                                      screenHeight,
-                                      baseSize,
-                                      scale,
-                                      totals,
-                                      recentCredits,
-                                    ),
-                                  )
-                                : KeyedSubtree(
-                                    key: const ValueKey('portrait'),
-                                    child: _buildPortraitLayout(
-                                      context,
-                                      screenWidth,
-                                      screenHeight,
-                                      baseSize,
-                                      scale,
-                                      totals,
-                                      recentCredits,
-                                    ),
-                                  ),
-                          );
-                        },
-                      );
-                    },
-                  ),
+                    return AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 400),
+                      switchInCurve: Curves.easeIn,
+                      switchOutCurve: Curves.easeOut,
+                      transitionBuilder: (child, animation) =>
+                          FadeTransition(
+                              opacity: animation, child: child),
+                      child: orientation == Orientation.landscape
+                          ? KeyedSubtree(
+                              key: const ValueKey('landscape'),
+                              child: _buildLandscapeLayout(
+                                context,
+                                screenWidth,
+                                screenHeight,
+                                baseSize,
+                                scale,
+                                totals,
+                                recentCredits,
+                              ),
+                            )
+                          : KeyedSubtree(
+                              key: const ValueKey('portrait'),
+                              child: _buildPortraitLayout(
+                                context,
+                                screenWidth,
+                                screenHeight,
+                                baseSize,
+                                scale,
+                                totals,
+                                recentCredits,
+                              ),
+                            ),
+                    );
+                  }),
                 ),
               ],
             )
-          : FutureBuilder<User>(
-              key: ValueKey(_session),
-              future: userData,
-              builder: (context, userSnapshot) {
-                if (userSnapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (userSnapshot.hasError) {
-                  return _profileError(userSnapshot.error);
-                }
+          : _buildSubmissionContent((context, totals, recentCredits) {
+              return _buildPortraitLayout(
+                context,
+                screenWidth,
+                screenHeight,
+                baseSize,
+                scale,
+                totals,
+                recentCredits,
+              );
+            }),
+    );
+  }
 
-                if (!userSnapshot.hasData) {
-                  return const Center(child: Text('No data available'));
-                }
-                final user = userSnapshot.data!;
-                final totals = user.cmeCredits;
+  Widget _buildSubmissionContent(
+    Widget Function(BuildContext context, CmeCreditTotals totals,
+            List<Map<String, dynamic>> recentCredits)
+        buildContent,
+  ) {
+    return FutureBuilder<User>(
+      key: ValueKey(_session),
+      future: userData,
+      builder: (context, userSnapshot) {
+        if (userSnapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (userSnapshot.hasError) {
+          return _profileError(userSnapshot.error);
+        }
+        if (!userSnapshot.hasData) {
+          return const Center(child: Text('No data available'));
+        }
+        final user = userSnapshot.data!;
+        final totals = user.cmeCredits;
 
-                return Consumer<QuizScoreProvider>(
-                  builder: (context, quizProvider, child) {
-                    final quizScores = List<Map<String, dynamic>>.from(
-                        quizProvider.quizScores);
-
-                    final cmeScores = quizScores
-                        .where((q) =>
-                            (q['credit_type']?.toString().toLowerCase() ==
-                                'cme'))
-                        .toList();
-
-                    cmeScores.sort((a, b) => (b['date_taken'] ?? '')
-                        .compareTo(a['date_taken'] ?? ''));
-
-                    final recentCredits = cmeScores.take(3).toList();
-
-                    return _buildPortraitLayout(
-                      context,
-                      screenWidth,
-                      screenHeight,
-                      baseSize,
-                      scale,
-                      totals,
-                      recentCredits,
-                    );
-                  },
-                );
-              },
-            ),
+        return Consumer<QuizScoreProvider>(
+          builder: (context, quizProvider, child) {
+            final quizScores = List<Map<String, dynamic>>.from(
+                quizProvider.quizScores);
+            final cmeScores = quizScores
+                .where((q) =>
+                    (q['credit_type']?.toString().toLowerCase() == 'cme'))
+                .toList();
+            cmeScores.sort((a, b) => (b['date_taken'] ?? '')
+                .compareTo(a['date_taken'] ?? ''));
+            final recentCredits = cmeScores.take(3).toList();
+            return buildContent(context, totals, recentCredits);
+          },
+        );
+      },
     );
   }
 
