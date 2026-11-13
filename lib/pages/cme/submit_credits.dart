@@ -572,86 +572,9 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                   itemBuilder: (context, index) {
                     final moduleFile = modules[index];
 
-                    return Container(
-                      margin: EdgeInsets.only(bottom: baseSize * 0.03 * scale),
-                      padding: EdgeInsets.all(baseSize * 0.035 * scale),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.95),
-                        borderRadius: BorderRadius.circular(14),
-                        border:
-                            Border.all(color: Colors.grey.shade300, width: 1),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.08),
-                            blurRadius: 8,
-                            offset: const Offset(2, 3),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Module info
-                          _buildRow(
-                            context,
-                            label: "Module Name:",
-                            value: moduleFile.moduleName,
-                            baseSize: baseSize,
-                            scale: scale,
-                          ),
-                          _buildRow(
-                            context,
-                            label: "Module ID:",
-                            value: _formatModuleId(moduleFile.moduleId),
-                            baseSize: baseSize,
-                            scale: scale,
-                          ),
-                          _buildRow(
-                            context,
-                            label: "Score:",
-                            value: moduleFile.score != null
-                                ? moduleFile.score!.toStringAsFixed(2)
-                                : 'No Score',
-                            baseSize: baseSize,
-                            scale: scale,
-                          ),
-
-                          SizedBox(height: baseSize * 0.03 * scale),
-
-                          // Buttons
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                child: _buildActionButton(
-                                  context,
-                                  label: "Submit",
-                                  icon: Icons.check,
-                                  backgroundColor: const Color(0xFF1976D2),
-                                  onTap: () =>
-                                      _handleSubmit(context, moduleFile),
-                                  baseSize: baseSize,
-                                  scale: scale,
-                                ),
-                              ),
-                              SizedBox(width: baseSize * 0.03 * scale),
-                              Expanded(
-                                child: _buildActionButton(
-                                  context,
-                                  label: "Delete",
-                                  icon: Icons.delete,
-                                  backgroundColor: const Color(0xFFD32F2F),
-                                  onTap: () => _showDeleteConfirmation(
-                                    moduleFile,
-                                  ),
-                                  baseSize: baseSize,
-                                  scale: scale,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                    return _buildPendingScoreCard(
+                      context, moduleFile, baseSize, scale,
+                      deleteIcon: Icons.delete,
                     );
                   },
                 );
@@ -758,84 +681,9 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                         ),
                         itemBuilder: (context, index) {
                           final moduleFile = modules[index];
-                          return Container(
-                            margin: EdgeInsets.only(
-                                bottom: baseSize * 0.03 * scale),
-                            padding: EdgeInsets.all(baseSize * 0.035 * scale),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.95),
-                              borderRadius: BorderRadius.circular(14),
-                              border: Border.all(
-                                  color: Colors.grey.shade300, width: 1),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.08),
-                                  blurRadius: 8,
-                                  offset: const Offset(2, 3),
-                                ),
-                              ],
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _buildRow(
-                                  context,
-                                  label: "Module Name:",
-                                  value: moduleFile.moduleName,
-                                  baseSize: baseSize,
-                                  scale: scale,
-                                ),
-                                _buildRow(
-                                  context,
-                                  label: "Module ID:",
-                                  value: _formatModuleId(moduleFile.moduleId),
-                                  baseSize: baseSize,
-                                  scale: scale,
-                                ),
-                                _buildRow(
-                                  context,
-                                  label: "Score:",
-                                  value: moduleFile.score != null
-                                      ? moduleFile.score!.toStringAsFixed(2)
-                                      : 'No Score',
-                                  baseSize: baseSize,
-                                  scale: scale,
-                                ),
-                                SizedBox(height: baseSize * 0.03 * scale),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: _buildActionButton(
-                                        context,
-                                        label: "Submit",
-                                        icon: Icons.check,
-                                        backgroundColor:
-                                            const Color(0xFF1976D2),
-                                        onTap: () =>
-                                            _handleSubmit(context, moduleFile),
-                                        baseSize: baseSize,
-                                        scale: scale,
-                                      ),
-                                    ),
-                                    SizedBox(width: baseSize * 0.03 * scale),
-                                    Expanded(
-                                      child: _buildActionButton(
-                                        context,
-                                        label: "Delete",
-                                        icon: Icons.delete_outline,
-                                        backgroundColor:
-                                            const Color(0xFFD32F2F),
-                                        onTap: () => _showDeleteConfirmation(
-                                          moduleFile,
-                                        ),
-                                        baseSize: baseSize,
-                                        scale: scale,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
+                          return _buildPendingScoreCard(
+                            context, moduleFile, baseSize, scale,
+                            deleteIcon: Icons.delete_outline,
                           );
                         },
                       );
@@ -870,6 +718,96 @@ class _SubmitCreditsState extends State<SubmitCredits> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildPendingScoreCard(
+    BuildContext context,
+    ModuleFile moduleFile,
+    double baseSize,
+    double scale, {
+    required IconData deleteIcon,
+  }) {
+    return Container(
+      margin: EdgeInsets.only(bottom: baseSize * 0.03 * scale),
+      padding: EdgeInsets.all(baseSize * 0.035 * scale),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.95),
+        borderRadius: BorderRadius.circular(14),
+        border:
+            Border.all(color: Colors.grey.shade300, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 8,
+            offset: const Offset(2, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Module info
+          _buildRow(
+            context,
+            label: "Module Name:",
+            value: moduleFile.moduleName,
+            baseSize: baseSize,
+            scale: scale,
+          ),
+          _buildRow(
+            context,
+            label: "Module ID:",
+            value: _formatModuleId(moduleFile.moduleId),
+            baseSize: baseSize,
+            scale: scale,
+          ),
+          _buildRow(
+            context,
+            label: "Score:",
+            value: moduleFile.score != null
+                ? moduleFile.score!.toStringAsFixed(2)
+                : 'No Score',
+            baseSize: baseSize,
+            scale: scale,
+          ),
+
+          SizedBox(height: baseSize * 0.03 * scale),
+
+          // Buttons
+          Row(
+            mainAxisAlignment: MainAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _buildActionButton(
+                  context,
+                  label: "Submit",
+                  icon: Icons.check,
+                  backgroundColor: const Color(0xFF1976D2),
+                  onTap: () =>
+                      _handleSubmit(context, moduleFile),
+                  baseSize: baseSize,
+                  scale: scale,
+                ),
+              ),
+              SizedBox(width: baseSize * 0.03 * scale),
+              Expanded(
+                child: _buildActionButton(
+                  context,
+                  label: "Delete",
+                  icon: deleteIcon,
+                  backgroundColor: const Color(0xFFD32F2F),
+                  onTap: () => _showDeleteConfirmation(
+                    moduleFile,
+                  ),
+                  baseSize: baseSize,
+                  scale: scale,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
