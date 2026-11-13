@@ -11,6 +11,7 @@ import 'package:provider/provider.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:wired_test/providers/auth_provider.dart';
 import 'package:wired_test/utils/pdf_preview_screen.dart';
+import 'package:wired_test/utils/email_success_screen.dart';
 
 class _Auth extends AuthProvider {
   String? token = 'A';
@@ -32,11 +33,21 @@ class _Auth extends AuthProvider {
 class _Pdf extends Fake implements File {
   Completer<Uint8List>? pending;
   bool failRead = false;
+  bool present = true;
+  int deletions = 0;
+  Completer<bool>? existence;
+  @override
+  Future<File> delete({bool recursive = false}) async {
+    deletions++;
+    present = false;
+    return this;
+  }
+
   bool failCleanup = false;
   @override
   Future<bool> exists() async {
     if (failCleanup) throw FileSystemException("cleanup failed");
-    return false;
+    return existence == null ? present : await existence!.future;
   }
 
   final bytes = Uint8List.fromList([37, 80, 68, 70]);
@@ -329,4 +340,114 @@ void main() {
       expect(find.byType(AlertDialog), findsNothing);
     }, () => client);
   });
+
+  testWidgets('HTTP 200 deletes owned PDF and navigates to success',
+      (tester) async {
+    await http.runWithClient(() async {
+      response = Completer<http.Response>()
+        ..complete(http.Response('{"message":"Email sent successfully"}', 200));
+      await mount(tester);
+      await dialog(tester);
+      await submit(tester);
+      expect(pdf.deletions, 1);
+      expect(pdf.present, isFalse);
+      expect(find.byType(EmailSuccessScreen), findsOneWidget);
+      expect(requests, hasLength(1));
+    }, () => client);
+  });
+
+  for (final status in [401, 403, 500]) {
+    testWidgets('HTTP $status is explicit rejection and retains PDF',
+        (tester) async {
+      await http.runWithClient(() async {
+        response = Completer<http.Response>()
+          ..complete(http.Response('{}', status));
+        await mount(tester);
+        await dialog(tester);
+        await submit(tester);
+        expect(
+            find.text(
+                'The server rejected the email request. Please try again later.'),
+            findsOneWidget);
+        expect(pdf.deletions, 0);
+        expect(pdf.present, isTrue);
+        expect(emailButton(tester).onPressed, isNotNull);
+        expect(auth.token, 'A');
+        expect(requests, hasLength(1));
+      }, () => client);
+    });
+  }
+
+  for (final failure in ['timeout', 'connection']) {
+    testWidgets(
+        '$failure is uncertain, retains PDF, releases busy, and never retries',
+        (tester) async {
+      await http.runWithClient(() async {
+        response = Completer<http.Response>();
+        await mount(tester);
+        await dialog(tester);
+        await submit(tester);
+        expect(emailButton(tester).onPressed, isNull);
+        if (failure == 'timeout') {
+          await tester.pump(const Duration(seconds: 30));
+        } else {
+          response!.completeError(
+              http.ClientException('Connection lost during upload'));
+        }
+        await tester.pumpAndSettle();
+        expect(
+            find.text(
+                'The email may have been sent. Check with the recipient before retrying.'),
+            findsOneWidget);
+        expect(emailButton(tester).onPressed, isNotNull);
+        expect(pdf.deletions, 0);
+        expect(pdf.present, isTrue);
+        expect(requests, hasLength(1));
+        if (failure == 'timeout') {
+          // A late accepted response must not resume cleanup/navigation.
+          response!.complete(http.Response('{}', 200));
+        }
+        await tester.pump(const Duration(seconds: 31));
+        await tester.pumpAndSettle();
+        expect(requests, hasLength(1));
+        expect(pdf.deletions, 0);
+        expect(find.byType(EmailSuccessScreen), findsNothing);
+      }, () => client);
+    });
+  }
+
+  for (final stage in ['HTTP', 'exists']) {
+    for (final transition in ['switch', 'logout', 'dispose']) {
+      testWidgets('$transition during $stage prevents stale deletion and UI',
+          (tester) async {
+        await http.runWithClient(() async {
+          response = Completer<http.Response>();
+          if (stage == 'exists') pdf.existence = Completer<bool>();
+          await mount(tester);
+          await dialog(tester);
+          await submit(tester);
+          if (stage == 'exists') {
+            response!.complete(http.Response('{}', 200));
+            await tester.pumpAndSettle();
+          }
+          if (transition == 'dispose') {
+            await tester
+                .pumpWidget(const MaterialApp(home: Text('New screen')));
+          } else {
+            auth.change(transition == 'switch' ? 'B' : null);
+          }
+          if (stage == 'HTTP') response!.complete(http.Response('{}', 200));
+          if (stage == 'exists') pdf.existence!.complete(true);
+          await tester.pumpAndSettle();
+          await tester.pump(const Duration(milliseconds: 300));
+          expect(pdf.deletions, 0);
+          expect(pdf.present, isTrue);
+          expect(find.byType(EmailSuccessScreen), findsNothing);
+          expect(find.byType(SnackBar), findsNothing);
+          expect(tester.takeException(), isNull);
+          expect(requests, hasLength(1));
+        }, () => client);
+      });
+    }
+  }
 }
