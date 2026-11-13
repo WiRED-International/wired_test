@@ -15,6 +15,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/auth_provider.dart';
 import 'email_success_screen.dart';
+import 'pdf_utils.dart';
 
 enum _EmailOutcome { accepted, rejected, uncertain, notSent }
 
@@ -39,6 +40,7 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
   @override
   void initState() {
     super.initState();
+    retainCmePdf(pdfFile);
     _auth = context.read<AuthProvider?>();
     _auth?.addListener(_authChanged);
   }
@@ -62,7 +64,17 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
       mounted && logoutGeneration == _logoutGeneration && _hasAuthentication();
 
   @override
+  void didUpdateWidget(covariant PdfPreviewScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.pdfFile.path != pdfFile.path) {
+      releaseCmePdf(oldWidget.pdfFile);
+      retainCmePdf(pdfFile);
+    }
+  }
+
+  @override
   void dispose() {
+    releaseCmePdf(pdfFile);
     _auth?.removeListener(_authChanged);
     super.dispose();
   }

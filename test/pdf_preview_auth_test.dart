@@ -14,6 +14,7 @@ import 'package:open_file_platform_interface/open_file_platform_interface.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:wired_test/providers/auth_provider.dart';
 import 'package:wired_test/utils/pdf_preview_screen.dart';
+import 'package:wired_test/utils/pdf_utils.dart';
 import 'package:wired_test/utils/email_success_screen.dart';
 
 class _OpenPdf extends OpenFilePlatform {
@@ -70,8 +71,9 @@ class _Pdf extends Fake implements File {
   }
 
   final bytes = Uint8List.fromList([37, 80, 68, 70]);
+  String filePath = 'preview.pdf';
   @override
-  String get path => 'preview.pdf';
+  String get path => filePath;
   @override
   Future<Uint8List> readAsBytes() async {
     if (failRead) {
@@ -486,5 +488,33 @@ void main() {
       await submit(tester);
       expect(requests.single.headers['authorization'], 'Bearer A');
     }, () => client);
+  });
+  testWidgets('mounted preview pins an old PDF until preview closes',
+      (tester) async {
+    final directory = (await tester.runAsync(
+        () => Directory.systemTemp.createTemp('cme_preview_retention_')))!;
+    final exportDirectory = Directory('${directory.path}/cme_history_active');
+    final file = File('${exportDirectory.path}/cme_history.pdf');
+    await tester.runAsync(() async {
+      await exportDirectory.create();
+      await file.writeAsBytes(pdf.bytes);
+    });
+    pdf.filePath = file.path;
+    try {
+      await mount(tester);
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 1));
+      final now = DateTime.now().add(const Duration(days: 8));
+      await tester
+          .runAsync(() => cleanupOldCmePdfExports(root: directory, now: now));
+      expect(await tester.runAsync(file.exists), isTrue);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester
+          .runAsync(() => cleanupOldCmePdfExports(root: directory, now: now));
+      expect(await tester.runAsync(exportDirectory.exists), isFalse);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.runAsync(() => directory.delete(recursive: true));
+    }
   });
 }
