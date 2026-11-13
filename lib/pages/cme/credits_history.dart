@@ -65,7 +65,6 @@ class _CreditsHistoryState extends State<CreditsHistory> {
   }
 
   final _storage = const FlutterSecureStorage();
-  bool showCreditsHistory = false;
   // Identity within this loaded snapshot distinguishes duplicate/missing IDs.
   final _selectedRecords = Set<Map>.identity();
   int? selectedYear;
@@ -169,8 +168,7 @@ class _CreditsHistoryState extends State<CreditsHistory> {
     final mediaQuery = MediaQuery.of(context);
     final baseSize = mediaQuery.size.shortestSide;
     final isLandscape = mediaQuery.orientation == Orientation.landscape;
-    final isTabletDevice = isTablet(context);
-    final scale = isTabletDevice ? 1.0 : 1.0;
+    const scale = 1.0;
 
     return AppLayout(
       appBar: CustomAppBar(
@@ -236,8 +234,6 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                       parseCreditHistoryDate(q['date_taken'])?.year == selectedYear)
                   .toList();
 
-          final creditsEarned = user.creditsEarned ?? 0;
-
           // ❗ IMPORTANT: no Center()
           return isLandscape
               ? Row(
@@ -269,7 +265,6 @@ class _CreditsHistoryState extends State<CreditsHistory> {
                   user,
                   quizScores,
                   visibleScores,
-                  creditsEarned,
                   baseSize,
                   scale,
                 ),
@@ -281,7 +276,6 @@ class _CreditsHistoryState extends State<CreditsHistory> {
             user,
             quizScores,
             visibleScores,
-            creditsEarned,
             baseSize,
             scale,
           );
@@ -298,7 +292,6 @@ class _CreditsHistoryState extends State<CreditsHistory> {
       User user,
       List<dynamic> quizScores,
       List<dynamic> visibleScores,
-      int creditsEarned,
       double baseSize,
       double scale,
       ) {
@@ -482,7 +475,6 @@ class _CreditsHistoryState extends State<CreditsHistory> {
       User user,
       List<dynamic> quizScores,
       List<dynamic> visibleScores,
-      int creditsEarned,
       double baseSize,
       double scale,
       ) {
@@ -742,10 +734,6 @@ class _CreditsHistoryState extends State<CreditsHistory> {
     final moduleId = module?['module_id']?.toString() ?? 'N/A';
     final parsedDate = parseCreditHistoryDate(quiz['date_taken']);
     final date = parsedDate == null ? 'Invalid date' : formatter.format(parsedDate);
-    final scoreVal = quiz['score'];
-    final double score = (scoreVal is num)
-        ? scoreVal.toDouble()
-        : double.tryParse(scoreVal.toString()) ?? 0.0;
 
     return Container(
       margin: EdgeInsets.only(bottom: baseSize * 0.03 * scale),
