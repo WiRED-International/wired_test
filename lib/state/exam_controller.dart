@@ -201,21 +201,23 @@ class ExamController extends ChangeNotifier {
         await _attempts.put(attemptId, attempt);
       }
 
-      // ✅ Restore answers if present
-      if (savedAnswers is List && savedAnswers.isNotEmpty) {
-        attempt.answers = savedAnswers.map<AnswerRecord>((a) {
-          return AnswerRecord(
-            questionId: a['question_id'] as int,
-            // keep this in sync with your model shape
-            selectedOptionId: a['selected_option'] as String? ?? '',
-            selectedOptionIds: (a['selected_options'] as List?)?.cast<String>() ?? [],
-            updatedAt: DateTime.tryParse(a['updated_at'] ?? '') ?? DateTime.now(),
-          );
-        }).toList();
+      // The snapshot has no independent identity; verify its existing box metadata.
+      final snapshotMatchesAttempt = attempt.attemptId == attemptId &&
+          attempt.examId == examId &&
+          userId != null && attempt.userId == userId &&
+          ['attempt_id', 'session_id'].every((key) {
+            final id = _examBox.get(key);
+            return id == null || id.toString() == attemptId;
+          });
+      if (snapshotMatchesAttempt && savedAnswers is List) {
+        attempt.answers = _reconcileAnswers(attempt.answers, savedAnswers);
+      } else if (savedAnswers is List && savedAnswers.isNotEmpty) {
+        debugPrint('⚠️ Snapshot identity is uncertain; retaining stored answers.');
       }
 
       // ✅ Restore review flag
       attempt.isReviewed = isReviewed;
+      await attempt.save();
 
       // ✅ Apply to controller state
       _active = attempt;
@@ -244,6 +246,47 @@ class ExamController extends ChangeNotifier {
       // Optional: if things look corrupt often, you can clear:
       // await clearExamPersistence();
     }
+  }
+
+  List<AnswerRecord> _reconcileAnswers(
+      List<AnswerRecord> persisted, List<dynamic> snapshot) {
+    AnswerRecord copy(AnswerRecord answer) => AnswerRecord(
+      questionId: answer.questionId,
+      selectedOptionId: answer.selectedOptionId,
+      selectedOptionIds: List<String>.from(answer.selectedOptionIds ?? []),
+      updatedAt: answer.updatedAt,
+    );
+
+    final answers = {for (final answer in persisted) answer.questionId: copy(answer)};
+    // Unknown snapshot timestamps must never become a new edit time.
+    final unknownTime = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+    for (final raw in snapshot) {
+      if (raw is! Map || raw['question_id'] is! int) continue;
+      final single = raw['selected_option'];
+      final multiple = raw['selected_options'];
+      if ((single != null && single is! String) ||
+          (multiple != null &&
+              (multiple is! List || multiple.any((id) => id is! String)))) {
+        continue;
+      }
+      final rawTime = raw['updated_at'];
+      final updatedAt = rawTime is String ? DateTime.tryParse(rawTime) : null;
+      final questionId = raw['question_id'] as int;
+      final existing = answers[questionId];
+      if (existing != null &&
+          (updatedAt == null ||
+              !existing.updatedAt.isAfter(unknownTime) ||
+              !updatedAt.isAfter(existing.updatedAt))) {
+        continue;
+      }
+      answers[questionId] = AnswerRecord(
+        questionId: questionId,
+        selectedOptionId: single as String?,
+        selectedOptionIds: multiple == null ? [] : List<String>.from(multiple),
+        updatedAt: updatedAt ?? unknownTime,
+      );
+    }
+    return answers.values.toList();
   }
 
   // ✅ Timer logic
