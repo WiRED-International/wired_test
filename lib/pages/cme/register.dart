@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -15,7 +14,6 @@ import '../home_page.dart';
 import '../menu/guestMenu.dart';
 import '../menu/menu.dart';
 import '../module_library.dart';
-import 'cme_tracker.dart';
 import 'login.dart';
 
 class Register extends StatefulWidget {
@@ -30,7 +28,6 @@ class _RegisterState extends State<Register> {
   final _emailController = TextEditingController();
   final _countryController = TextEditingController();
   final _cityController = TextEditingController();
-  final _organizationController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
@@ -40,13 +37,6 @@ class _RegisterState extends State<Register> {
   List<Map<String, dynamic>> _organizations = [];
   List<Map<String, dynamic>> _filteredOrganizations = [];
   Map<String, dynamic>? _selectedOrganization;
-  Timer? _debounce;
-
-  @override
-  void dispose() {
-    _debounce?.cancel();
-    super.dispose();
-  }
 
   @override
   void initState() {
@@ -185,7 +175,6 @@ class _RegisterState extends State<Register> {
           onChanged: (value) {
             setState(() {
               _selectedOrganization = value;
-              _organizationController.text = value?['name'] ?? '';
             });
           },
           validator: (value) {
@@ -533,7 +522,6 @@ class _RegisterState extends State<Register> {
   }
 
   Widget _buildPortraitLayout(scalingFactor) {
-    final double fieldSpacing = scalingFactor * (isTablet(context) ? 12 : 15);
     return Center(
       child: Form(
         key: _formKey,
