@@ -197,12 +197,9 @@ class _CMETrackerState extends State<CMETracker> {
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-    final screenWidth = mediaQuery.size.width;
-    final screenHeight = mediaQuery.size.height;
     final baseSize = mediaQuery.size.shortestSide;
     final isLandscape = mediaQuery.orientation == Orientation.landscape;
-    final isTabletDevice = isTablet(context);
-    final scale = isTabletDevice ? 1.0 : 1.0;
+    const scale = 1.0;
 
     return AppLayout(
       appBar: CustomAppBar(
@@ -291,8 +288,6 @@ class _CMETrackerState extends State<CMETracker> {
                               key: const ValueKey('landscape'),
                               child: _buildLandscapeLayout(
                                 context,
-                                screenWidth,
-                                screenHeight,
                                 baseSize,
                                 scale,
                                 totals,
@@ -303,8 +298,6 @@ class _CMETrackerState extends State<CMETracker> {
                               key: const ValueKey('portrait'),
                               child: _buildPortraitLayout(
                                 context,
-                                screenWidth,
-                                screenHeight,
                                 baseSize,
                                 scale,
                                 totals,
@@ -319,8 +312,6 @@ class _CMETrackerState extends State<CMETracker> {
           : _buildSubmissionContent((context, totals, recentCredits) {
               return _buildPortraitLayout(
                 context,
-                screenWidth,
-                screenHeight,
                 baseSize,
                 scale,
                 totals,
@@ -374,8 +365,6 @@ class _CMETrackerState extends State<CMETracker> {
   // =====================================================
   Widget _buildPortraitLayout(
     BuildContext context,
-    double screenWidth,
-    double screenHeight,
     double baseSize,
     double scale,
     CmeCreditTotals totals,
@@ -502,8 +491,6 @@ class _CMETrackerState extends State<CMETracker> {
 // =====================================================
   Widget _buildLandscapeLayout(
     BuildContext context,
-    double screenWidth,
-    double screenHeight,
     double baseSize,
     double scale,
     CmeCreditTotals totals,
