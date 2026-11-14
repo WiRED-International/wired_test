@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:hive/hive.dart';
 import '../models/exam_models.dart';
 import '../utils/network_utils.dart';
-import '../utils/validation.dart';
 import '../services/exam_sync_service.dart';
 
 class ExamController extends ChangeNotifier {
@@ -39,6 +38,8 @@ class ExamController extends ChangeNotifier {
   Timer? _tick;
   int _remainingSeconds = 0;
   bool _isPaused = false;
+  final Set<Future<void>> _pendingAnswerWrites = {};
+  int _answerRevision = 0;
 
   ExamController(this._attempts, this._syncService, this._examBox);
 
@@ -347,31 +348,59 @@ class ExamController extends ChangeNotifier {
 
   // ✅ Save and restore progress
   Future<void> saveProgress(int questionIndex) async {
-    if (_active == null) return;
+    final attempt = _active;
+    if (attempt == null) return;
 
-    // Store answers snapshot
-    final cachedAnswers = _active!.answers.map((a) => {
+    // Freeze each snapshot before yielding to pending writes.
+    List<Map<String, dynamic>> snapshot() => attempt.answers.map((a) => {
       'question_id': a.questionId,
       'selected_option': a.selectedOptionId,
-      'selected_options': a.selectedOptionIds,
+      'selected_options': List<String>.from(a.selectedOptionIds ?? []),
       'updated_at': a.updatedAt.toIso8601String(),
     }).toList();
+    var revision = _answerRevision;
+    var cachedAnswers = snapshot();
 
-    await _examBox.putAll({
-      'exam_id': _active!.examId,
-      'user_id': _active!.userId,
-      'attempt_id': _active!.attemptId,
-      'current_index': questionIndex,
-      'saved_answers': cachedAnswers,
-      'remaining_seconds': _remainingSeconds,
-      'is_paused': _isPaused,
-      'last_saved': DateTime.now().toIso8601String(),
-    });
+    while (true) {
+      while (_pendingAnswerWrites.isNotEmpty) {
+        await Future.wait(_pendingAnswerWrites.toList());
+      }
+      if (revision != _answerRevision) {
+        revision = _answerRevision;
+        cachedAnswers = snapshot();
+      }
+      // A handled attempt-save failure is not proof of persistence. Only a
+      // completed snapshot write establishes this save boundary; errors propagate.
+      await _examBox.putAll({
+        'exam_id': attempt.examId,
+        'user_id': attempt.userId,
+        'attempt_id': attempt.attemptId,
+        'current_index': questionIndex,
+        'saved_answers': cachedAnswers,
+        'remaining_seconds': _remainingSeconds,
+        'is_paused': _isPaused,
+        'last_saved': DateTime.now().toIso8601String(),
+      });
+      if (revision == _answerRevision) break;
+    }
 
     debugPrint('💾 [ExamController] Progress saved: Q$questionIndex | ${_remainingSeconds}s left');
   }
 
   int getCurrentQuestionIndex() => _examBox.get('current_index', defaultValue: 0);
+
+  void _saveAnswerSelection(ExamAttempt attempt) {
+    _answerRevision++;
+    final pending = () async {
+      try {
+        await attempt.save();
+      } catch (error) {
+        debugPrint('Answer save failed; keeping current answers for retry: $error');
+      }
+    }();
+    _pendingAnswerWrites.add(pending);
+    pending.then((_) => _pendingAnswerWrites.remove(pending));
+  }
 
   // Single-choice answer (existing)
   void selectAnswer(int questionId, String optionId) {
@@ -399,7 +428,7 @@ class ExamController extends ChangeNotifier {
       activeAttempt.answers.add(existing);
     }
 
-    activeAttempt.save();
+    _saveAnswerSelection(activeAttempt);
     notifyListeners();
   }
 
@@ -428,7 +457,7 @@ class ExamController extends ChangeNotifier {
       activeAttempt.answers.add(existing);
     }
 
-    activeAttempt.save();
+    _saveAnswerSelection(activeAttempt);
     notifyListeners();
   }
 
