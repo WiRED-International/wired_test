@@ -392,13 +392,9 @@ class _SubmitCreditsState extends State<SubmitCredits> {
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-    final screenWidth = mediaQuery.size.width;
-    final screenHeight = mediaQuery.size.height;
     final baseSize = mediaQuery.size.shortestSide;
     final isLandscape = mediaQuery.orientation == Orientation.landscape;
-    final isTabletDevice = isTablet(context);
-
-    final scale = isTabletDevice ? 1.0 : 1.0;
+    const scale = 1.0;
 
     return AppLayout(
       appBar: CustomAppBar(
@@ -488,8 +484,6 @@ class _SubmitCreditsState extends State<SubmitCredits> {
                 Expanded(
                   child: _buildLandscapeLayout(
                     context,
-                    screenWidth,
-                    screenHeight,
                     baseSize,
                     scale,
                   ),
@@ -506,7 +500,7 @@ class _SubmitCreditsState extends State<SubmitCredits> {
     final mediaQuery = MediaQuery.of(context);
     final baseSize = mediaQuery.size.shortestSide;
     final isTabletDevice = isTablet(context);
-    final scale = isTabletDevice ? 1.0 : 1.0;
+    const scale = 1.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -588,13 +582,11 @@ class _SubmitCreditsState extends State<SubmitCredits> {
 
   Widget _buildLandscapeLayout(
     BuildContext context,
-    double screenWidth,
-    double screenHeight,
     double baseSize,
     double scale,
   ) {
     final isTabletDevice = isTablet(context);
-    final textScale = isTabletDevice ? 1.0 : 1.0;
+    const textScale = 1.0;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
