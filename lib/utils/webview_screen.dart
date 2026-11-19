@@ -263,8 +263,26 @@ class _WebViewScreenState extends State<WebViewScreen> {
                     print("📌 Debug: Storyline Sent Data - $cleanMessage");
                   }
 
+                  // Valid score metadata can contain PDF filenames. Recognize
+                  // score JSON before applying the broad PDF-link fallback.
+                  Map<String, dynamic>? scoreMessage;
+                  final jsonStart = cleanMessage.indexOf("{");
+                  if (jsonStart != -1 && cleanMessage.endsWith("}")) {
+                    try {
+                      final decoded =
+                          json.decode(cleanMessage.substring(jsonStart));
+                      if (decoded is Map<String, dynamic> &&
+                          validQuizModuleId(decoded['module_id']) != null &&
+                          validQuizScore(decoded['quiz_score']) != null) {
+                        scoreMessage = decoded;
+                      }
+                    } on FormatException {
+                      // Non-score messages still use the existing PDF fallback.
+                    }
+                  }
+
                   // Detect PDF Links opened via JavaScript
-                  if (cleanMessage.contains(".pdf")) {
+                  if (scoreMessage == null && cleanMessage.contains(".pdf")) {
                     print("📂 Detected PDF link: $cleanMessage");
 
                     // Retrieve `moduleId` from WebView
@@ -308,7 +326,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
                   if (cleanMessage.startsWith("{") &&
                       cleanMessage.endsWith("}")) {
                     final Map<String, dynamic> jsonData =
-                        json.decode(cleanMessage);
+                        scoreMessage ?? json.decode(cleanMessage);
 
                     print("📥 Received Data from Storyline:");
                     print("🔹 ModuleID: ${jsonData['module_id']}");
@@ -325,12 +343,12 @@ class _WebViewScreenState extends State<WebViewScreen> {
                     // not delay a result behind a newer retake.
                     final messageName = jsonData['module_name'];
                     final launchName = widget.moduleName;
-                    jsonData['module_name'] = messageName is String &&
-                            messageName.trim().isNotEmpty
-                        ? messageName
-                        : launchName != null && launchName.trim().isNotEmpty
-                            ? launchName
-                            : 'Unknown Module';
+                    jsonData['module_name'] =
+                        messageName is String && messageName.trim().isNotEmpty
+                            ? messageName
+                            : launchName != null && launchName.trim().isNotEmpty
+                                ? launchName
+                                : 'Unknown Module';
 
                     // Store the quiz score in Secure Storage
                     await _storeScoreInSecureStorage(jsonData);
