@@ -3,6 +3,22 @@ import '../../pages/exam/review_answers_page.dart';
 import '../../state/exam_controller.dart';
 
 class ExamNavigationUtils {
+  // A review route remains one footer action until it returns. Identity avoids
+  // sharing the guard between unrelated controller instances.
+  static final Set<ExamController> _pendingFooterActions = Set.identity();
+
+  static Future<void> returnHomeAfterSubmission({
+    required BuildContext context,
+    required ExamController controller,
+    int? generation,
+  }) async {
+    final ownerGeneration = generation ?? controller.persistenceGeneration;
+    if (ownerGeneration != controller.persistenceGeneration) return;
+    await controller.clearExamPersistence(generation: ownerGeneration);
+    if (!context.mounted || controller.active != null) return;
+    Navigator.of(context).popUntil((route) => route.isFirst);
+  }
+
   static Future<void> handleFooterTap({
     required BuildContext context,
     required ExamController controller,
@@ -11,133 +27,112 @@ class ExamNavigationUtils {
     required int totalQuestions,
     required List<Map<String, dynamic>> questions,
     required bool cameBackFromReview,
-    required bool readyToSubmit,
+    int? generation,
 
     /// Callbacks to update state inside ExamPage:
     required Function(int newIndex) updateIndex,
     required Function(bool value) updateCameBackFromReview,
-    required Function(bool value) updateReadyToSubmit,
     required Function() refreshScrollHintForCurrent,
   }) async {
-    final nextIndex = currentIndex + 1;
-
-    // 🟣 RE-ENTERING REVIEW FLOW
-    if (cameBackFromReview && !readyToSubmit) {
-      final result = await Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => ReviewAnswersPage(questions: questions)),
-      );
-
-      if (result == 'submitted') {
-        updateReadyToSubmit(true);
-        updateCameBackFromReview(false);
-        return;
-      }
-
-      // User tapped a specific question card in Review → jump there
-      if (result is int && result >= 0 && result < totalQuestions) {
-        updateIndex(result);
-        updateCameBackFromReview(true);
-        updateReadyToSubmit(false);
-        refreshScrollHintForCurrent();
-        pageController.jumpToPage(result);
-        return;
-      }
-
-      // User just backed out of review without jumping anywhere
-      if (result == 'back_to_questions') {
-        // Stay on currentIndex; just refresh UI state
-        updateCameBackFromReview(true);
-        updateReadyToSubmit(false);
-        refreshScrollHintForCurrent();
-        return;
-      }
-    }
-
-    // Save progress toward the *next* question before moving
-    controller.saveProgress(nextIndex);
-
-    // 🟢 NEXT QUESTION
-    if (currentIndex < totalQuestions - 1) {
-      updateIndex(nextIndex);
-      await pageController.nextPage(
-        duration: const Duration(milliseconds: 400),
-        curve: Curves.easeInOut,
-      );
-      updateIndex(nextIndex);
-      updateCameBackFromReview(false);
-      updateReadyToSubmit(false);
-      refreshScrollHintForCurrent();
+    final ownerGeneration = generation ?? controller.persistenceGeneration;
+    if (!context.mounted ||
+        controller.persistenceTransitioning ||
+        ownerGeneration != controller.persistenceGeneration ||
+        !_pendingFooterActions.add(controller)) {
       return;
     }
+    try {
+      final nextIndex = currentIndex + 1;
 
-    // 🟡 LAST QUESTION → OPEN REVIEW
-    if (currentIndex == totalQuestions - 1 && !readyToSubmit) {
-      // First time going into review from last question
-      updateCameBackFromReview(false);
+      // 🟣 RE-ENTERING REVIEW FLOW
+      if (cameBackFromReview) {
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) => ReviewAnswersPage(questions: questions)),
+        );
 
-      final result = await Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => ReviewAnswersPage(questions: questions)),
-      );
+        if (!context.mounted ||
+            ownerGeneration != controller.persistenceGeneration) return;
 
-      if (result == 'back_to_questions') {
-        // User came back without submitting
-        updateCameBackFromReview(true);
-        updateReadyToSubmit(false);
-        refreshScrollHintForCurrent();
+        // User tapped a specific question card in Review → jump there
+        if (result is int && result >= 0 && result < totalQuestions) {
+          updateIndex(result);
+          updateCameBackFromReview(true);
+          refreshScrollHintForCurrent();
+          pageController.jumpToPage(result);
+          return;
+        }
+
+        // User just backed out of review without jumping anywhere
+        if (result == 'back_to_questions') {
+          // Stay on currentIndex; just refresh UI state
+          updateCameBackFromReview(true);
+          refreshScrollHintForCurrent();
+          return;
+        }
+        // Dismissal (including success popUntil) ends this action. It must not
+        // fall through into the last-question branch and push another review.
         return;
       }
 
-      if (result == 'submitted') {
-        // User submitted from review
-        updateReadyToSubmit(true);
-        updateCameBackFromReview(false);
-        return;
-      }
+      // Save progress toward the *next* question before moving
+      controller.saveProgress(nextIndex, generation: ownerGeneration);
 
-      if (result is int && result < totalQuestions) {
-        // User picked a specific question from review
-        updateIndex(result);
-        updateCameBackFromReview(true);
-        updateReadyToSubmit(false);
-
-        await pageController.animateToPage(
-          result,
-          duration: const Duration(milliseconds: 500),
+      // 🟢 NEXT QUESTION
+      if (currentIndex < totalQuestions - 1) {
+        updateIndex(nextIndex);
+        await pageController.nextPage(
+          duration: const Duration(milliseconds: 400),
           curve: Curves.easeInOut,
         );
+        if (!context.mounted ||
+            ownerGeneration != controller.persistenceGeneration) return;
+        updateIndex(nextIndex);
+        updateCameBackFromReview(false);
         refreshScrollHintForCurrent();
         return;
       }
-    }
 
-    // 🔵 FULL READY → user has reviewed & is allowed to submit
-    if (readyToSubmit) {
-      final result = await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ReviewAnswersPage(questions: questions),
-        ),
-      );
+      // 🟡 LAST QUESTION → OPEN REVIEW
+      if (currentIndex == totalQuestions - 1) {
+        // First time going into review from last question
+        updateCameBackFromReview(false);
 
-      if (result == 'submitted') {
-        // Already handled submit → go home
-        Future.delayed(const Duration(milliseconds: 100), () {
-          Navigator.of(context).popUntil((route) => route.isFirst);
-        });
-      } else if (result == 'back_to_questions') {
-        // User wants to tweak answers again from where they were
-        updateCameBackFromReview(true);
-        updateReadyToSubmit(false);
-        refreshScrollHintForCurrent();
-      } else if (result is int && result < totalQuestions) {
-        // User chose a specific question to return to
-        updateIndex(result);
-        updateCameBackFromReview(true);
-        updateReadyToSubmit(false);
-        pageController.jumpToPage(result);
+        final result = await Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (_) => ReviewAnswersPage(questions: questions)),
+        );
+
+        if (!context.mounted ||
+            ownerGeneration != controller.persistenceGeneration) return;
+
+        if (result == 'back_to_questions') {
+          // User came back without submitting
+          updateCameBackFromReview(true);
+          refreshScrollHintForCurrent();
+          return;
+        }
+
+        if (result is int && result < totalQuestions) {
+          // User picked a specific question from review
+          updateIndex(result);
+          updateCameBackFromReview(true);
+
+          await pageController.animateToPage(
+            result,
+            duration: const Duration(milliseconds: 500),
+            curve: Curves.easeInOut,
+          );
+          if (!context.mounted ||
+              ownerGeneration != controller.persistenceGeneration) return;
+          refreshScrollHintForCurrent();
+          return;
+        }
       }
+    } finally {
+      _pendingFooterActions.remove(controller);
     }
   }
 }

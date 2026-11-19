@@ -127,17 +127,27 @@ Future<void> main() async {
 
         // 🧩 Exam system
         Provider(create: (_) => RetryQueueService(retryBox)),
-        Provider(create: (_) => ExamSyncService(attemptsBox, retryBox)),
+        ProxyProvider<AuthProvider, ExamSyncService>(
+          lazy: false,
+          update: (_, auth, previous) {
+            final service = previous ?? ExamSyncService(attemptsBox, retryBox);
+            service.updateAuthentication(auth);
+            return service;
+          },
+          dispose: (_, service) => service.dispose(),
+        ),
 
         // 🎯 Exam controller (depends on ExamSyncService)
         ChangeNotifierProxyProvider<ExamSyncService, ExamController>(
           create: (context) {
             final syncService = context.read<ExamSyncService>();
-            return ExamController(attemptsBox, syncService, examBox);
+            return ExamController(attemptsBox, syncService, examBox,
+                retryQueue: context.read<RetryQueueService>());
           },
           update: (context, syncService, controller) {
             return controller ??
-                ExamController(attemptsBox, syncService, examBox);
+                ExamController(attemptsBox, syncService, examBox,
+                    retryQueue: context.read<RetryQueueService>());
           },
         ),
       ],

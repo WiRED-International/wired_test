@@ -1,65 +1,68 @@
 import 'dart:convert';
 import 'package:hive/hive.dart';
 import '../models/exam_models.dart';
-import '../utils/network_utils.dart';
 
 class RetryQueueService {
   final Box<PendingSubmission> _retryBox;
+  static final _writes = Expando<Future<void>>();
   RetryQueueService(this._retryBox);
 
-  /// 🟢 Queue ONLY when offline
-  Future<bool> enqueueIfOffline(Map<String, dynamic> payload) async {
-    final online = await NetworkUtils.isOnline();
-    if (online) {
-      // Online → DO NOT queue
-      return false;
-    }
+  bool containsSession(String sessionId) =>
+      _retryBox.values.any((entry) => entry.attemptId == sessionId);
 
-    await _enqueueInternal(payload);
-    return true;
-  }
+  bool containsExam(int examId, int userId) => _retryBox.values.any((entry) {
+        try {
+          final payload = jsonDecode(entry.payloadJson);
+          return payload is Map &&
+              payload['exam_id'] == examId &&
+              (payload['user_id'] == null || payload['user_id'] == userId);
+        } catch (_) {
+          return false;
+        }
+      });
 
   /// 🟥 NEVER use this directly from submission logic
   /// Internal: always queue with proper metadata
-  Future<void> _enqueueInternal(Map<String, dynamic> payload) async {
+  Future<void> _enqueueInternal(Map<String, dynamic> payload) {
     final attemptId =
-        payload['attempt_id']?.toString() ??
-            payload['session_id']?.toString() ??
-            DateTime.now().millisecondsSinceEpoch.toString();
-
-    // Prevent overwriting older queued submissions
-    final key = '$attemptId-${DateTime.now().millisecondsSinceEpoch}';
-
-    await _retryBox.put(
-      key,
-      PendingSubmission(
-        attemptId: attemptId,
-        payloadJson: jsonEncode(payload),
-        retryCount: 0,
-        enqueuedAt: DateTime.now(),
-      ),
-    );
+        payload['attempt_id']?.toString() ?? payload['session_id']?.toString();
+    if (attemptId == null ||
+        attemptId.trim().isEmpty ||
+        attemptId != attemptId.trim() ||
+        (payload['session_id'] != null &&
+            payload['session_id'].toString() != attemptId)) {
+      return Future.error(StateError('A consistent exam session is required'));
+    }
+    final frozenPayload = jsonEncode(payload);
+    // Serialize across service instances sharing this box. Legacy timestamp keys
+    // remain untouched; their session identity still prevents another enqueue.
+    final write = (_writes[_retryBox] ?? Future<void>.value()).then((_) async {
+      if (containsSession(attemptId)) return;
+      if (_retryBox.containsKey(attemptId)) {
+        throw StateError('An existing queue entry uses this key');
+      }
+      await _retryBox.put(
+          attemptId,
+          PendingSubmission(
+            attemptId: attemptId,
+            payloadJson: frozenPayload,
+            retryCount: 0,
+            enqueuedAt: DateTime.now(),
+          ));
+    });
+    _writes[_retryBox] = write.then<void>((_) {}, onError: (Object _) {});
+    return write;
   }
 
   /// 🟡 Backwards compatible: keep original enqueue()
-  /// BUT mark as deprecated to prevent accidental use.
-  @Deprecated('Use enqueueIfOffline instead. This queues without checking network status.')
+  /// The caller must obtain the student's submission confirmation first.
   Future<void> enqueue(Map<String, dynamic> payload) async {
     await _enqueueInternal(payload);
   }
 
-  /// 🧹 Fetch all queued submissions
-  Iterable<PendingSubmission> get all => _retryBox.values;
-
-  /// 🔁 Retry logic
-  Future<void> markTried(PendingSubmission p, {required bool success}) async {
-    if (success) {
-      await p.delete();
-    } else {
-      // Keep it in the queue, but bump retry count
-      p
-        ..retryCount = (p.retryCount + 1)
-        ..save();
-    }
+  /// Keep the failed submission queued and record the retry.
+  Future<void> markTried(PendingSubmission p) async {
+    p.retryCount++;
+    await p.save();
   }
 }
