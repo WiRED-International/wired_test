@@ -3,13 +3,17 @@ import 'package:provider/provider.dart';
 import '../../models/exam_models.dart';
 import '../../state/exam_controller.dart';
 import '../../services/exam_sync_service.dart';
-import '../../services/retry_queue_service.dart';
 import '../../utils/network_utils.dart';
+import '../../utils/exam_navigation_utils.dart';
 import '../../utils/screen_utils.dart';
 
 class ReviewAnswersPage extends StatefulWidget {
   final List<Map<String, dynamic>> questions;
-  const ReviewAnswersPage({super.key, required this.questions});
+  final Future<bool> Function() onlineCheck;
+  const ReviewAnswersPage(
+      {super.key,
+      required this.questions,
+      this.onlineCheck = NetworkUtils.isOnline});
 
   @override
   State<ReviewAnswersPage> createState() => _ReviewAnswersPageState();
@@ -17,6 +21,7 @@ class ReviewAnswersPage extends StatefulWidget {
 
 class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
   bool _isSubmitting = false;
+  bool _acknowledgmentPending = false;
 
   String _formatTime(int totalSeconds) {
     final m = (totalSeconds ~/ 60).toString().padLeft(2, '0');
@@ -66,7 +71,8 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
             Row(
               children: [
                 Icon(Icons.access_time,
-                    color: Colors.white, size: ScreenUtils.scaleFont(context, 16)),
+                    color: Colors.white,
+                    size: ScreenUtils.scaleFont(context, 16)),
                 const SizedBox(width: 4),
                 Text(
                   _formatTime(remaining),
@@ -84,13 +90,22 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
 
       // ---------------- BODY (PORTRAIT / LANDSCAPE) ----------------
       body: landscape
-          ? _buildLandscapeLayout(
-          context, shortest, cardFont, answerFont, answered, unanswered, flagged, isLandscape, controller)
-          : _buildPortraitLayout(
-          context, shortest, cardFont, answerFont, answered, unanswered, flagged, controller),
+          ? _buildLandscapeLayout(context, shortest, cardFont, answerFont,
+              answered, unanswered, flagged, isLandscape, controller)
+          : _buildPortraitLayout(context, shortest, cardFont, answerFont,
+              answered, unanswered, flagged, controller),
 
       // ---------------- BOTTOM ACTIONS ----------------
-      bottomNavigationBar: _buildBottomButtons(context, shortest, cardFont, answered: answered,),
+      bottomNavigationBar: ValueListenableBuilder<Set<String>>(
+        valueListenable: controller.acknowledgedSessions,
+        builder: (context, acknowledged, _) => _buildBottomButtons(
+          context,
+          shortest,
+          cardFont,
+          answered: answered,
+          submitted: acknowledged.contains(controller.active?.attemptId),
+        ),
+      ),
     );
   }
 
@@ -127,8 +142,8 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
 
           Text('All Questions',
               style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: ScreenUtils.scaleFont(context, 15),
+                fontWeight: FontWeight.bold,
+                fontSize: ScreenUtils.scaleFont(context, 15),
               )),
           const SizedBox(height: 10),
 
@@ -167,36 +182,40 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
           Expanded(
             flex: 4,
             child: Align(
-              alignment: Alignment.topLeft,   // 🟢 forces top placement
+              alignment: Alignment.topLeft, // 🟢 forces top placement
               child: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,   // 🟢 avoids vertical stretch
+                  mainAxisSize: MainAxisSize.min, // 🟢 avoids vertical stretch
                   children: [
                     isLandscape
                         ? Wrap(
-                      alignment: WrapAlignment.start,
-                      spacing: 12,
-                      runSpacing: 8,
-                      children: [
-                        _buildSummaryCard('Answered', answered, Colors.green),
-                        _buildSummaryCard('Unanswered', unanswered, Colors.redAccent),
-                        _buildSummaryCard('Flagged', flagged, Colors.orangeAccent),
-                      ],
-                    )
+                            alignment: WrapAlignment.start,
+                            spacing: 12,
+                            runSpacing: 8,
+                            children: [
+                              _buildSummaryCard(
+                                  'Answered', answered, Colors.green),
+                              _buildSummaryCard(
+                                  'Unanswered', unanswered, Colors.redAccent),
+                              _buildSummaryCard(
+                                  'Flagged', flagged, Colors.orangeAccent),
+                            ],
+                          )
                         : Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildSummaryCard('Answered', answered, Colors.green),
-                        _buildSummaryCard('Unanswered', unanswered, Colors.redAccent),
-                        _buildSummaryCard('Flagged', flagged, Colors.orangeAccent),
-                      ],
-                    ),
-
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _buildSummaryCard(
+                                  'Answered', answered, Colors.green),
+                              _buildSummaryCard(
+                                  'Unanswered', unanswered, Colors.redAccent),
+                              _buildSummaryCard(
+                                  'Flagged', flagged, Colors.orangeAccent),
+                            ],
+                          ),
                     const SizedBox(height: 20),
                     _buildWarningBox(shortest, answerFont, unanswered),
                     const SizedBox(height: 20),
-
                     Text(
                       'All Questions',
                       style: TextStyle(
@@ -232,12 +251,12 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
   //                    QUESTION LIST (SHARED)
   // ===============================================================
   Widget _buildQuestionList(
-      BuildContext context,
-      double shortest,
-      double cardFont,
-      double answerFont,
-      ExamController controller,
-      ) {
+    BuildContext context,
+    double shortest,
+    double cardFont,
+    double answerFont,
+    ExamController controller,
+  ) {
     return ListView.builder(
       itemCount: widget.questions.length,
       itemBuilder: (context, index) {
@@ -261,12 +280,14 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
 
         final selectedText = hasAnswer
             ? selected
-            .map((key) => q['options'][key] ?? key.toUpperCase())
-            .join(', ')
+                .map((key) => q['options'][key] ?? key.toUpperCase())
+                .join(', ')
             : 'No answer';
 
         return GestureDetector(
-          onTap: () => Navigator.pop(context, index),
+          onTap: controller.submissionPending
+              ? null
+              : () => Navigator.pop(context, index),
           child: Stack(
             children: [
               Container(
@@ -297,7 +318,6 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
                         ),
                       ),
                     ),
-
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -319,8 +339,9 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
                             'Selected: $selectedText',
                             style: TextStyle(
                               fontSize: answerFont,
-                              color:
-                              hasAnswer ? Colors.green[700] : Colors.redAccent,
+                              color: hasAnswer
+                                  ? Colors.green[700]
+                                  : Colors.redAccent,
                               height: 1.2,
                             ),
                           ),
@@ -334,8 +355,7 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
                 const Positioned(
                   top: 6,
                   right: 6,
-                  child: Icon(Icons.flag,
-                      color: Colors.orangeAccent, size: 20),
+                  child: Icon(Icons.flag, color: Colors.orangeAccent, size: 20),
                 ),
             ],
           ),
@@ -362,7 +382,7 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
         ),
         child: Text(
           '⚠ You have $unanswered unanswered question${unanswered == 1 ? '' : 's'}.\n'
-              'Tap on a question to review it.',
+          'Tap on a question to review it.',
           style: TextStyle(color: Colors.redAccent, fontSize: answerFont),
         ),
       );
@@ -381,7 +401,7 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
       ),
       child: Text(
         '✅ All questions are answered.\n'
-            'You can tap on a question to review or make changes before submitting.',
+        'You can tap on a question to review or make changes before submitting.',
         style: TextStyle(color: Colors.green, fontSize: answerFont),
       ),
     );
@@ -426,16 +446,18 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
   //                     SUBMIT + BACK BUTTONS
   // ===============================================================
   Widget _buildBottomButtons(
-      BuildContext context,
-      double shortest,
-      double cardFont, {
-        required int answered,
-      }) {
+    BuildContext context,
+    double shortest,
+    double cardFont, {
+    required int answered,
+    required bool submitted,
+  }) {
+    final controller = context.watch<ExamController>();
     final isLandscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
 
     final double vPad = isLandscape
-        ? ScreenUtils.answerVerticalPadding(context) * 0.55   // 🟢 shrink by ~45%
+        ? ScreenUtils.answerVerticalPadding(context) * 0.55 // 🟢 shrink by ~45%
         : ScreenUtils.answerVerticalPadding(context);
 
     final double hPad = ScreenUtils.answerHorizontalPadding(context);
@@ -471,23 +493,30 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
                 ),
               ),
             ),
-
             SizedBox(width: shortest * 0.03),
-
             Expanded(
               child: ElevatedButton.icon(
                 icon: _isSubmitting
                     ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
-                    : const Icon(Icons.check_circle_outline, color: Colors.white),
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.check_circle_outline,
+                        color: Colors.white),
                 label: Text(
-                  _isSubmitting ? 'Submitting...' : 'Submit Exam',
+                  submitted
+                      ? 'Exam Submitted'
+                      : controller.submissionPending
+                          ? 'Awaiting synchronization'
+                          : _acknowledgmentPending
+                              ? 'Confirmation pending'
+                              : _isSubmitting
+                                  ? 'Submitting...'
+                                  : 'Submit Exam',
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: Colors.white,
@@ -505,7 +534,11 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
                 ),
 
                 // FIXED
-                onPressed: (answered == 0 || _isSubmitting)
+                onPressed: (submitted ||
+                        answered == 0 ||
+                        _isSubmitting ||
+                        _acknowledgmentPending ||
+                        controller.submissionPending)
                     ? null
                     : () => _confirmSubmission(context),
               ),
@@ -521,6 +554,11 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
   //         (UNCHANGED — your original code stays intact)
   // ===============================================================
   Future<void> _confirmSubmission(BuildContext context) async {
+    if (_isSubmitting ||
+        _acknowledgmentPending ||
+        context.read<ExamController>().submissionPending) {
+      return;
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -543,10 +581,11 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-            child: Text(
-              'Submit',
-              style: TextStyle(color: Colors.white, fontSize: ScreenUtils.scaleFont(context, 16),
-            )),
+            child: Text('Submit',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: ScreenUtils.scaleFont(context, 16),
+                )),
           ),
         ],
       ),
@@ -565,8 +604,8 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
     setState(() => _isSubmitting = true);
 
     final controller = context.read<ExamController>();
+    final generation = controller.persistenceGeneration;
     final sync = context.read<ExamSyncService>();
-    final retry = context.read<RetryQueueService>();
 
     // 🟢 Attempt submission
     final payload = await controller.buildSubmissionPayload();
@@ -576,13 +615,39 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
       return;
     }
 
-    final isOnline = await NetworkUtils.isOnline();
+    final isOnline = await widget.onlineCheck();
 
     bool success = false;
 
     if (isOnline) {
       // Try to submit online immediately
-      success = await sync.submitExam(payload);
+      try {
+        success = await sync.submitExam(payload);
+      } on ExamAcknowledgmentPersistenceException {
+        if (!mounted || !context.mounted) return;
+        setState(() {
+          _isSubmitting = false;
+          _acknowledgmentPending = true;
+        });
+        await showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Exam accepted'),
+            content: const Text(
+              'The server accepted your exam, but this device could not save '
+              'the confirmation. Do not submit again. Your local answers have '
+              'been kept.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return;
+      }
     }
 
     if (!mounted) return;
@@ -595,7 +660,8 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           title: Row(
             children: [
               Icon(Icons.check_circle, color: Colors.green),
@@ -626,24 +692,41 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
         ),
       );
 
-      if (!mounted) return;
+      if (!mounted || !context.mounted) return;
 
-      // Clear after success
-      controller.clearExamPersistence();
-
-      Navigator.of(context).popUntil((route) => route.isFirst);
+      // Keep submission disabled while the acknowledged attempt is cleaned up.
+      setState(() => _isSubmitting = true);
+      await ExamNavigationUtils.returnHomeAfterSubmission(
+        context: context,
+        controller: controller,
+        generation: generation,
+      );
       return;
     }
 
     // 🟧 FAIL: offline → enqueue
     if (!isOnline) {
-      await retry.enqueue(payload);
+      setState(() => _isSubmitting = true);
+      try {
+        await controller.queueOfflineSubmission(payload);
+      } catch (_) {
+        if (!mounted || !context.mounted) return;
+        setState(() => _isSubmitting = false);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Submission was not saved. Your exam and answers have been kept. Please try again.'),
+        ));
+        return;
+      }
+      if (!mounted || !context.mounted) return;
+      setState(() => _isSubmitting = false);
 
       await showDialog(
         context: context,
         barrierDismissible: false,
         builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           title: const Row(
             children: [
               Icon(Icons.wifi_off, color: Colors.orangeAccent),
@@ -652,14 +735,15 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
             ],
           ),
           content: const Text(
-            'You appear to be offline.\nYour submission has been queued.\n\nPlease reconnect and press Submit again.',
+            'Your completed exam is saved on this device and awaiting synchronization. You cannot change the submitted answers.',
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
               child: const Text(
                 'OK',
-                style: TextStyle(color: Colors.orangeAccent, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                    color: Colors.orangeAccent, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -684,8 +768,8 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
         ),
         content: const Text(
           'The server could not process your submission.\n\n'
-              'Your exam is NOT submitted.\n'
-              'Please wait a moment and try again.',
+          'Your exam is NOT submitted.\n'
+          'Please wait a moment and try again.',
         ),
         actions: [
           TextButton(

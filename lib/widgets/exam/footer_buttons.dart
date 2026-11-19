@@ -6,11 +6,11 @@ import '../../state/exam_controller.dart';
 class FooterButtons extends StatelessWidget {
   final BuildContext parentContext;
   final ExamController controller;
+  final int persistenceGeneration;
 
   final int currentIndex;
   final int totalQuestions;
   final bool cameBackFromReview;
-  final bool readyToSubmit;
   final bool examExpired;
 
   final PageController pageController;
@@ -18,27 +18,26 @@ class FooterButtons extends StatelessWidget {
   // callbacks to update ExamPage state
   final Function(int newIndex) updateIndex;
   final Function(bool value) updateCameBackFromReview;
-  final Function(bool value) updateReadyToSubmit;
   final Function() refreshScrollHintForCurrent;
 
   const FooterButtons({
     super.key,
     required this.parentContext,
     required this.controller,
+    required this.persistenceGeneration,
     required this.currentIndex,
     required this.totalQuestions,
     required this.cameBackFromReview,
-    required this.readyToSubmit,
     required this.pageController,
     required this.updateIndex,
     required this.updateCameBackFromReview,
-    required this.updateReadyToSubmit,
     required this.refreshScrollHintForCurrent,
     required this.examExpired,
   });
 
   @override
   Widget build(BuildContext context) {
+    final generation = persistenceGeneration;
     final shortest = MediaQuery.of(context).size.shortestSide;
     final isTablet = shortest >= 600;
 
@@ -67,14 +66,14 @@ class FooterButtons extends StatelessWidget {
               onPressed: examExpired
                   ? null
                   : (currentIndex > 0
-                  ? () {
-                pageController.previousPage(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeInOut,
-                );
-                updateIndex(currentIndex - 1);
-              }
-                  : null),
+                      ? () {
+                          pageController.previousPage(
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.easeInOut,
+                          );
+                          updateIndex(currentIndex - 1);
+                        }
+                      : null),
               style: OutlinedButton.styleFrom(
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10),
@@ -105,49 +104,47 @@ class FooterButtons extends StatelessWidget {
               ),
               onPressed: examExpired
                   ? () {
-                // user is expired → force “Review Answers”
-                ExamNavigationUtils.handleFooterTap(
-                  context: parentContext,
-                  controller: controller,
-                  pageController: pageController,
-                  currentIndex: currentIndex,
-                  totalQuestions: totalQuestions,
-                  questions: controller.getCachedQuestions() ?? [],
-                  cameBackFromReview: cameBackFromReview,
-                  readyToSubmit: readyToSubmit,
-                  updateIndex: updateIndex,
-                  updateCameBackFromReview: updateCameBackFromReview,
-                  updateReadyToSubmit: updateReadyToSubmit,
-                  refreshScrollHintForCurrent: refreshScrollHintForCurrent,
-                );
-              }
+                      // user is expired → force “Review Answers”
+                      ExamNavigationUtils.handleFooterTap(
+                        context: parentContext,
+                        generation: generation,
+                        controller: controller,
+                        pageController: pageController,
+                        currentIndex: currentIndex,
+                        totalQuestions: totalQuestions,
+                        questions: controller.getCachedQuestions() ?? [],
+                        cameBackFromReview: cameBackFromReview,
+                        updateIndex: updateIndex,
+                        updateCameBackFromReview: updateCameBackFromReview,
+                        refreshScrollHintForCurrent:
+                            refreshScrollHintForCurrent,
+                      );
+                    }
                   : () {
-                // normal behavior (not expired)
-                ExamNavigationUtils.handleFooterTap(
-                  context: parentContext,
-                  controller: controller,
-                  pageController: pageController,
-                  currentIndex: currentIndex,
-                  totalQuestions: totalQuestions,
-                  questions: controller.getCachedQuestions() ?? [],
-                  cameBackFromReview: cameBackFromReview,
-                  readyToSubmit: readyToSubmit,
-                  updateIndex: updateIndex,
-                  updateCameBackFromReview: updateCameBackFromReview,
-                  updateReadyToSubmit: updateReadyToSubmit,
-                  refreshScrollHintForCurrent: refreshScrollHintForCurrent,
-                );
-              },
+                      // normal behavior (not expired)
+                      ExamNavigationUtils.handleFooterTap(
+                        context: parentContext,
+                        generation: generation,
+                        controller: controller,
+                        pageController: pageController,
+                        currentIndex: currentIndex,
+                        totalQuestions: totalQuestions,
+                        questions: controller.getCachedQuestions() ?? [],
+                        cameBackFromReview: cameBackFromReview,
+                        updateIndex: updateIndex,
+                        updateCameBackFromReview: updateCameBackFromReview,
+                        refreshScrollHintForCurrent:
+                            refreshScrollHintForCurrent,
+                      );
+                    },
               child: Text(
                 examExpired
                     ? 'Review Answers' // always
                     : cameBackFromReview
-                      ? 'Review Answers'
-                      : currentIndex < totalQuestions - 1
-                        ? 'Next Question'
-                        : readyToSubmit
-                          ? 'Submit Exam'
-                          : 'Review Answers',
+                        ? 'Review Answers'
+                        : currentIndex < totalQuestions - 1
+                            ? 'Next Question'
+                            : 'Review Answers',
                 style: TextStyle(
                   fontSize: fontSize,
                   fontWeight: FontWeight.w600,

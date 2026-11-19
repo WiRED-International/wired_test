@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/exam_sync_service.dart';
@@ -20,7 +19,6 @@ import 'package:intl/intl.dart';
 import '../../utils/screen_utils.dart';
 import '../creditsTracker/credits_tracker.dart';
 
-
 class ExamStart extends StatefulWidget {
   final User user;
 
@@ -30,141 +28,155 @@ class ExamStart extends StatefulWidget {
   State<ExamStart> createState() => _ExamStartState();
 }
 
-class _ExamStartState extends State<ExamStart> {
-  String? assignedExamTitle;
-  int? assignedExamDuration;
-  bool hasAssignedExam = false;
+class _ExamStartState extends State<ExamStart> with WidgetsBindingObserver {
+  List<Map<String, dynamic>> _exams = [];
   bool isLoadingExam = true;
-  String? assignedExamStart;
-  String? assignedExamEnd;
+  bool _starting = false;
+  String? _loadError;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadAssignedExam();
   }
 
-  // --------------------------------------------
-  // 🔵 Load assigned exam ONCE at page load
-  // --------------------------------------------
-  Future<void> _loadAssignedExam() async {
-    try {
-      final sync = context.read<ExamSyncService>();
-      final res = await sync.dio.get('/exams/assigned');
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
 
-      final data = res.data is String ? jsonDecode(res.data) : res.data;
-
-      if (data is List && data.isNotEmpty) {
-        setState(() {
-          hasAssignedExam = true;
-          assignedExamTitle = data.first['title'];
-          assignedExamDuration = data.first['duration_minutes'];
-          assignedExamStart = data.first['available_from'];
-          assignedExamEnd = data.first['available_until'];
-          isLoadingExam = false;
-        });
-      } else {
-        setState(() {
-          hasAssignedExam = false;
-          isLoadingExam = false;
-        });
-      }
-    } catch (e) {
-      setState(() => isLoadingExam = false);
-      print("❌ Error loading assigned exam: $e");
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        !_starting &&
+        !isLoadingExam &&
+        ModalRoute.of(context)?.isCurrent == true) {
+      _loadAssignedExam();
     }
   }
 
-  String _formatLocal(String? utcString) {
-    if (utcString == null) return "N/A";
-
-    final utc = DateTime.parse(utcString).toUtc();
-    final local = utc.toLocal();
-
-    return DateFormat("MMM d, yyyy   h:mm a").format(local);
+  Future<void> _loadAssignedExam() async {
+    if (!mounted) return;
+    setState(() {
+      isLoadingExam = true;
+      _loadError = null;
+    });
+    try {
+      final res =
+          await context.read<ExamSyncService>().dio.get('/exams/assigned');
+      final data = res.data is String ? jsonDecode(res.data) : res.data;
+      if (data is! List) {
+        throw const FormatException('Expected assigned exam list');
+      }
+      final exams =
+          data.map((item) => Map<String, dynamic>.from(item as Map)).toList();
+      if (!mounted) return;
+      setState(() {
+        _exams = exams;
+        isLoadingExam = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _exams = [];
+        _loadError = 'Unable to load assigned exams. Please try again.';
+        isLoadingExam = false;
+      });
+      debugPrint('Error loading assigned exams: $e');
+    }
   }
 
-  // --------------------------------------------
-  // 🔵 Handle Start Exam (resume or new)
-  // --------------------------------------------
-  Future<void> _handleStartExam() async {
-    final controller = context.read<ExamController>();
-    final sync = context.read<ExamSyncService>();
+  String _formatLocal(Object? value) {
+    final date = value is String ? DateTime.tryParse(value) : null;
+    if (date == null) return 'N/A';
+    return DateFormat('MMM d, yyyy   h:mm a').format(date.toLocal());
+  }
 
-    try {
-      print('\n==============================');
-      print('📦 [DEBUG] Start Exam Button Pressed');
-      print('==============================\n');
-
-      // 1️⃣ Try resume
-      await controller.restoreExamIfExists();
-
-      final remaining = controller.remainingSeconds;
-      final savedExamId = controller.savedExamId;
-
-      if (savedExamId != null && remaining > 0) {
-        print('🔁 Resuming exam $savedExamId');
-
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ExamPage(
-              examId: savedExamId,
-              userId: widget.user.id!,
-              sessionData: {'examTitle': assignedExamTitle},
-            ),
-          ),
-        );
-        return;
-      }
-
-      // 2️⃣ Start new exam session
-      final assignedRes = await sync.dio.get('/exams/assigned');
-      final data = assignedRes.data is String
-          ? jsonDecode(assignedRes.data)
-          : assignedRes.data;
-
-      if (data is! List || data.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No exam assigned at this time.')),
-        );
-        return;
-      }
-
-      final examId = data.first['exam_id'];
-      final questions = await controller.startExam(
-        examId: examId,
-        userId: widget.user.id!,
-      );
-
-      if (questions == null || questions.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Unable to load exam questions.')),
-        );
-        return;
-      }
-
-      Navigator.push(
+  Future<void> _openExam(int examId, String? title) async {
+    await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => ExamPage(
-            examId: examId,
-            userId: widget.user.id!,
-            sessionData: {'examTitle': assignedExamTitle},
-          ),
-        ),
-      );
+            builder: (_) => ExamPage(
+                  examId: examId,
+                  userId: widget.user.id!,
+                  sessionData: {'examTitle': title},
+                )));
+    if (mounted) await _loadAssignedExam();
+  }
+
+  Future<void> _handleStartExam([Map<String, dynamic>? selected]) async {
+    if (_starting) return;
+    setState(() => _starting = true);
+    final controller = context.read<ExamController>();
+    try {
+      // Recovery takes priority before any new session or assignment lookup.
+      final recoveryExamId = controller.savedExamId ?? selected?['exam_id'];
+      if (recoveryExamId is int &&
+          controller.recoveryStateFor(recoveryExamId, widget.user.id!) ==
+              ExamRecoveryState.unresolved) {
+        final questions = await controller.startExam(
+            examId: recoveryExamId, userId: widget.user.id!);
+        if (!mounted) return;
+        if (questions == null || questions.isEmpty) {
+          _showRecoveryMessage();
+          return;
+        }
+        await _openExam(recoveryExamId, selected?['title'] as String?);
+        return;
+      }
+      await controller.restoreExamIfExists();
+      if (!mounted) return;
+      final savedId = controller.savedExamId;
+      if (savedId != null && controller.remainingSeconds > 0) {
+        final matching = _exams.where((exam) => exam['exam_id'] == savedId);
+        await _openExam(savedId,
+            matching.isEmpty ? null : matching.first['title'] as String?);
+        return;
+      }
+      if (selected == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('No saved exam is available to resume.')));
+        return;
+      }
+      if (selected['status'] != 'open' || selected['exam_id'] is! int) return;
+      final examId = selected['exam_id'] as int;
+      final recovery = controller.recoveryStateFor(examId, widget.user.id!);
+      if (recovery == ExamRecoveryState.resumable) {
+        await _openExam(examId, selected['title'] as String?);
+        return;
+      }
+      // The backend still enforces availability, enrollment and attempt limits.
+      final questions =
+          await controller.startExam(examId: examId, userId: widget.user.id!);
+      if (!mounted) return;
+      if (questions == null || questions.isEmpty) {
+        _showRecoveryMessage();
+        return;
+      }
+      await _openExam(examId, selected['title'] as String?);
     } catch (e) {
-      print("❌ Error starting exam: $e");
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Unable to start exam. Try again later.')),
-      );
+      debugPrint('Error starting exam: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Unable to start exam. Try again later.')));
+      }
+    } finally {
+      if (mounted) setState(() => _starting = false);
     }
   }
 
-  // --------------------------------------------
-  // 📱 Build
-  // --------------------------------------------
+  void _showRecoveryMessage() {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+      context.read<ExamController>().recoveryMessage ??
+          'A saved exam session needs recovery or the server session could not be '
+              'safely verified. Your saved data has been kept; no new attempt has been '
+              'started. Try again when connected, or ask your instructor or support for help.',
+    )));
+  }
+
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
@@ -182,26 +194,25 @@ class _ExamStartState extends State<ExamStart> {
       bottomNav: isLandscape
           ? null
           : CustomBottomNavBar(
-        onHomeTap: () => _navigateTo(const MyHomePage()),
-        onLibraryTap: () => _navigateTo(ModuleLibrary()),
-        onTrackerTap: () => _navigateTo(CreditsTracker()),
-        onMenuTap: _openMenu,
-      ),
+              onHomeTap: () => _navigateTo(const MyHomePage()),
+              onLibraryTap: () => _navigateTo(ModuleLibrary()),
+              onTrackerTap: () => _navigateTo(CreditsTracker()),
+              onMenuTap: _openMenu,
+            ),
 
       // ❗ IMPORTANT: no Center()
       child: isLandscape
           ? Row(
-        children: [
-          CustomSideNavBar(
-            onHomeTap: () => _navigateTo(const MyHomePage()),
-            onLibraryTap: () => _navigateTo(ModuleLibrary()),
-            onTrackerTap: () => _navigateTo(CMETracker()),
-            onMenuTap: _openMenu,
-          ),
-
-          Expanded(child: body),
-        ],
-      )
+              children: [
+                CustomSideNavBar(
+                  onHomeTap: () => _navigateTo(const MyHomePage()),
+                  onLibraryTap: () => _navigateTo(ModuleLibrary()),
+                  onTrackerTap: () => _navigateTo(CMETracker()),
+                  onMenuTap: _openMenu,
+                ),
+                Expanded(child: body),
+              ],
+            )
           : body,
     );
   }
@@ -210,18 +221,6 @@ class _ExamStartState extends State<ExamStart> {
   // 🔹 Build main content
   // --------------------------------------------
   Widget _buildContent(BuildContext context, double baseSize) {
-    final size = MediaQuery.of(context).size;
-    final shortest = size.shortestSide;
-    final isTablet = ScreenUtils.isTablet(context);
-
-    // Shared button sizing (phone vs tablet)
-    final double buttonWidth =
-    isTablet ? shortest * 0.3 : shortest * 0.70;
-    final double buttonHeight =
-    isTablet ? shortest * 0.09 : shortest * 0.17;
-    final double buttonFont =
-    ScreenUtils.scaleFont(context, 18);
-
     return SingleChildScrollView(
       padding: EdgeInsets.symmetric(
         horizontal: baseSize * 0.05,
@@ -273,38 +272,26 @@ class _ExamStartState extends State<ExamStart> {
           // ---------------------
           // EXAM MESSAGE
           // ---------------------
+          if (context.watch<ExamController>().savedExamId != null)
+            ElevatedButton(
+              key: const ValueKey('resume-exam'),
+              onPressed: _starting ? null : () => _handleStartExam(),
+              child: const Text('Resume Exam'),
+            ),
+          TextButton.icon(
+            onPressed: isLoadingExam || _starting ? null : _loadAssignedExam,
+            icon: const Icon(Icons.refresh),
+            label: const Text('Refresh exams'),
+          ),
           if (isLoadingExam)
             const CircularProgressIndicator()
+          else if (_loadError != null)
+            Text(_loadError!)
+          else if (_exams.isEmpty)
+            const Text(
+                'You must be scheduled for the exam before you can start it.')
           else
-            _buildAssignedExamMessage(context, baseSize),
-
-          SizedBox(height: baseSize * 0.06),
-
-          // ---------------------
-          // START EXAM BUTTON (Correct Placement)
-          // ---------------------
-          SizedBox(
-            width: buttonWidth,
-            height: buttonHeight,
-            child: ElevatedButton(
-              onPressed: isLoadingExam ? null : _handleStartExam,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF0070C0),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 4,
-              ),
-              child: Text(
-                'Start Exam',
-                style: TextStyle(
-                  fontSize: buttonFont,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
+            for (final exam in _exams) _buildExamCard(context, exam),
         ],
       ),
     );
@@ -313,85 +300,53 @@ class _ExamStartState extends State<ExamStart> {
   // --------------------------------------------
   // 🔹 Assigned Exam UI Block
   // --------------------------------------------
-  Widget _buildAssignedExamMessage(BuildContext context, double baseSize) {
-    final bodyFont = ScreenUtils.scaleFont(context, 20);
-    final titleFont = ScreenUtils.scaleFont(context, 25);
-
-    if (!hasAssignedExam) {
-      return Text(
-        'You must be scheduled for the exam before you can start it.\n'
-            'Do not start until instructed. Good luck!',
-        textAlign: TextAlign.center,
-        style: TextStyle(
-          fontSize: bodyFont,
-          color: Colors.black54,
-          height: 1.5,
-        ),
-      );
-    }
-
-    return Column(
-      children: [
-        Text(
-          '📘 $assignedExamTitle',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: titleFont,
-            fontWeight: FontWeight.bold,
-            color: const Color(0xFF0070C0),
+  Widget _buildExamCard(BuildContext context, Map<String, dynamic> exam) {
+    final open = exam['status'] == 'open';
+    final status = open
+        ? 'Open'
+        : exam['status'] == 'upcoming'
+            ? 'Upcoming'
+            : 'Unavailable';
+    return Card(
+      key: ValueKey('exam-${exam['exam_id']}'),
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          Text(exam['title']?.toString() ?? 'Exam',
+              style: TextStyle(
+                  fontSize: ScreenUtils.scaleFont(context, 22),
+                  fontWeight: FontWeight.bold)),
+          Text(status,
+              style: TextStyle(
+                  color: open ? Colors.green.shade800 : Colors.black87,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          const Text("Times shown in your device's local timezone."),
+          Text('Opens: ${_formatLocal(exam['available_from'])}'),
+          Text('Closes: ${_formatLocal(exam['available_until'])}'),
+          Text("Duration: ${exam['duration_minutes'] ?? 'N/A'} minutes"),
+          const SizedBox(height: 8),
+          ElevatedButton(
+            onPressed: open && exam['exam_id'] is int && !_starting
+                ? () => _handleStartExam(exam)
+                : null,
+            child: const Text('Start Exam'),
           ),
-        ),
-        SizedBox(height: baseSize * 0.02),
-        Text(
-          'You are scheduled for this exam.\n'
-              'Exam Window:\n'
-              '🟢 Opens: ${_formatLocal(assignedExamStart)}\n'
-              '🔴 Closes: ${_formatLocal(assignedExamEnd)}\n\n'
-              '⏱ Duration: $assignedExamDuration minutes.',
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: bodyFont,
-            color: Colors.black54,
-            height: 1.5,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // --------------------------------------------
-  // Background gradient
-  // --------------------------------------------
-  Widget _buildBackground() {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Color(0xFFFFF0DC),
-            Color(0xFFF9EBD9),
-            Color(0xFFFFC888),
-          ],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
+        ]),
       ),
     );
   }
 
-  // --------------------------------------------
-  // Navigation helpers
-  // --------------------------------------------
-  void _navigateTo(Widget page) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+  Future<void> _navigateTo(Widget page) async {
+    await Navigator.push(context, MaterialPageRoute(builder: (_) => page));
+    if (mounted) await _loadAssignedExam();
   }
 
   void _openMenu() async {
     bool loggedIn = await checkIfUserIsLoggedIn();
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => loggedIn ? Menu() : GuestMenu(),
-      ),
-    );
+    if (!mounted) return;
+    await _navigateTo(loggedIn ? Menu() : GuestMenu());
   }
 }

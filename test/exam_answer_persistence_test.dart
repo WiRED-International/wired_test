@@ -266,9 +266,10 @@ void main() {
       }
       await reopen();
 
-      final restored = await restore();
-
-      expect(_selections(restored.active!), {1: ['a']});
+      controller = ExamController(attempts, _UnusedExamSyncService(), examBox);
+      await controller!.restoreExamIfExists();
+      expect(controller!.active, isNull);
+      expect(_selections(attempts.get(_attemptId)!), {1: ['a']});
       expect(examBox.get('saved_answers'), snapshot);
       await reopen();
       expect(_selections(attempts.get(_attemptId)!), {1: ['a']});

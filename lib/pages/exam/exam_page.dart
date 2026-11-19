@@ -26,11 +26,13 @@ class ExamPage extends StatefulWidget {
 class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
   final PageController _pageController = PageController();
   int _currentIndex = 0;
+  int? _examPersistenceGeneration;
   List<Map<String, dynamic>> _questions = [];
   bool _loading = true;
   bool _error = false;
+  bool _recoveryUnresolved = false;
   bool _cameBackFromReview = false;
-  bool _readyToSubmit = false;
+  bool _savingExit = false;
 
   // Track scroll state per question index
   final Map<int, bool> _isListScrollable = {};
@@ -65,13 +67,18 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
       final controller = context.read<ExamController>();
 
       debugPrint('🧩 [ExamPage] Checking for saved exam...');
-      await controller.restoreExamIfExists();
+      if (controller.recoveryStateFor(widget.examId, widget.userId) ==
+          ExamRecoveryState.resumable) {
+        await controller.restoreExamIfExists();
+      }
+      if (!mounted) return;
 
       // Resume timer after restore
       controller.resumeTimer();
 
       // Load questions (cached or new)
       await _loadQuestions();
+      if (!mounted || _recoveryUnresolved) return;
 
       // If no questions loaded, bail safely
       if (_questions.isEmpty) {
@@ -111,7 +118,8 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
         if (_pageController.hasClients &&
             savedIndex >= 0 &&
             savedIndex < _questions.length) {
-          debugPrint('⏩ [ExamPage] Jumping to saved question index $savedIndex');
+          debugPrint(
+              '⏩ [ExamPage] Jumping to saved question index $savedIndex');
 
           // 🔥 Fix navigation freeze bug
           await Future.delayed(const Duration(milliseconds: 30));
@@ -125,11 +133,14 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
         // 🔥 Safe to resume the timer ONLY AFTER UI + page jump is stable
         controller.resumeTimer();
       });
-
     } catch (e, st) {
       debugPrint('❌ [ExamPage] Error initializing exam: $e');
       debugPrint(st.toString());
-      setState(() => _error = true);
+      if (mounted)
+        setState(() {
+          _loading = false;
+          _error = true;
+        });
     }
   }
 
@@ -154,8 +165,11 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
         state == AppLifecycleState.detached) {
       debugPrint('💾 [ExamPage] Auto-saving exam progress on app pause...');
       controller.pauseTimer();
-      controller.saveProgress(_currentIndex);
-    } else if (state == AppLifecycleState.resumed) {
+      if (_examPersistenceGeneration != null) {
+        controller.saveProgress(_currentIndex,
+            generation: _examPersistenceGeneration);
+      }
+    } else if (state == AppLifecycleState.resumed && !_savingExit) {
       controller.resumeTimer();
 
       // ✅ Safely reset scroll hint only for the current visible question
@@ -169,36 +183,46 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
     }
   }
 
+  void _showRecoveryMessage() {
+    if (!mounted) return;
+    setState(() {
+      _recoveryUnresolved = true;
+      _loading = false;
+    });
+  }
+
   Future<void> _loadQuestions() async {
     if (_questions.isNotEmpty) return;
 
     final controller = context.read<ExamController>();
-    final isResumingSameExam =
-        controller.remainingSeconds > 0 &&
-            controller.savedExamId == widget.examId;
-
+    final recovery = controller.recoveryStateFor(widget.examId, widget.userId);
     List<Map<String, dynamic>>? questions;
-
-    if (isResumingSameExam) {
-      // ✅ Use cached questions on resume (don’t create a new attempt)
+    if (recovery == ExamRecoveryState.resumable) {
+      final attempt = controller.active;
+      if (attempt == null ||
+          attempt.examId != widget.examId ||
+          attempt.userId != widget.userId) {
+        _showRecoveryMessage();
+        return;
+      }
       questions = controller.getCachedQuestions();
       if (questions == null || questions.isEmpty) {
-        debugPrint(
-            '⚠️ No cached questions found during resume — refetching from backend...');
-        questions = await controller.startExam(
-          examId: widget.examId,
-          userId: widget.userId,
-        );
+        _showRecoveryMessage();
+        return;
       }
     } else {
-      // ✅ Fresh start → start session and cache questions
+      // A new session is requested only when no unresolved local session exists.
       questions = await controller.startExam(
-        examId: widget.examId,
-        userId: widget.userId,
-      );
+          examId: widget.examId, userId: widget.userId);
+      if (questions == null || questions.isEmpty) {
+        _showRecoveryMessage();
+        return;
+      }
     }
+    if (!mounted) return;
 
     setState(() {
+      _examPersistenceGeneration = controller.persistenceGeneration;
       _questions = questions ?? [];
       _loading = false;
       _error = _questions.isEmpty;
@@ -227,9 +251,36 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
     final controller = context.watch<ExamController>();
     final bool expired = controller.examExpired;
 
+    if (controller.submissionPending) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Submission pending')),
+        body: const Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(child: Text(ExamController.pendingSubmissionMessage)),
+        ),
+      );
+    }
+
     if (_loading) {
       return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_recoveryUnresolved) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Exam recovery')),
+        body: const Padding(
+          padding: EdgeInsets.all(24),
+          child: Center(
+              child: Text(
+            'A saved exam session needs recovery or the server session could not '
+            'be safely verified. '
+            'Your saved data has been kept, and no new attempt has been started. '
+            'Please return to exam selection and try again when connected, '
+            'or ask your instructor or support for help.',
+          )),
+        ),
       );
     }
 
@@ -246,13 +297,29 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
       canPop: false, // we decide when to pop
       // ✅ Use this if your SDK shows onPopInvoked as deprecated:
       onPopInvokedWithResult: (didPop, result) async {
-        if (didPop) return;
+        if (didPop || _savingExit) return;
         final shouldExit = await DialogUtils.showExitExamDialog(context);
-        if (shouldExit) {
+        if (shouldExit && context.mounted) {
           final controller = context.read<ExamController>();
-          await controller.saveProgress(_currentIndex);
-          if (!mounted) return;
-          Navigator.pop(context); // exit after saving
+          _savingExit = true;
+          controller.pauseTimer();
+          try {
+            await controller.saveProgress(_currentIndex,
+                generation: _examPersistenceGeneration);
+            if (!context.mounted) return;
+            Navigator.pop(context); // exit only after saving the paused timer
+          } catch (_) {
+            if (!context.mounted) return;
+            if (WidgetsBinding.instance.lifecycleState ==
+                AppLifecycleState.resumed) {
+              controller.resumeTimer();
+            }
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('Unable to save exam progress. Please try again.'),
+            ));
+          } finally {
+            _savingExit = false;
+          }
         }
       },
       child: Scaffold(
@@ -288,9 +355,8 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    formatTime(context
-                        .watch<ExamController>()
-                        .remainingSeconds),
+                    formatTime(
+                        context.watch<ExamController>().remainingSeconds),
                     style: TextStyle(
                       fontSize: ScreenUtils.scaleFont(context, 16),
                       fontWeight: FontWeight.w600,
@@ -309,7 +375,9 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
           onPageChanged: (i) {
             // keeps UI index and Hive in sync
             setState(() => _currentIndex = i);
-            context.read<ExamController>().saveProgress(i);
+            context
+                .read<ExamController>()
+                .saveProgress(i, generation: _examPersistenceGeneration);
             _ensureScrollHintVisible(i);
           },
           itemBuilder: (context, index) {
@@ -320,6 +388,7 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                   child: QuestionCard(
                     parentContext: context,
                     controller: controller,
+                    persistenceGeneration: _examPersistenceGeneration!,
                     question: q,
                     index: index,
                     totalQuestions: _questions.length,
@@ -334,20 +403,16 @@ class _ExamPageState extends State<ExamPage> with WidgetsBindingObserver {
                 FooterButtons(
                   parentContext: context,
                   controller: controller,
+                  persistenceGeneration: _examPersistenceGeneration!,
                   currentIndex: _currentIndex,
                   totalQuestions: _questions.length,
                   cameBackFromReview: _cameBackFromReview,
-                  readyToSubmit: _readyToSubmit,
                   pageController: _pageController,
-
                   updateIndex: (newIndex) {
                     setState(() => _currentIndex = newIndex);
                   },
                   updateCameBackFromReview: (val) {
                     setState(() => _cameBackFromReview = val);
-                  },
-                  updateReadyToSubmit: (val) {
-                    setState(() => _readyToSubmit = val);
                   },
                   refreshScrollHintForCurrent: () {
                     if (_isListScrollable[_currentIndex] == true) {

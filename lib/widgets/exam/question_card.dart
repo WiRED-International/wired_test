@@ -6,6 +6,7 @@ import '../../utils/screen_utils.dart';
 class QuestionCard extends StatefulWidget {
   final BuildContext parentContext;
   final ExamController controller;
+  final int persistenceGeneration;
   final Map<String, dynamic> question;
   final int index;
   final int totalQuestions;
@@ -20,6 +21,7 @@ class QuestionCard extends StatefulWidget {
     super.key,
     required this.parentContext,
     required this.controller,
+    required this.persistenceGeneration,
     required this.question,
     required this.index,
     required this.totalQuestions,
@@ -38,6 +40,7 @@ class _QuestionCardState extends State<QuestionCard> {
   Widget build(BuildContext context) {
     final q = widget.question;
     final controller = widget.controller;
+    final generation = widget.persistenceGeneration;
     final index = widget.index;
 
     final media = MediaQuery.of(context);
@@ -117,7 +120,7 @@ class _QuestionCardState extends State<QuestionCard> {
                     ),
                     onPressed: widget.examExpired
                         ? null
-                        : () => controller.toggleFlag(q['id']),
+                        : () => controller.toggleFlag(q['id'], generation: generation),
                   ),
                 ],
               ),
@@ -264,6 +267,7 @@ class _QuestionCardState extends State<QuestionCard> {
       bool isMultiple,
       ) {
     final index = widget.index;
+    final generation = widget.persistenceGeneration;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -304,6 +308,10 @@ class _QuestionCardState extends State<QuestionCard> {
                     onTap: widget.examExpired
                         ? null
                         : () {
+                      if (!mounted || widget.controller.submissionLocked || generation != widget.controller.persistenceGeneration ||
+                          widget.controller.persistenceTransitioning) {
+                        return;
+                      }
                       if (isMultiple) {
                         if (isSelected) {
                           selectedOptions.remove(opt['key']);
@@ -313,11 +321,13 @@ class _QuestionCardState extends State<QuestionCard> {
                         widget.controller.selectMultipleAnswers(
                           widget.question['id'],
                           List<String>.from(selectedOptions),
+                          generation: generation,
                         );
                       } else {
                         widget.controller.selectAnswer(
                           widget.question['id'],
                           opt['key'],
+                          generation: generation,
                         );
                       }
                       setState(() {});
