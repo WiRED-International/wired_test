@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:open_file/open_file.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 
 class WebViewScreen extends StatefulWidget {
   final URLRequest urlRequest;
@@ -102,28 +102,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
                         return;
                       }
 
-                      if (url.contains("assets/resources")) {
-                        print("📂 Detected Compiler Module via URL");
-                        final fullUrl = widget.urlRequest.url.toString();
-
-                        // Extract folder name between /modules/ and /index.html
-                        final match = RegExp(r'modules/(.+)/index\.html')
-                            .firstMatch(fullUrl);
-
-                        if (match != null) {
-                          final moduleFolder =
-                              Uri.decodeComponent(match.group(1)!);
-
-                          print("📂 Extracted module folder: $moduleFolder");
-
-                          await _openLocalPdf(fileName, moduleFolder);
-                        } else {
-                          print("❌ Could not extract module folder from URL");
-                        }
-                      } else {
-                        print("📂 Detected Storyline Module");
-                        await _openLocalPdf(fileName, widget.moduleId);
-                      }
+                      await _openLocalPdf(url.isNotEmpty ? url : fileName);
                     } catch (e) {
                       print("❌ Error in openPdfResource handler: $e");
                     }
@@ -285,34 +264,11 @@ class _WebViewScreenState extends State<WebViewScreen> {
                   if (scoreMessage == null && cleanMessage.contains(".pdf")) {
                     print("📂 Detected PDF link: $cleanMessage");
 
-                    // Retrieve `moduleId` from WebView
-                    String? moduleId = await _webViewController
-                        .evaluateJavascript(source: "window.moduleId");
-                    if (moduleId == null || moduleId.isEmpty) {
-                      print("❌ ERROR: Module ID not found in WebView!");
-                      return;
-                    }
-
-                    print("🔹 Retrieved moduleId from WebView: $moduleId");
-
-                    // Extract actual file name
-                    String fileName = cleanMessage.split("/").last;
-                    print("📂 Extracted PDF file name: $fileName");
-
-                    // Get correct external storage path
-                    Directory? externalDir =
-                        await getExternalStorageDirectory();
-                    // if (externalDir == null) {
-                    //   print("❌ ERROR: External storage directory not found.");
-                    //   return;
-                    // }
-
-                    // Construct full file path
-                    // String filePath = "${externalDir.path}/files/$moduleId/story_content/external_files/$fileName";
-                    // print("📂 Constructed PDF file path: $filePath");
-
-                    // Open PDF with correct path
-                    await _openLocalPdf(cleanMessage, moduleId);
+                    // Accept only the link prefix emitted by our click listener
+                    // and its plain-text form used by existing modules.
+                    final reference = cleanMessage.replaceFirst(
+                        RegExp(r'^(?:🔗 )?Link clicked:\s*'), '');
+                    await _openLocalPdf(reference);
                     return;
                   }
 
@@ -367,18 +323,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
                     "📥 Download Request Triggered: ${downloadStartRequest.url} - MIME Type: ${downloadStartRequest.mimeType}");
 
                 if (downloadStartRequest.mimeType == "application/pdf") {
-                  // Retrieve `moduleId` from WebView
-                  String? moduleId = await _webViewController
-                      .evaluateJavascript(source: "window.moduleId");
-                  if (moduleId == null || moduleId.isEmpty) {
-                    print("❌ ERROR: Module ID not found in WebView!");
-                    return;
-                  }
-
-                  print("🔹 Retrieved moduleId from WebView: $moduleId");
-
-                  await _openLocalPdf(
-                      downloadStartRequest.url.toString(), moduleId);
+                  await _openLocalPdf(downloadStartRequest.url.toString());
                 }
               },
 
@@ -391,15 +336,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
                   if (uri.toString().endsWith(".pdf")) {
                     print("📂 PDF detected! Forcing download.");
 
-                    // Retrieve `moduleId` from WebView
-                    String? moduleId = await _webViewController
-                        .evaluateJavascript(source: "window.moduleId");
-                    if (moduleId == null || moduleId.isEmpty) {
-                      print("❌ ERROR: Module ID not found in WebView!");
-                      return NavigationActionPolicy.CANCEL;
-                    }
-
-                    await _openLocalPdf(uri.toString(), moduleId);
+                    await _openLocalPdf(uri.toString());
                     return NavigationActionPolicy.CANCEL;
                   }
 
@@ -502,18 +439,13 @@ class _WebViewScreenState extends State<WebViewScreen> {
     );
   }
 
-  Future<void> _openLocalPdf(String url, String moduleId) async {
+  Future<void> _openLocalPdf(String url) async {
+    if (!mounted) return;
     setState(() {
       _isOpeningPdf = true;
     });
 
     try {
-      if (moduleId.isEmpty) {
-        print("❌ ERROR: moduleId is empty.");
-        return;
-      }
-
-      String fileName = url;
       // ✅ NEW: Handle full file:// paths directly
       if (url.startsWith("file://")) {
         final filePath = Uri.parse(url).toFilePath();
@@ -538,39 +470,58 @@ class _WebViewScreenState extends State<WebViewScreen> {
         return; // 🔥 IMPORTANT: stop here
       }
 
-      Directory? externalDir = await getExternalStorageDirectory();
-
-      if (externalDir == null) {
-        print("❌ External storage directory not found.");
+      // getUrl reflects launcher redirects; the initial request may still name
+      // a launcher in modules/ or packages/, rather than the content document.
+      final loadedUrl = await _webViewController.getUrl();
+      final document =
+          loadedUrl == null ? null : Uri.tryParse(loadedUrl.toString());
+      if (document == null || document.scheme != 'file') {
+        _showError("Document location is unavailable. Please try again.");
         return;
       }
-
-      String filePath;
-
-      // ✅ CASE 1: OLD STORYLINE MODULE (numeric ID)
-      if (RegExp(r'^\d+$').hasMatch(moduleId)) {
-        print("📂 Detected Storyline Module (numeric ID)");
-
-        filePath =
-            "${externalDir.path}/modules/files/$moduleId/story_content/external_files/$fileName";
+      final reference = Uri.parse(url.replaceAll('\\', '/'));
+      final relativePath =
+          Uri.decodeComponent(reference.path).replaceAll('\\', '/');
+      if (reference.hasScheme ||
+          reference.hasAuthority ||
+          p.isAbsolute(relativePath) ||
+          relativePath.isEmpty) {
+        throw const FormatException('Expected a relative PDF resource path');
+      }
+      final documentPath =
+          document.replace(query: '', fragment: '').toFilePath();
+      final moduleDirectory = File(documentPath).parent;
+      final moduleRoot = await moduleDirectory.resolveSymbolicLinks();
+      final filePath = p.normalize(p.join(moduleRoot, relativePath));
+      if (!p.isWithin(moduleRoot, filePath)) {
+        throw const FormatException('PDF path escapes the module directory');
       }
 
-      // ✅ CASE 2: NEW COMPILER MODULE (folder name)
-      else {
-        print("📂 Detected Compiler Module (folder)");
-
-        filePath =
-            "${externalDir.path}/modules/$moduleId/assets/resources/$fileName";
+      File file = File(filePath);
+      // Bare filenames from older bridges have a format-specific resource
+      // directory. Never discard path segments or search other installations.
+      if (!await file.exists() && !relativePath.contains('/')) {
+        final entry = p.basename(documentPath).toLowerCase();
+        final resourceDirectory = switch (entry) {
+          'story.html' => p.join('story_content', 'external_files'),
+          'index.html' => p.join('assets', 'resources'),
+          _ => null,
+        };
+        if (resourceDirectory != null) {
+          file = File(p.join(moduleRoot, resourceDirectory, relativePath));
+        }
       }
 
       print("📂 Constructed PDF file path: $filePath");
 
-      File file = File(filePath);
-
       if (await file.exists()) {
+        final resolvedPath = await file.resolveSymbolicLinks();
+        if (!p.isWithin(moduleRoot, resolvedPath)) {
+          throw const FormatException('PDF link escapes the module directory');
+        }
         print("📂 File found! Opening PDF...");
 
-        final result = await OpenFile.open(filePath);
+        final result = await OpenFile.open(resolvedPath);
 
         print("📄 OpenFile result: ${result.type}");
 

@@ -1,14 +1,52 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:path/path.dart' as p;
+// Existing platform adapters let these tests avoid native PDF applications.
+// ignore: depend_on_referenced_packages
+import 'package:open_file_platform_interface/open_file_platform_interface.dart';
+// ignore: depend_on_referenced_packages
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:wired_test/services/pending_quiz_score_repository.dart';
 import 'package:wired_test/utils/webview_screen.dart';
 
+class _PdfPaths extends PathProviderPlatform {
+  _PdfPaths(this.path);
+  final String path;
+  @override
+  Future<String?> getExternalStoragePath() async => path;
+}
+
+class _PdfOpener extends OpenFilePlatform {
+  final paths = <String>[];
+  @override
+  Future<OpenResult> open(
+    String? filePath, {
+    String? type,
+    bool isIOSAppOpen = false,
+    String linuxDesktopName = 'xdg',
+    bool linuxUseGio = false,
+    bool linuxByProcess = false,
+  }) async {
+    paths.add(filePath!);
+    return OpenResult(type: ResultType.done, message: 'done');
+  }
+}
+
 class _Controller implements InAppWebViewController {
+  WebUri? loadedUrl;
+  var urlLookups = 0;
+  @override
+  Future<WebUri?> getUrl() async {
+    urlLookups++;
+    return loadedUrl;
+  }
+
   final Map<String, Function> handlers = {};
   final nameLookup = Completer<String>();
   var nameLookups = 0;
@@ -46,6 +84,251 @@ class _Platform extends InAppWebViewPlatform {
 }
 
 void main() {
+  group('offline PDF resolution', () {
+    late Directory root;
+    late PathProviderPlatform originalPaths;
+    late OpenFilePlatform originalOpener;
+    late _PdfOpener opener;
+
+    setUp(() async {
+      root = await Directory.systemTemp.createTemp('webview_pdf_resolution_');
+      originalPaths = PathProviderPlatform.instance;
+      originalOpener = OpenFilePlatform.platform;
+      PathProviderPlatform.instance = _PdfPaths(root.path);
+      opener = _PdfOpener();
+      OpenFilePlatform.platform = opener;
+    });
+
+    tearDown(() async {
+      PathProviderPlatform.instance = originalPaths;
+      OpenFilePlatform.platform = originalOpener;
+      await root.delete(recursive: true);
+    });
+
+    // Characterizations preserve working paths; desired-behavior cases cover
+    // the previously failing installation layouts.
+    for (final scenario in [
+      (
+        name: 'characterization: absolute Storyline console URL',
+        entry: 'files/1001/story.html',
+        pdf: 'files/1001/story_content/external_files/guide.pdf',
+        id: '1001',
+        route: 'absolute'
+      ),
+      (
+        name: 'characterization: friendly-folder compiler bridge',
+        entry: 'modules/Friendly Lesson/index.html',
+        pdf: 'modules/Friendly Lesson/assets/resources/guide.pdf',
+        id: '1001',
+        route: 'bridge'
+      ),
+      (
+        name: 'characterization: absolute legacy-package console URL',
+        entry: 'packages/files/2024/1001/story.html',
+        pdf: 'packages/files/2024/1001/story_content/external_files/guide.pdf',
+        id: '1001',
+        route: 'absolute'
+      ),
+      (
+        name: 'desired: standalone Storyline bridge uses installed folder',
+        entry: 'files/1001/story.html',
+        pdf: 'files/1001/story_content/external_files/guide.pdf',
+        id: '1001',
+        route: 'bridge'
+      ),
+      (
+        name: 'desired: compiler console path uses document folder, not ID',
+        entry: 'modules/Friendly Lesson/index.html',
+        pdf: 'modules/Friendly Lesson/assets/resources/guide.pdf',
+        id: '1001',
+        route: 'relative'
+      ),
+      (
+        name: 'desired: prefixed console URL resolves installed PDF',
+        entry: 'modules/Friendly Lesson/index.html',
+        pdf: 'modules/Friendly Lesson/assets/resources/guide.pdf',
+        id: '1001',
+        route: 'prefixed'
+      ),
+      (
+        name: 'desired: numeric compiler folder remains a compiler folder',
+        entry: 'modules/1001/index.html',
+        pdf: 'modules/1001/assets/resources/guide.pdf',
+        id: '1001',
+        route: 'bridge'
+      ),
+      (
+        name: 'desired: legacy-package relative path uses document folder',
+        entry: 'packages/files/2024/1001/story.html',
+        pdf: 'packages/files/2024/1001/story_content/external_files/guide.pdf',
+        id: '1001',
+        route: 'relative'
+      ),
+      (
+        name: 'redirected Storyline bridge uses current URL, not launcher',
+        entry: 'files/Story Folder/story.html',
+        pdf: 'files/Story Folder/story_content/external_files/guide.pdf',
+        id: '1001',
+        route: 'redirectBridge'
+      ),
+      (
+        name: 'nested Storyline PDF paths retain directories and spaces',
+        entry: 'files/1001/story.html',
+        pdf: 'files/1001/story_content/external_files/nested/Study Guide.pdf',
+        id: '1001',
+        route: 'relative'
+      ),
+      (
+        name: 'nested compiler bridge paths retain directories and spaces',
+        entry: 'modules/Friendly Lesson/index.html',
+        pdf: 'modules/Friendly Lesson/assets/resources/nested/Study Guide.pdf',
+        id: '1001',
+        route: 'bridge'
+      ),
+      (
+        name: 'reject traversal into another installed module',
+        entry: 'modules/Friendly Lesson/index.html',
+        pdf: 'modules/Other/assets/resources/guide.pdf',
+        id: '1001',
+        route: 'rejectTraversal'
+      ),
+      (
+        name: 'bare Storyline bridge filename uses local resource directory',
+        entry: 'files/1001/story.html',
+        pdf: 'files/1001/story_content/external_files/guide.pdf',
+        id: '1001',
+        route: 'bareBridge'
+      ),
+      (
+        name: 'bare compiler bridge filename uses local resource directory',
+        entry: 'modules/Friendly Lesson/index.html',
+        pdf: 'modules/Friendly Lesson/assets/resources/guide.pdf',
+        id: '1001',
+        route: 'bareBridge'
+      ),
+      (
+        name: 'encoded nested filename and current document fragment work',
+        entry: 'modules/Friendly Lesson/index.html',
+        pdf: 'modules/Friendly Lesson/assets/resources/nested/Study Guide.pdf',
+        id: '1001',
+        route: 'encodedRelative'
+      ),
+      (
+        name: 'injected click-listener prefix resolves installed PDF',
+        entry: 'modules/Friendly Lesson/index.html',
+        pdf: 'modules/Friendly Lesson/assets/resources/guide.pdf',
+        id: '1001',
+        route: 'injectedPrefix'
+      ),
+      (
+        name: 'unknown console prefix is not stripped',
+        entry: 'modules/Friendly Lesson/index.html',
+        pdf: 'modules/Friendly Lesson/assets/resources/guide.pdf',
+        id: '1001',
+        route: 'rejectUnknownPrefix'
+      ),
+      (
+        name: 'reject percent-encoded traversal into another module',
+        entry: 'modules/Friendly Lesson/index.html',
+        pdf: 'modules/Other/assets/resources/guide.pdf',
+        id: '1001',
+        route: 'rejectEncodedTraversal'
+      ),
+      (
+        name: 'reject percent-encoded backslash traversal',
+        entry: 'modules/Friendly Lesson/index.html',
+        pdf: 'modules/Other/assets/resources/guide.pdf',
+        id: '1001',
+        route: 'rejectBackslashTraversal'
+      ),
+      (
+        name: 'missing current URL does not guess from numeric ID',
+        entry: 'modules/1001/index.html',
+        pdf: 'modules/1001/assets/resources/guide.pdf',
+        id: '1001',
+        route: 'rejectMissingUrl'
+      ),
+    ]) {
+      testWidgets(scenario.name, (tester) async {
+        final entry = File(p.join(root.path, scenario.entry));
+        final pdf = File(p.join(root.path, scenario.pdf));
+        await tester.runAsync(() async {
+          await entry.parent.create(recursive: true);
+          await entry.writeAsString('<html></html>');
+          await pdf.parent.create(recursive: true);
+          await pdf.writeAsString('%PDF-1.4 test fixture');
+        });
+        final platform = _Platform();
+        final previous = InAppWebViewPlatform.instance;
+        InAppWebViewPlatform.instance = platform;
+        addTearDown(
+            () => InAppWebViewPlatform.instance = previous ?? _Platform());
+        await tester.pumpWidget(Provider.value(
+          value: PendingQuizScoreRepository(
+            read: () async => null,
+            write: (_) async => fail('PDF routing must not save a score'),
+          ),
+          child: MaterialApp(
+              home: WebViewScreen(
+            moduleId: scenario.id,
+            urlRequest: URLRequest(
+                url: WebUri(
+              scenario.route == 'redirectBridge'
+                  ? File(p.join(root.path, 'modules', 'launcher.htm'))
+                      .uri
+                      .toString()
+                  : entry.uri.toString(),
+            )),
+          )),
+        ));
+        final controller = _Controller();
+        controller.loadedUrl = scenario.route == 'rejectMissingUrl'
+            ? null
+            : WebUri(
+                '${entry.uri}${scenario.route == 'encodedRelative' ? '#slide-1' : ''}');
+        controller.nameLookup.complete(scenario.id);
+        final dynamic created = platform.params.onWebViewCreated;
+        await created(controller);
+        final relative = p.posix
+            .relative(scenario.pdf, from: p.posix.dirname(scenario.entry));
+        await tester.runAsync(() async {
+          if (scenario.route == 'bridge' ||
+              scenario.route == 'redirectBridge' ||
+              scenario.route == 'bareBridge') {
+            await controller.handlers['openPdfResource']!([
+              {
+                'file': 'guide.pdf',
+                'url': scenario.route == 'bareBridge' ? '' : relative
+              }
+            ]);
+          } else {
+            final dynamic console = platform.params.onConsoleMessage;
+            final message = switch (scenario.route) {
+              'absolute' => pdf.uri.toString(),
+              'prefixed' => 'Link clicked: ${pdf.uri}',
+              'injectedPrefix' => '🔗 Link clicked: $relative',
+              'encodedRelative' => relative.replaceAll(' ', '%20'),
+              'rejectUnknownPrefix' => 'Other message: ${pdf.uri}',
+              'rejectEncodedTraversal' => relative.replaceAll('..', '%2e%2e'),
+              'rejectBackslashTraversal' =>
+                relative.replaceAll('../', '%2e%2e%5c'),
+              _ => relative,
+            };
+            await console(controller, ConsoleMessage(message: message));
+          }
+        });
+        expect(
+            opener.paths.map(p.normalize).toList(),
+            scenario.route.startsWith('reject')
+                ? isEmpty
+                : [p.normalize(pdf.path)],
+            reason:
+                'Only resources inside the current module may be resolved.');
+        expect(tester.takeException(), isNull);
+      });
+    }
+  });
+
   testWidgets('Storyline score with .pdf metadata is saved as a quiz result',
       (tester) async {
     final platform = _Platform();
@@ -110,7 +393,7 @@ void main() {
       )),
     ));
     final controller = _Controller();
-    // Stop after the PDF-specific module lookup, before native file APIs.
+    // A missing current document URL prevents filesystem/native access.
     controller.nameLookup.complete('');
     final dynamic created = platform.params.onWebViewCreated;
     await created(controller);
@@ -119,15 +402,15 @@ void main() {
       'Link clicked: story_content/external_files/guide.pdf',
       'Link clicked: story_content/external_files/{guide}.pdf',
     ]) {
-      final before = controller.nameLookups;
+      final before = controller.urlLookups;
       await console(controller, ConsoleMessage(message: message));
-      expect(controller.nameLookups, before + 1);
+      expect(controller.urlLookups, before + 1);
       expect(raw, isNull);
     }
-    final before = controller.nameLookups;
+    final before = controller.urlLookups;
     await console(controller,
         ConsoleMessage(message: '{"module_id":"1234","quiz_score":95,}'));
-    expect(controller.nameLookups, before);
+    expect(controller.urlLookups, before);
     expect(await repository.readAll(), isEmpty);
     expect(tester.takeException(), isNull);
   });
