@@ -46,6 +46,92 @@ class _Platform extends InAppWebViewPlatform {
 }
 
 void main() {
+  testWidgets('Storyline score with .pdf metadata is saved as a quiz result',
+      (tester) async {
+    final platform = _Platform();
+    final previous = InAppWebViewPlatform.instance;
+    InAppWebViewPlatform.instance = platform;
+    addTearDown(() => InAppWebViewPlatform.instance = previous ?? _Platform());
+    String? raw;
+    final repository = PendingQuizScoreRepository(
+      read: () async => raw,
+      write: (value) async => raw = value,
+    );
+    await tester.pumpWidget(Provider.value(
+      value: repository,
+      child: MaterialApp(
+          home: WebViewScreen(
+        moduleId: '1234',
+        urlRequest: URLRequest(url: WebUri('https://example.invalid')),
+      )),
+    ));
+    final controller = _Controller();
+    // Let an incorrect PDF route finish without invoking native file APIs.
+    controller.nameLookup.complete('');
+    final dynamic created = platform.params.onWebViewCreated;
+    await created(controller);
+    final dynamic console = platform.params.onConsoleMessage;
+    await console(
+        controller,
+        ConsoleMessage(
+            message: jsonEncode({
+          'module_id': '1234',
+          'module_name': 'Understanding .pdf resources',
+          'quiz_score': 95,
+        })));
+
+    final scores = await repository.readAll();
+    expect(scores['1234'], isNotNull,
+        reason: 'Valid score metadata must not be routed as a PDF request.');
+    expect(scores['1234']['score'], 95);
+    expect(scores['1234']['module_name'], 'Understanding .pdf resources');
+    expect(controller.nameLookups, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+      'PDF console requests retain routing and malformed JSON saves nothing',
+      (tester) async {
+    final platform = _Platform();
+    final previous = InAppWebViewPlatform.instance;
+    InAppWebViewPlatform.instance = platform;
+    addTearDown(() => InAppWebViewPlatform.instance = previous ?? _Platform());
+    String? raw;
+    final repository = PendingQuizScoreRepository(
+      read: () async => raw,
+      write: (value) async => raw = value,
+    );
+    await tester.pumpWidget(Provider.value(
+      value: repository,
+      child: MaterialApp(
+          home: WebViewScreen(
+        moduleId: '1234',
+        urlRequest: URLRequest(url: WebUri('https://example.invalid')),
+      )),
+    ));
+    final controller = _Controller();
+    // Stop after the PDF-specific module lookup, before native file APIs.
+    controller.nameLookup.complete('');
+    final dynamic created = platform.params.onWebViewCreated;
+    await created(controller);
+    final dynamic console = platform.params.onConsoleMessage;
+    for (final message in [
+      'Link clicked: story_content/external_files/guide.pdf',
+      'Link clicked: story_content/external_files/{guide}.pdf',
+    ]) {
+      final before = controller.nameLookups;
+      await console(controller, ConsoleMessage(message: message));
+      expect(controller.nameLookups, before + 1);
+      expect(raw, isNull);
+    }
+    final before = controller.nameLookups;
+    await console(controller,
+        ConsoleMessage(message: '{"module_id":"1234","quiz_score":95,}'));
+    expect(controller.nameLookups, before);
+    expect(await repository.readAll(), isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Storyline resolves friendly names synchronously',
       (tester) async {
     final platform = _Platform();
