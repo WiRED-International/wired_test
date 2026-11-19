@@ -185,6 +185,8 @@ class ExamController extends ChangeNotifier {
     // Completion is represented by the durable queue, not server acceptance.
     pauseTimer();
     notifyListeners();
+    // Reconnection may have flushed an empty queue while this write was pending.
+    _syncService.requestSync();
   }
 
   ExamAttempt? get active => _active;

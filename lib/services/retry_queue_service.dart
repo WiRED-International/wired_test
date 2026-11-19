@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:hive/hive.dart';
 import '../models/exam_models.dart';
@@ -5,6 +6,12 @@ import '../models/exam_models.dart';
 class RetryQueueService {
   final Box<PendingSubmission> _retryBox;
   static final _writes = Expando<Future<void>>();
+  static final _persistence = Expando<Future<bool>>();
+
+  /// Hive exposes optimistic values before put completes. Loaded entries have
+  /// no in-flight write; newly enqueued objects carry their persistence result.
+  static Future<bool> waitForPersistence(PendingSubmission entry) =>
+      _persistence[entry] ?? Future.value(true);
   RetryQueueService(this._retryBox);
 
   bool containsSession(String sessionId) =>
@@ -41,14 +48,23 @@ class RetryQueueService {
       if (_retryBox.containsKey(attemptId)) {
         throw StateError('An existing queue entry uses this key');
       }
-      await _retryBox.put(
-          attemptId,
-          PendingSubmission(
-            attemptId: attemptId,
-            payloadJson: frozenPayload,
-            retryCount: 0,
-            enqueuedAt: DateTime.now(),
-          ));
+      final entry = PendingSubmission(
+        attemptId: attemptId,
+        payloadJson: frozenPayload,
+        retryCount: 0,
+        enqueuedAt: DateTime.now(),
+      );
+      final persisted = Completer<bool>();
+      // Register before put can publish this object in Hive's in-memory values.
+      _persistence[entry] = persisted.future;
+      try {
+        await _retryBox.put(attemptId, entry);
+        persisted.complete(true);
+      } catch (_) {
+        // A sync pass may already hold the optimistic object after rollback.
+        persisted.complete(false);
+        rethrow;
+      }
     });
     _writes[_retryBox] = write.then<void>((_) {}, onError: (Object _) {});
     return write;

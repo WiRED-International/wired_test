@@ -8,6 +8,16 @@ import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
+// Hive internals are used only to delay the real writeFrames boundary after
+// BoxImpl has published its optimistic value, rather than gating before put.
+// ignore: implementation_imports
+import 'package:hive/src/backend/storage_backend.dart';
+// ignore: implementation_imports
+import 'package:hive/src/binary/frame.dart';
+// ignore: implementation_imports
+import 'package:hive/src/box/box_impl.dart';
+// ignore: implementation_imports
+import 'package:hive/src/hive_impl.dart';
 import 'package:provider/provider.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:wired_test/models/exam_models.dart';
@@ -97,6 +107,95 @@ class _DeletionFailingSubmission extends PendingSubmission {
   @override
   Future<void> delete() async {
     throw StateError('Synthetic queue cleanup failure');
+  }
+}
+
+class _DiskWriteGate extends Fake implements StorageBackend {
+  _DiskWriteGate(this.delegate);
+  final StorageBackend delegate;
+  final entered = Completer<void>();
+  final release = Completer<void>();
+  bool holdNextWrite = false;
+  bool fail = false;
+  @override
+  bool get supportsCompaction => false;
+  @override
+  Future<void> writeFrames(List<Frame> frames) async {
+    if (holdNextWrite) {
+      holdNextWrite = false;
+      entered.complete();
+      await release.future;
+      if (fail) throw StateError('Injected actual Hive disk-write failure');
+    }
+    await delegate.writeFrames(frames);
+  }
+}
+
+class _ReviewQueueBox extends Fake implements Box<PendingSubmission> {
+  _ReviewQueueBox(this.delegate);
+  final Box<PendingSubmission> delegate;
+  final entered = Completer<void>();
+  final gate = Completer<void>();
+  bool fail = false;
+  @override
+  Iterable<PendingSubmission> get values => delegate.values;
+  @override
+  bool containsKey(dynamic key) => delegate.containsKey(key);
+  @override
+  Future<void> put(dynamic key, PendingSubmission value) async {
+    entered.complete();
+    await gate.future;
+    if (fail) throw StateError('Injected pending write failure');
+    await delegate.put(key, value);
+  }
+}
+
+class _ReviewController extends ExamController {
+  _ReviewController(
+      super.attempts, super.syncService, super.examBox, this.tester,
+      {super.retryQueue});
+  final WidgetTester tester;
+  Future<void>? queued;
+  void Function()? afterQueue;
+  @override
+  Future<void> queueOfflineSubmission(Map<String, dynamic> payload) {
+    return queued = () async {
+      Object? failure;
+      await tester.runAsync(() async {
+        try {
+          await super.queueOfflineSubmission(payload);
+          afterQueue?.call();
+        } catch (error) {
+          failure = error;
+        }
+      });
+      if (failure != null) throw failure!;
+    }();
+  }
+}
+
+class _ReviewSync extends ExamSyncService {
+  _ReviewSync(super.attempts, super.retryBox, this.tester)
+      : super(
+            onlineCheck: () async => true,
+            connectivityChanges: const Stream.empty());
+  final WidgetTester tester;
+  Future<bool>? sent;
+  @override
+  Future<bool> submitExam(Map<String, dynamic> payload) {
+    return sent = () async {
+      Object? failure;
+      var accepted = false;
+      await tester.runAsync(() async {
+        try {
+          accepted = await super.submitExam(payload);
+        } catch (error) {
+          failure = error;
+        }
+      });
+      if (failure != null) throw failure!;
+      return accepted;
+    }();
   }
 }
 
@@ -317,6 +416,168 @@ void main() {
     expect(attempts.get('42')!.answers.single.normalizedOptions, ['a']);
     expect(await controller!.buildSubmissionPayload(), isNull);
   });
+
+  for (final trigger in ['connectivity', 'authentication']) {
+    for (final fails in [false, true]) {
+      test(
+          'optimistic Hive entry is not sent before disk persistence: $trigger, failure=$fails',
+          () async {
+        // Keep the existing real disk backend, but place the gate inside Hive's
+        // BoxImpl write path, after beginTransaction has exposed the object.
+        final disk =
+            _DiskWriteGate((retryBox as dynamic).backend as StorageBackend);
+        retryBox = BoxImpl<PendingSubmission>(
+            Hive as HiveImpl, 'retry_queue', null, (_, __) => false, disk);
+        sync.dispose();
+        sync.dio.close(force: true);
+        sync = ExamSyncService(attempts, retryBox,
+            onlineCheck: () async => online,
+            connectivityChanges: connectivity.stream);
+        sync.dio.httpClientAdapter = adapter;
+        controller!.dispose();
+        controller = ExamController(attempts, sync, cleanupBox,
+            retryQueue: RetryQueueService(retryBox));
+        await controller!.restoreExamIfExists();
+        final payload = (await controller!.buildSubmissionPayload())!;
+        online = false;
+        await authenticate();
+        disk.holdNextWrite = true;
+        disk.fail = fails;
+        final enqueue = controller!.queueOfflineSubmission(payload);
+        final enqueueOutcome = enqueue.then<Object?>((_) => null,
+            onError: (Object error) => error);
+        await disk.entered.future;
+        expect(retryBox.values.single.attemptId, _attemptId,
+            reason: 'The actual Hive transaction is visible before disk write');
+        expect(adapter.requests, isEmpty);
+        adapter.respond = (_) async => _response(200);
+        online = true;
+        if (trigger == 'connectivity') {
+          connectivity.add([ConnectivityResult.wifi]);
+          await Future<void>.delayed(Duration.zero);
+        } else {
+          final claims = base64Url
+              .encode(utf8.encode('{"id":7,"refresh":true}'))
+              .replaceAll('=', '');
+          await auth.logIn('e30.$claims.synthetic',
+              DateTime.now().toUtc().add(const Duration(hours: 1)));
+          sync.updateAuthentication(auth);
+        }
+        var finished = false;
+        final flushing = sync.trySyncNow().then((_) => finished = true);
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(finished, isFalse,
+            reason: 'Independent synchronization must await the actual write');
+        expect(adapter.requests, isEmpty);
+        disk.release.complete();
+        final error = await enqueueOutcome;
+        await flushing;
+        if (fails) {
+          expect(error, isA<StateError>());
+          expect(adapter.requests, isEmpty);
+          expect(retryBox.isEmpty, isTrue,
+              reason: 'Hive rolls back the insert');
+          expect(controller!.submissionPending, isFalse);
+          expect(controller!.active!.answers.single.normalizedOptions, ['a']);
+          expect(attempts.get(_attemptId)!.submitted, isFalse);
+        } else {
+          expect(error, isNull);
+          expect(adapter.requests, hasLength(1));
+          expect(attempts.get(_attemptId)!.submitted, isTrue);
+          expect(retryBox.isEmpty, isTrue);
+        }
+        await reopen();
+        expect(attempts.get(_attemptId)!.submitted, !fails);
+        expect(
+            attempts.get(_attemptId)!.answers.single.normalizedOptions, ['a']);
+      });
+    }
+  }
+
+  for (final running in [false, true]) {
+    test(
+        'durable enqueue requests sync after reconnect ${running ? 'during a running pass' : 'already flushed an empty queue'}',
+        () async {
+      controller!.dispose();
+      final writes = _ReviewQueueBox(retryBox);
+      controller = ExamController(attempts, sync, cleanupBox,
+          retryQueue: RetryQueueService(writes));
+      await controller!.restoreExamIfExists();
+      final payload = (await controller!.buildSubmissionPayload())!;
+      online = false;
+      await authenticate();
+      final enqueue = controller!.queueOfflineSubmission(payload);
+      await writes.entered.future;
+      expect(retryBox.isEmpty, isTrue);
+      expect(adapter.requests, isEmpty);
+
+      final oldResponse = Completer<ResponseBody>();
+      if (running) {
+        await attempts.put(
+            '43',
+            ExamAttempt(
+                attemptId: '43',
+                examId: 11,
+                userId: 7,
+                startedAt: _startedAt,
+                durationSeconds: 1800,
+                answers: []));
+        await retryBox.put(
+            '43',
+            PendingSubmission(
+                attemptId: '43',
+                payloadJson: jsonEncode({
+                  ...payload,
+                  'attempt_id': '43',
+                  'exam_id': 11,
+                }),
+                retryCount: 0,
+                enqueuedAt: _startedAt));
+      }
+      adapter.respond = (request) async {
+        if (request.path == '/exam-sessions/43/submit') {
+          return oldResponse.future;
+        }
+        expect(request.path, '/exam-sessions/42/submit');
+        expect(retryBox.get('42'), isNotNull,
+            reason: 'Never dispatch the new submission before durable enqueue');
+        expect(request.data['answers'], payload['answers']);
+        return _response(200);
+      };
+      online = true;
+      connectivity.add([ConnectivityResult.wifi]);
+      await Future<void>.delayed(Duration.zero);
+      if (running) {
+        await adapter.started.future;
+      } else {
+        // Reconnection's empty pass finishes while the new queue write is held.
+        await sync.trySyncNow();
+        expect(adapter.requests, isEmpty);
+      }
+      writes.gate.complete();
+      await enqueue;
+      if (running) {
+        expect(adapter.requests, hasLength(1));
+        oldResponse.complete(ResponseBody.fromString(
+            '{"message":"Exam submitted successfully","resolved_session_id":43}',
+            200,
+            headers: {
+              Headers.contentTypeHeader: [Headers.jsonContentType]
+            }));
+      } else {
+        // Observe automatic dispatch before joining it; no second external event.
+        await adapter.started.future.timeout(const Duration(seconds: 5));
+      }
+      await sync.trySyncNow();
+      expect(
+          adapter.requests.map((r) => r.path).toList(),
+          running
+              ? ['/exam-sessions/43/submit', '/exam-sessions/42/submit']
+              : ['/exam-sessions/42/submit']);
+      expect(attempts.get('42')!.submitted, isTrue);
+      expect(retryBox.isEmpty, isTrue);
+    });
+  }
 
   test('connectivity restoration triggers queue sync after offline startup',
       () async {
@@ -734,6 +995,142 @@ void main() {
     expect(attempt.submitted, isTrue);
     expect(attempt.submittedAt, isNotNull);
   });
+
+  for (final outcome in [
+    'success',
+    'transport',
+    'ambiguous',
+    'offline',
+    'interrupted',
+    'persistence failure',
+    'acknowledgment failure',
+  ]) {
+    testWidgets(
+        'confirmed review submission persists before transport: $outcome',
+        (tester) async {
+      tester.view.physicalSize = const Size(1000, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      sync.dispose();
+      sync.dio.close(force: true);
+      final reviewSync = _ReviewSync(attempts, retryBox, tester);
+      sync = reviewSync;
+      sync.dio.httpClientAdapter = adapter;
+      controller!.dispose();
+      late _ReviewQueueBox writes;
+      late Completer<ResponseBody> response;
+      await tester.runAsync(() async {
+        writes = _ReviewQueueBox(retryBox);
+        response = Completer<ResponseBody>();
+        adapter = _ExamHttpAdapter();
+      });
+      sync.dio.httpClientAdapter = adapter;
+      final reviewController = _ReviewController(
+          attempts, sync, cleanupBox, tester,
+          retryQueue: RetryQueueService(writes));
+      controller = reviewController;
+      await tester.runAsync(() async {
+        if (outcome == 'acknowledgment failure') {
+          final attempt = _AcknowledgmentAttempt(attempts.get(_attemptId)!);
+          await attempts.put(_attemptId, attempt);
+          reviewController.afterQueue = () => attempt.failSave = true;
+        }
+        await controller!.restoreExamIfExists();
+      });
+      writes.fail = outcome == 'persistence failure';
+      adapter.respond = (request) async {
+        // Every HTTP dispatch must observe the durable, original submission.
+        expect(retryBox.length, 1);
+        final saved = jsonDecode(retryBox.values.single.payloadJson) as Map;
+        expect(saved['answers'], request.data['answers']);
+        if (outcome == 'transport') {
+          throw DioException(
+              requestOptions: request, type: DioExceptionType.connectionError);
+        }
+        if (outcome == 'ambiguous') {
+          return ResponseBody.fromString('{}', 200, headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType]
+          });
+        }
+        if (outcome == 'interrupted') return response.future;
+        return _response(200);
+      };
+      await tester.pumpWidget(ChangeNotifierProvider<ExamController>.value(
+        value: controller!,
+        child: Provider<ExamSyncService>.value(
+          value: sync,
+          child: MaterialApp(
+              home: ReviewAnswersPage(questions: const [
+            {
+              'id': 1,
+              'question_text': 'Test question',
+              'options': {'a': 'Test answer'}
+            }
+          ], onlineCheck: () async => outcome != 'offline')),
+        ),
+      ));
+      await tester.tap(find.text('Submit Exam'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Submit'));
+      await tester.pump();
+      await writes.entered.future;
+      expect(adapter.requests, isEmpty,
+          reason: 'No transport before pending storage completes');
+      // The frozen final submission must not follow later mutable model changes.
+      controller!.active!.answers.single.selectedOptionIds = ['changed'];
+      writes.gate.complete();
+      await tester.pump(const Duration(milliseconds: 300));
+      await reviewController.queued?.then<void>((_) {}, onError: (Object _) {});
+      await tester.pump();
+      if (outcome == 'interrupted') {
+        await adapter.started.future;
+        final disposal = tester.pumpWidget(const SizedBox.shrink());
+        response.completeError(DioException(
+            requestOptions: adapter.requests.single,
+            type: DioExceptionType.receiveTimeout));
+        await disposal;
+        await tester.pump(const Duration(milliseconds: 300));
+      }
+      await reviewSync.sent?.then<void>((_) {}, onError: (Object _) {});
+      await tester.pumpAndSettle();
+      if (outcome == 'persistence failure') {
+        expect(adapter.requests, isEmpty);
+        expect(retryBox.isEmpty, isTrue);
+        expect(controller!.submissionPending, isFalse);
+        expect(
+            find.textContaining('Submission was not saved.'), findsOneWidget);
+        expect(find.text('Submit Exam'), findsOneWidget);
+      } else if (outcome == 'success') {
+        expect(find.text('Go to Home'), findsOneWidget);
+        expect(retryBox.isEmpty, isTrue);
+        expect(attempts.get(_attemptId)!.submitted, isTrue);
+      } else {
+        expect(retryBox.length, 1);
+        expect(
+            jsonDecode(retryBox.values.single.payloadJson)['answers'][0]
+                ['selected_option_ids'],
+            ['a']);
+        expect(attempts.get(_attemptId)!.submitted, isFalse);
+        expect(find.textContaining('Your exam is NOT submitted'), findsNothing);
+        if (outcome == 'acknowledgment failure') {
+          expect(find.text('Exam accepted'), findsOneWidget);
+        }
+        if (outcome == 'offline') expect(adapter.requests, isEmpty);
+        // Interruption/reopen retains the exact submitted answers and session ID.
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.runAsync(() async {
+          await reopen();
+          expect(retryBox.values.single.attemptId, _attemptId);
+          expect(
+              jsonDecode(retryBox.values.single.payloadJson)['answers'][0]
+                  ['selected_option_ids'],
+              ['a']);
+        });
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('review updates only after durable automatic acknowledgment',
       (tester) async {

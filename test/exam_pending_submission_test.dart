@@ -35,6 +35,8 @@ class _PendingBox extends Fake implements Box<PendingSubmission> {
 
 class _Service extends Fake implements ExamSyncService {
   @override
+  void requestSync() {}
+  @override
   final ValueNotifier<Set<String>> acknowledgedSessions = ValueNotifier({});
 }
 

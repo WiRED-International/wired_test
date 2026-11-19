@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/exam_models.dart';
@@ -600,7 +601,7 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
   }
 
   Future<void> _handleSubmit(BuildContext context) async {
-    if (!mounted) return;
+    if (!mounted || !context.mounted) return;
     setState(() => _isSubmitting = true);
 
     final controller = context.read<ExamController>();
@@ -615,14 +616,36 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
       return;
     }
 
-    final isOnline = await widget.onlineCheck();
+    // Freeze the confirmed answers before awaiting persistence or connectivity.
+    final frozenPayload = jsonEncode(payload);
+    try {
+      await controller.queueOfflineSubmission(
+          Map<String, dynamic>.from(jsonDecode(frozenPayload) as Map));
+    } catch (_) {
+      if (!mounted || !context.mounted) return;
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text(
+            'Submission was not saved. Your exam and answers have been kept. Please try again.'),
+      ));
+      return;
+    }
+
+    bool isOnline;
+    try {
+      isOnline = await widget.onlineCheck();
+    } catch (_) {
+      // A failed reachability check cannot discard the durable submission.
+      isOnline = false;
+    }
 
     bool success = false;
 
     if (isOnline) {
       // Try to submit online immediately
       try {
-        success = await sync.submitExam(payload);
+        success = await sync.submitExam(
+            Map<String, dynamic>.from(jsonDecode(frozenPayload) as Map));
       } on ExamAcknowledgmentPersistenceException {
         if (!mounted || !context.mounted) return;
         setState(() {
@@ -650,7 +673,7 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
       }
     }
 
-    if (!mounted) return;
+    if (!mounted || !context.mounted) return;
 
     setState(() => _isSubmitting = false);
 
@@ -704,23 +727,8 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
       return;
     }
 
-    // 🟧 FAIL: offline → enqueue
+    // Offline submissions are already saved; leave them queued.
     if (!isOnline) {
-      setState(() => _isSubmitting = true);
-      try {
-        await controller.queueOfflineSubmission(payload);
-      } catch (_) {
-        if (!mounted || !context.mounted) return;
-        setState(() => _isSubmitting = false);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text(
-              'Submission was not saved. Your exam and answers have been kept. Please try again.'),
-        ));
-        return;
-      }
-      if (!mounted || !context.mounted) return;
-      setState(() => _isSubmitting = false);
-
       await showDialog(
         context: context,
         barrierDismissible: false,
@@ -753,7 +761,7 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
       return; // ❌ Do NOT exit exam
     }
 
-    // 🟥 FAIL: online but backend rejected
+    // Unconfirmed acceptance must retain the durable submission.
     await showDialog(
       context: context,
       barrierDismissible: false,
@@ -763,13 +771,13 @@ class _ReviewAnswersPageState extends State<ReviewAnswersPage> {
           children: [
             Icon(Icons.error_outline, color: Colors.red),
             SizedBox(width: 8),
-            Text('Server Error'),
+            Text('Confirmation pending'),
           ],
         ),
         content: const Text(
-          'The server could not process your submission.\n\n'
-          'Your exam is NOT submitted.\n'
-          'Please wait a moment and try again.',
+          'Your completed exam is saved on this device. Server acceptance has '
+          'not yet been confirmed. It will be synchronized automatically; '
+          'do not submit again.',
         ),
         actions: [
           TextButton(
