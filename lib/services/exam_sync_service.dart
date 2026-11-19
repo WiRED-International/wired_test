@@ -119,8 +119,7 @@ class ExamSyncService {
         (_connectivityChanges ?? Connectivity().onConnectivityChanged).listen(
       (results) {
         if (results.any((result) => result != ConnectivityResult.none)) {
-          if (_syncing != null) _syncRequested = true;
-          _requestSync();
+          requestSync();
         }
       },
       onError: (Object _) {
@@ -128,12 +127,13 @@ class ExamSyncService {
       },
     );
     if (changed && _authenticated) {
-      if (_syncing != null) _syncRequested = true;
-      _requestSync();
+      requestSync();
     }
   }
 
-  void _requestSync() {
+  /// Coalesce new work/events without losing requests during a running pass.
+  void requestSync() {
+    if (_syncing != null) _syncRequested = true;
     unawaited(trySyncNow().catchError((Object _) {
       debugPrint('Exam synchronization deferred; queued submissions retained');
     }));
@@ -157,7 +157,7 @@ class ExamSyncService {
     // Network reachability can return without a connectivity-type change.
     _retryTimer = Timer(const Duration(seconds: 30), () {
       _retryTimer = null;
-      _requestSync();
+      requestSync();
     });
   }
 
@@ -254,7 +254,7 @@ class ExamSyncService {
     result.then<void>((_) {
       _syncing = null;
       if (_syncRequested && _authenticated) {
-        _requestSync();
+        requestSync();
       } else {
         _scheduleRetry();
       }
@@ -281,6 +281,8 @@ class ExamSyncService {
       for (final entry in entries) {
         if (!_authenticated || epoch != _authEpoch) break;
         try {
+          if (!await RetryQueueService.waitForPersistence(entry)) continue;
+          if (!_authenticated || epoch != _authEpoch) break;
           final payload =
               Map<String, dynamic>.from(jsonDecode(entry.payloadJson) as Map);
           final attempt = _matchingAttempt(payload, student: student);
@@ -379,7 +381,15 @@ class ExamSyncService {
 
   /// 🔹 Main online submit called from ExamController
   /// Also passes through normalized answers as-is.
-  Future<bool> submitExam(Map<String, dynamic> payload) => _submitOnce(payload);
+  Future<bool> submitExam(Map<String, dynamic> payload) async {
+    try {
+      return await _submitOnce(payload);
+    } finally {
+      // Review now persists first. Retry retained work even if connectivity
+      // dropped without another connectivity-type event, or local save failed.
+      if (_syncing == null) _scheduleRetry();
+    }
+  }
 
   Future<bool> _performSubmission(Map<String, dynamic> payload,
       {required bool automatic,
