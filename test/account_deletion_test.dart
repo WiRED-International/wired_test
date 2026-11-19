@@ -8,14 +8,18 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:provider/provider.dart';
 import 'package:wired_test/pages/menu/menu.dart';
+import 'package:wired_test/pages/creditsTracker/credits_tracker.dart';
+import 'package:wired_test/providers/auth_guard.dart';
 import 'package:wired_test/providers/auth_provider.dart';
 import 'package:wired_test/providers/quiz_score_provider.dart';
 
 class _Navigation extends NavigatorObserver {
   int dialogs = 0;
   int replacements = 0;
+  Route<dynamic>? lastPushed;
   @override
   void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
+    lastPushed = route;
     if (route is DialogRoute) dialogs++;
   }
 
@@ -178,6 +182,125 @@ void main() {
     await flush(tester);
     await tester.pump();
     await flush(tester);
+  }
+
+  for (final disposePage in [false, true]) {
+    testWidgets(
+        'data deletion link check ${disposePage ? 'ignores fallback after disposal' : 'keeps fallback while mounted'}',
+        (tester) async {
+      const urlChannel = MethodChannel('plugins.flutter.io/url_launcher');
+      const expectedUrl =
+          'https://sites.google.com/view/wired-international-healthmap/home';
+      String? copiedUrl;
+      final check = Completer<bool>();
+      var checked = false;
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(urlChannel, (call) async {
+        expect(call.method, 'canLaunch');
+        expect((call.arguments as Map)['url'], expectedUrl);
+        checked = true;
+        return check.future;
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(urlChannel, null));
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copiedUrl = (call.arguments as Map)['text'] as String;
+        }
+        return null;
+      });
+      addTearDown(() =>
+          messenger.setMockMethodCallHandler(SystemChannels.platform, null));
+      await http.runWithClient(() async {
+        await mount(tester);
+        await tester.ensureVisible(find.text('Request Data Deletion'));
+        final row = find
+            .ancestor(
+                of: find.text('Request Data Deletion'),
+                matching: find.byType(GestureDetector))
+            .first;
+        final callback = tester.widget<GestureDetector>(row).onTap!;
+        launch(() async {
+          await Function.apply(callback, const []);
+        });
+        await tester.pump();
+        expect(checked, isTrue);
+        expect(find.text('Unable to Open Link'), findsNothing);
+        if (disposePage) {
+          await tester.pumpWidget(const SizedBox.shrink());
+        }
+        check.complete(false);
+        await tester.pumpAndSettle();
+        if (disposePage) {
+          expect(navigation.dialogs, 0);
+        } else {
+          expect(find.text('Unable to Open Link'), findsOneWidget);
+          final displayed =
+              tester.widget<SelectableText>(find.byType(SelectableText)).data!;
+          expect(displayed,
+              'Please manually open this link in your browser:\n\n$expectedUrl');
+          expect(find.textContaining('YOUR_DOCUMENT_ID'), findsNothing);
+          await tester.tap(find.text('Copy Link'));
+          await tester.pumpAndSettle();
+          expect(copiedUrl, expectedUrl);
+          expect(displayed.endsWith(copiedUrl!), isTrue);
+          expect(find.byType(AlertDialog), findsNothing);
+        }
+        expect(deletes, isEmpty);
+        expect(errors, isEmpty);
+        expect(tester.takeException(), isNull);
+      }, () => client);
+    });
+  }
+
+  for (final landscape in [false, true]) {
+    testWidgets(
+        'Menu content and account actions render in ${landscape ? 'landscape' : 'portrait'}',
+        (tester) async {
+      await http.runWithClient(() async {
+        await mount(tester);
+        if (landscape) {
+          tester.view.physicalSize = const Size(800, 400);
+          await tester.pumpAndSettle();
+        }
+        for (final label in [
+          'About WiRED',
+          'Classes',
+          'Privacy Policy',
+          'Exams',
+          'Account Management',
+          'Request Data Deletion',
+          'Log out',
+          'Delete Account',
+        ]) {
+          expect(find.text(label), findsOneWidget);
+        }
+        // The account action remains reachable through the content's scrolling
+        // container in either orientation, including after an orientation change.
+        await tester.ensureVisible(find.text('Delete Account'));
+        await tester.tap(find.text('Delete Account'));
+        await tester.pumpAndSettle();
+        expect(
+            find.text('Are you sure? This cannot be undone.'), findsOneWidget);
+        await tester.tap(find.text('Cancel'));
+        await tester.pumpAndSettle();
+        expect(deletes, isEmpty);
+        expect(auth.isLoggedIn, isTrue);
+        await tester.ensureVisible(find.text('Tracker'));
+        await tester.tap(find.text('Tracker'));
+        final route = navigation.lastPushed! as MaterialPageRoute;
+        final destination = route.builder(navigatorKey.currentContext!);
+        expect(destination, isA<AuthGuard>());
+        expect((destination as AuthGuard).child, isA<CreditsTracker>());
+        expect(navigatorKey.currentState!.canPop(), isTrue);
+        expect(navigation.replacements, 0);
+        navigatorKey.currentState!.pop();
+        await tester.pumpAndSettle();
+        expect(find.byType(Menu), findsOneWidget);
+        expect(errors, isEmpty);
+        expect(tester.takeException(), isNull);
+      }, () => client);
+    });
   }
 
   for (final dismissal in ['Cancel', 'barrier', 'Back']) {
