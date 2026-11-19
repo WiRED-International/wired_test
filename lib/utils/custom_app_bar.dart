@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
-import 'package:wired_test/utils/functions.dart';
 import '../providers/auth_provider.dart';
 import '../pages/cme/login.dart';
 
 class CustomAppBar extends StatelessWidget {
   final VoidCallback onBackPressed;
-  final bool requireAuth; // Defaults to true to check authentication for all pages
+  final bool
+      requireAuth; // Defaults to true to check authentication for all pages
   final double? scale;
 
   const CustomAppBar({
@@ -22,8 +22,7 @@ class CustomAppBar extends StatelessWidget {
     var screenWidth = MediaQuery.of(context).size.width;
     var screenHeight = MediaQuery.of(context).size.height;
     var baseSize = MediaQuery.of(context).size.shortestSide;
-    final isTabletDevice = isTablet(context);
-    final effectiveScale = scale ?? (isTabletDevice ? 1.0 : 1.0);
+    final effectiveScale = scale ?? 1.0;
 
     return Container(
       padding: EdgeInsets.symmetric(
@@ -37,7 +36,8 @@ class CustomAppBar extends StatelessWidget {
             onTap: () {
               // Handle navigation logic based on authentication requirement
               if (requireAuth) {
-                final authProvider = Provider.of<AuthProvider>(context, listen: false);
+                final authProvider =
+                    Provider.of<AuthProvider>(context, listen: false);
                 if (authProvider.isLoggedIn) {
                   // User is authenticated, navigate back
                   onBackPressed();

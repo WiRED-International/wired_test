@@ -11,15 +11,6 @@ bool isTablet(BuildContext context) {
   return shortestSide > 600;
 }
 
-// Function to get responsive text style
-TextStyle responsiveTextStyle(BuildContext context, double baseSize) {
-  return TextStyle(
-    fontSize: isTablet(context)
-        ? baseSize * 1.5
-        : baseSize, // Adjust font size for tablets
-  );
-}
-
 // Keep invalid history dates explicit rather than assigning a substitute date.
 DateTime? parseCreditHistoryDate(Object? value) =>
     value is String ? DateTime.tryParse(value) : null;
@@ -27,7 +18,9 @@ DateTime? parseCreditHistoryDate(Object? value) =>
 // Function to format timestamp
 String formatDate(Object? timestamp) {
   final date = parseCreditHistoryDate(timestamp);
-  return date == null ? 'Invalid date' : DateFormat('MMM dd, yyyy').format(date);
+  return date == null
+      ? 'Invalid date'
+      : DateFormat('MMM dd, yyyy').format(date);
 }
 
 // Function to pad base64 string
@@ -59,51 +52,6 @@ Future<bool> checkIfUserIsLoggedIn() async {
   debugPrint("User is logged in: $isLoggedIn"); // Debugging output
 
   return isLoggedIn;
-}
-
-int calculateCredits(List<dynamic>? quizScores) {
-  final int currentYear = DateTime.now().year;
-
-  if (quizScores == null) return 0;
-
-  int totalCredits = 0;
-
-  for (var score in quizScores) {
-    if (score is Map<String, dynamic>) {
-      final rawScore = score['score'];
-      final double scoreValue = (rawScore is num)
-          ? rawScore.toDouble()
-          : double.tryParse(rawScore.toString()) ?? 0.0;
-
-      final rawDate = score['date_taken'];
-      final DateTime? dateTaken =
-          rawDate != null ? DateTime.tryParse(rawDate.toString()) : null;
-
-      // 🧠 Handle both flattened and nested credit_type
-      final String creditType =
-          (score['credit_type'] ?? score['module']?['credit_type'] ?? 'none')
-              .toString()
-              .toLowerCase();
-
-      // ✅ Debug
-      debugPrint(
-          '🧮 Evaluating: score=$scoreValue, creditType=$creditType, date=${dateTaken?.year}');
-
-      if (creditType == 'cme' &&
-          scoreValue >= 80.0 &&
-          dateTaken != null &&
-          dateTaken.year == currentYear) {
-        totalCredits += 5;
-        debugPrint('✅ Counted: $scoreValue (${dateTaken.year})');
-      } else {
-        debugPrint(
-            '❌ Skipped: score=$scoreValue, creditType=$creditType, date=${dateTaken?.year}');
-      }
-    }
-  }
-
-  debugPrint('📊 Total CME credits counted: $totalCredits');
-  return totalCredits;
 }
 
 // Generate PDF from CME data
