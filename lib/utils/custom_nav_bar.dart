@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:wired_test/utils/functions.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 class CustomBottomNavBar extends StatelessWidget {
@@ -21,8 +20,7 @@ class CustomBottomNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final baseSize = MediaQuery.of(context).size.shortestSide;
-    final isTabletDevice = isTablet(context);
-    final effectiveScale = scale ?? (isTabletDevice ? 1.0 : 1.0);
+    final effectiveScale = scale ?? 1.0;
 
     final double iconSize = baseSize * 0.08 * effectiveScale;
     final double fontSize = baseSize * 0.04 * effectiveScale;
@@ -39,7 +37,6 @@ class CustomBottomNavBar extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _buildIconNavItem(
-            context,
             label: "Home",
             icon: Icons.home,
             onTap: onHomeTap,
@@ -47,7 +44,6 @@ class CustomBottomNavBar extends StatelessWidget {
             fontSize: fontSize,
           ),
           _buildIconNavItem(
-            context,
             label: "My Library",
             icon: Icons.library_books,
             onTap: onLibraryTap,
@@ -55,7 +51,6 @@ class CustomBottomNavBar extends StatelessWidget {
             fontSize: fontSize,
           ),
           _buildSvgNavItem(
-            context,
             label: "Tracker",
             svgPath: 'assets/icons/credits.svg',
             onTap: onTrackerTap,
@@ -63,7 +58,6 @@ class CustomBottomNavBar extends StatelessWidget {
             fontSize: fontSize,
           ),
           _buildSvgNavItem(
-            context,
             label: "Menu",
             svgPath: 'assets/icons/hamburger.svg',
             onTap: onMenuTap,
@@ -78,7 +72,7 @@ class CustomBottomNavBar extends StatelessWidget {
   // =====================
   // 🔹 Helper for Icon Buttons
   // =====================
-  Widget _buildIconNavItem(BuildContext context, {
+  Widget _buildIconNavItem({
     required String label,
     required IconData icon,
     required VoidCallback onTap,
@@ -114,7 +108,7 @@ class CustomBottomNavBar extends StatelessWidget {
   // =====================
   // 🔹 Helper for SVG Buttons
   // =====================
-  Widget _buildSvgNavItem(BuildContext context, {
+  Widget _buildSvgNavItem({
     required String label,
     required String svgPath,
     required VoidCallback onTap,
