@@ -8,7 +8,7 @@ class NetworkUtils {
   static Future<bool> isOnline() async {
     final status = await Connectivity().checkConnectivity();
 
-    if (status == ConnectivityResult.none) {
+    if (status.contains(ConnectivityResult.none)) {
       return false;
     }
 
