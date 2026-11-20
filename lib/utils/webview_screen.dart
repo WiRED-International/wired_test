@@ -455,6 +455,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
         File file = File(filePath);
 
         if (await file.exists()) {
+          if (!mounted) return;
           final result = await OpenFile.open(filePath);
 
           print("📄 OpenFile result: ${result.type}");
@@ -521,6 +522,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
         }
         print("📂 File found! Opening PDF...");
 
+        if (!mounted) return;
         final result = await OpenFile.open(resolvedPath);
 
         print("📄 OpenFile result: ${result.type}");

@@ -40,11 +40,12 @@ class _PdfOpener extends OpenFilePlatform {
 
 class _Controller implements InAppWebViewController {
   WebUri? loadedUrl;
+  Completer<WebUri?>? pendingUrl;
   var urlLookups = 0;
   @override
   Future<WebUri?> getUrl() async {
     urlLookups++;
-    return loadedUrl;
+    return pendingUrl == null ? loadedUrl : await pendingUrl!.future;
   }
 
   final Map<String, Function> handlers = {};
@@ -103,6 +104,52 @@ void main() {
       PathProviderPlatform.instance = originalPaths;
       OpenFilePlatform.platform = originalOpener;
       await root.delete(recursive: true);
+    });
+
+    testWidgets('pending PDF resolution does not open after disposal',
+        (tester) async {
+      final entry = File(p.join(root.path, 'module', 'index.html'));
+      final pdf = File(p.join(entry.parent.path, 'guide.pdf'));
+      await tester.runAsync(() async {
+        await entry.parent.create(recursive: true);
+        await entry.writeAsString('<html></html>');
+        await pdf.writeAsString('%PDF-1.4 test fixture');
+      });
+      final platform = _Platform();
+      final previous = InAppWebViewPlatform.instance;
+      InAppWebViewPlatform.instance = platform;
+      addTearDown(
+          () => InAppWebViewPlatform.instance = previous ?? _Platform());
+      await tester.pumpWidget(Provider.value(
+        value: PendingQuizScoreRepository(
+          read: () async => null,
+          write: (_) async => fail('PDF routing must not save a score'),
+        ),
+        child: MaterialApp(
+          home: WebViewScreen(
+            moduleId: '1001',
+            urlRequest: URLRequest(url: WebUri(entry.uri.toString())),
+          ),
+        ),
+      ));
+      final controller = _Controller()..pendingUrl = Completer<WebUri?>();
+      final dynamic created = platform.params.onWebViewCreated;
+      await created(controller);
+      late Future<dynamic> request;
+      await tester.runAsync(() async {
+        request = controller.handlers['openPdfResource']!([
+          {'file': 'guide.pdf', 'url': 'guide.pdf'}
+        ]);
+      });
+      expect(controller.urlLookups, 1);
+      expect(controller.pendingUrl!.isCompleted, isFalse);
+      await tester.pumpWidget(const SizedBox());
+      await tester.runAsync(() async {
+        controller.pendingUrl!.complete(WebUri(entry.uri.toString()));
+        await request;
+      });
+      expect(opener.paths, isEmpty);
+      expect(tester.takeException(), isNull);
     });
 
     // Characterizations preserve working paths; desired-behavior cases cover
