@@ -56,6 +56,8 @@ class _Controller extends ChangeNotifier implements ExamController {
   final startedIds = <int>[];
   List<Map<String, dynamic>>? questions;
   @override
+  String? recoveryMessage;
+  @override
   int? savedExamId;
   @override
   int remainingSeconds = 0;
@@ -78,7 +80,10 @@ class _Controller extends ChangeNotifier implements ExamController {
   final recoveries = <int, ExamRecoveryState>{};
   @override
   ExamRecoveryState recoveryStateFor(int examId, int userId) =>
-      recoveries[examId] ?? (savedExamId == examId ? ExamRecoveryState.resumable : ExamRecoveryState.none);
+      recoveries[examId] ??
+      (savedExamId == examId
+          ? ExamRecoveryState.resumable
+          : ExamRecoveryState.none);
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>
@@ -309,7 +314,8 @@ void main() {
     expect(controller.startedIds, [32]);
     expect(controller.restores, 1);
     expect(adapter.requests, hasLength(1));
-    expect(find.textContaining('server session could not be safely verified'), findsOneWidget);
+    expect(find.textContaining('server session could not be safely verified'),
+        findsOneWidget);
     expect(tester.widget<ElevatedButton>(button).onPressed, isNotNull);
   });
 
@@ -391,7 +397,8 @@ void main() {
     expect(start(tester).onPressed, isNotNull);
   });
 
-  testWidgets('unresolved saved session cannot start from selection', (tester) async {
+  testWidgets('unresolved saved session cannot start from selection',
+      (tester) async {
     controller.recoveries[31] = ExamRecoveryState.unresolved;
     await show(tester, [_november('open')]);
     await tester.ensureVisible(find.text('Start Exam'));
@@ -401,7 +408,8 @@ void main() {
     // Entry delegates to the controller's guarded recovery/start operation.
     expect(controller.starts, 1);
     expect(adapter.requests, hasLength(1));
-    expect(find.textContaining('saved exam session needs recovery'), findsOneWidget);
+    expect(find.textContaining('saved exam session needs recovery'),
+        findsOneWidget);
   });
 
   group('Availability presentation', () {
