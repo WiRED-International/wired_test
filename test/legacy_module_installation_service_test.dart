@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:async';
+import 'package:wired_test/services/download_installation_reporting.dart';
 
 import 'package:archive/archive_io.dart';
 import 'package:dio/dio.dart';
@@ -28,6 +29,7 @@ class _FailingRegistry extends ModuleInstallationRegistry {
     String? launcherPath,
     String? version,
     required String provenance,
+    String? installedAt,
   }) async {
     calls++;
     expect(await File(entryPointPath).exists(), isTrue);
@@ -194,6 +196,7 @@ void main() {
       expect(record['version'], '3');
       expect(record['provenance'], 'new-install');
       expect(record['installed_at'], isNotNull);
+      expect(result.publicationKey, instructionalPublicationKey(record));
       await Hive.close();
       expect(await registry.getInstructionalInstallation(42), record);
     });
@@ -215,6 +218,7 @@ void main() {
           downloadUrl: 'https://example.com/module.zip');
       expect(result.trackingOutcome, InstructionalTrackingOutcome.failed);
       expect(result.trackingError, isA<StateError>());
+      expect(result.publicationKey, startsWith('instructional:42:'));
       expect(await File(result.entryPointPath).readAsString(), 'working');
       if (storyline) expect(await File(result.launcherPath!).exists(), isTrue);
       // A subsequent operation reaches extraction, rather than a held lock.
@@ -226,6 +230,35 @@ void main() {
           throwsFormatException);
     });
   }
+
+  test(
+      'new publication keeps its identity when an old registry record survives',
+      () async {
+    final registry = ModuleInstallationRegistry();
+    await registry.saveInstructionalInstallation(
+        databaseId: 42,
+        moduleId: '1565',
+        format: 'compiler',
+        contentDirectory: root.path,
+        entryPointPath: p.join(root.path, 'old.html'),
+        provenance: 'new-install',
+        installedAt: '2020-01-01T00:00:00.000Z');
+    final old = (await registry.getInstructionalInstallation(42))!;
+    final zip = await _zipFixture(root, {'index.html': 'new publication'});
+    final result = await LegacyModuleInstallationService(
+            downloadService: _FixtureDownloader(root, zip),
+            registry: _FailingRegistry())
+        .downloadAndInstallWithResult(
+            databaseId: 42,
+            moduleId: '1565',
+            moduleName: 'New',
+            downloadUrl: 'https://example.com/module.zip');
+    expect(result.trackingOutcome, InstructionalTrackingOutcome.failed);
+    expect(result.publicationKey, startsWith('instructional:42:'));
+    expect(result.publicationKey, isNot(instructionalPublicationKey(old)));
+    expect(await registry.getInstructionalInstallation(42), old);
+    expect(await File(result.entryPointPath).readAsString(), 'new publication');
+  });
 
   test('cleanup failure returns warning and releases lock', () async {
     final zip = await _zipFixture(root, {'index.html': 'working'});
@@ -351,6 +384,7 @@ void main() {
     final downloader = _FixtureDownloader(root, _DeleteFailFile(zip));
     final warnings = <int?>[];
     final completed = <int?>[];
+    final publications = <int?, String?>{};
     await ProgramDownloadService(
       installer: LegacyModuleInstallationService(
           downloadService: downloader, registry: registry),
@@ -371,7 +405,12 @@ void main() {
           expect(result.trackingOutcome, InstructionalTrackingOutcome.failed);
           warnings.add(module.id);
         },
+        onPublicationConfirmed: (module, result) {
+          publications[module.id] = result.publicationKey;
+        },
         onModuleInstalled: (module) async {
+          expect(publications[module.id],
+              startsWith('instructional:${module.id}:'));
           completed.add(module.id);
         });
     expect(completed, [42, 43]);

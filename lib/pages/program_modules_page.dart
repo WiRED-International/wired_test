@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import '../providers/auth_guard.dart';
 import '../utils/custom_nav_bar.dart';
 import '../utils/functions.dart';
@@ -222,6 +223,7 @@ class _ProgramModulesPageState extends State<ProgramModulesPage> {
       }
 
       final locationService = widget.locationService ?? LocationService();
+      final publicationKeys = <int?, String?>{};
 
       await _programDownloader.downloadProgram(
         modules: modules
@@ -233,6 +235,9 @@ class _ProgramModulesPageState extends State<ProgramModulesPage> {
           setState(() {
             _programProgress = progress;
           });
+        },
+        onPublicationConfirmed: (module, result) {
+          publicationKeys[module.id] = result.publicationKey;
         },
         onModuleInstalled: (module) async {
           if (mounted) {
@@ -248,10 +253,13 @@ class _ProgramModulesPageState extends State<ProgramModulesPage> {
             return;
           }
 
-          await locationService.saveDownload(
-            databaseModuleId,
-            null,
-          );
+          unawaited(locationService
+              .reportSuccessfulInstallation(
+                databaseModuleId,
+                null,
+                publicationKey: publicationKeys[databaseModuleId] ?? '',
+              )
+              .catchError((Object _) {}));
         },
         onInstallationWarning: (module, result) {
           if (mounted) setState(() => _warningModules.add(_identity(module)));

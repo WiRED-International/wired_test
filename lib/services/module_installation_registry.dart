@@ -27,7 +27,8 @@ class ModuleInstallationRegistry {
         final artifact = p.join(storageDirectory, '$boxName.hivec');
         if (await FileSystemEntity.type(artifact, followLinks: false) !=
             FileSystemEntityType.notFound) {
-          throw HiveError('Registry recovery artifact requires review: $artifact');
+          throw HiveError(
+              'Registry recovery artifact requires review: $artifact');
         }
       }
       return _openForSession();
@@ -76,7 +77,8 @@ class ModuleInstallationRegistry {
     if (databaseId != null) _instructionalKey(databaseId);
     if (!Hive.isBoxOpen(boxName)) {
       if (!await Hive.boxExists(boxName)) return [];
-      throw HiveError('Installation registry is closed; inspection cannot open it');
+      throw HiveError(
+          'Installation registry is closed; inspection cannot open it');
     }
     final box = Hive.box(boxName);
     final matches = <Map<String, dynamic>>[];
@@ -84,18 +86,22 @@ class ModuleInstallationRegistry {
       if (key is! String || !key.startsWith('instructional-db:')) continue;
       final id = int.tryParse(key.substring('instructional-db:'.length));
       final record = box.get(key);
-      if (id == null || id <= 0 || key != _instructionalKey(id) ||
-          record is! Map || !_validInstructionalRecord(record, id)) {
+      if (id == null ||
+          id <= 0 ||
+          key != _instructionalKey(id) ||
+          record is! Map ||
+          !_validInstructionalRecord(record, id)) {
         throw FormatException('Malformed instructional registry claim: $key');
       }
       final claimed = ['content_directory', 'entry_point_path', 'launcher_path']
-          .map((field) => record[field]).whereType<String>();
+          .map((field) => record[field])
+          .whereType<String>();
       final overlaps = paths.any((path) => claimed.any((claim) {
-        if (!p.isAbsolute(path) || !p.isAbsolute(claim)) return false;
-        final a = p.normalize(path);
-        final b = p.normalize(claim);
-        return p.equals(a, b) || p.isWithin(a, b) || p.isWithin(b, a);
-      }));
+            if (!p.isAbsolute(path) || !p.isAbsolute(claim)) return false;
+            final a = p.normalize(path);
+            final b = p.normalize(claim);
+            return p.equals(a, b) || p.isWithin(a, b) || p.isWithin(b, a);
+          }));
       if (id == databaseId || overlaps) {
         matches.add(Map<String, dynamic>.from(record));
       }
@@ -125,6 +131,7 @@ class ModuleInstallationRegistry {
     String? launcherPath,
     String? version,
     required String provenance,
+    String? installedAt,
   }) async {
     final key = _instructionalKey(databaseId);
     final record = <String, dynamic>{
@@ -136,7 +143,7 @@ class ModuleInstallationRegistry {
       'entry_point_path': entryPointPath,
       if (launcherPath != null) 'launcher_path': launcherPath,
       if (version != null) 'version': version,
-      'installed_at': DateTime.now().toUtc().toIso8601String(),
+      'installed_at': installedAt ?? DateTime.now().toUtc().toIso8601String(),
       'provenance': provenance,
     };
     if (!_validInstructionalRecord(record, databaseId)) {
@@ -213,8 +220,8 @@ class ModuleInstallationRegistry {
 
   /// Returns the saved installation record for a module.
   Future<Map<String, dynamic>?> getInstallation(
-      String moduleId,
-      ) async {
+    String moduleId,
+  ) async {
     final box = await openRegistry();
     final record = box.get(moduleId);
 
@@ -285,5 +292,4 @@ class ModuleInstallationRegistry {
 
     await box.put(moduleId, Map<String, dynamic>.from(previousRecord));
   }
-
 }

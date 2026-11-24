@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../services/download_event_outbox.dart';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -229,7 +230,9 @@ class _AnimationInfoState extends State<AnimationInfo> {
     // Tracking cannot hold navigation or change the installed result. Avoid
     // permission dialogs whose page context could be disposed while awaiting.
     try {
-      await statistics.saveDownload(widget.animationId, null);
+      await statistics.reportSuccessfulInstallation(widget.animationId, null,
+          publicationKey:
+              'animation:${widget.animationId}:${downloadEventUuid()}');
     } catch (error) {
       debugPrint('Animation download tracking unavailable: $error');
     }

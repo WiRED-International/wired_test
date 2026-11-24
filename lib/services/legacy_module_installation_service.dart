@@ -17,6 +17,7 @@ class InstructionalInstallationResult {
     this.launcherPath,
     required this.trackingOutcome,
     this.trackingError,
+    this.publicationKey,
     List<Object> cleanupWarnings = const [],
   }) : cleanupWarnings = List.unmodifiable(cleanupWarnings);
 
@@ -26,6 +27,9 @@ class InstructionalInstallationResult {
   final String? launcherPath;
   final InstructionalTrackingOutcome trackingOutcome;
   final Object? trackingError;
+
+  /// Identity of this publication, also persisted as the registry timestamp.
+  final String? publicationKey;
   final List<Object> cleanupWarnings;
   bool get hasWarnings =>
       trackingOutcome == InstructionalTrackingOutcome.failed ||
@@ -157,6 +161,7 @@ class LegacyModuleInstallationService {
     String? launcherPath;
     var trackingOutcome = InstructionalTrackingOutcome.skipped;
     Object? trackingError;
+    String? publicationKey;
     final cleanupWarnings = <Object>[];
     try {
       final result = ReceivePort();
@@ -235,6 +240,10 @@ class LegacyModuleInstallationService {
         );
       }
 
+      final installedAt = DateTime.now().toUtc().toIso8601String();
+      if (databaseId != null) {
+        publicationKey = 'instructional:$databaseId:$installedAt';
+      }
       // Publication has committed. Tracking must never trigger file rollback.
       if (databaseId != null) {
         try {
@@ -247,6 +256,7 @@ class LegacyModuleInstallationService {
             launcherPath: launcherPath,
             version: version?.trim().isEmpty == true ? null : version,
             provenance: 'new-install',
+            installedAt: installedAt,
           );
           trackingOutcome = InstructionalTrackingOutcome.saved;
         } catch (error) {
@@ -274,6 +284,7 @@ class LegacyModuleInstallationService {
       launcherPath: launcherPath,
       trackingOutcome: trackingOutcome,
       trackingError: trackingError,
+      publicationKey: publicationKey,
       cleanupWarnings: cleanupWarnings,
     );
   }

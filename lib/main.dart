@@ -1,4 +1,6 @@
 import 'config/api_config.dart';
+import 'services/download_event_outbox.dart';
+import 'services/download_installation_reporting.dart';
 import 'services/pending_quiz_score_repository.dart';
 import 'services/animation_installation_coordinator.dart';
 import 'services/animation_preparation_service.dart';
@@ -83,6 +85,40 @@ Future<void> main() async {
   await initializeInstructionalRegistryForStartup(
     storageDirectory: examBox.path == null ? null : p.dirname(examBox.path!),
   );
+
+  if (!downloadEventOutboxEnabled) {
+    try {
+      if (await Hive.boxExists(DownloadEventOutbox.boxName)) {
+        final box = await Hive.openBox<String>(DownloadEventOutbox.boxName);
+        await box.put('paused', 'true');
+        await box.flush();
+      }
+    } catch (error) {
+      debugPrint('Download outbox pause marker unavailable: $error');
+    }
+  }
+  if (downloadEventOutboxEnabled) {
+    initializeDownloadOutbox = () async {
+      final outbox = DownloadEventOutbox(
+        await Hive.openBox<String>(DownloadEventOutbox.boxName),
+        endpoint: Uri.parse('$apiBaseUrl/api/downloads'),
+      );
+      try {
+        await reconcileDownloadInstallations(outbox);
+        outbox.start();
+        return outbox;
+      } catch (_) {
+        outbox.dispose();
+        rethrow;
+      }
+    };
+    try {
+      await ensureDownloadOutbox();
+    } catch (error) {
+      debugPrint('Download outbox unavailable; continuing startup. '
+          'Reporting will retry initialization: $error');
+    }
+  }
 
   // Load stored auth data
   final authProvider = AuthProvider();

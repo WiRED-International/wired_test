@@ -1,5 +1,8 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:convert';
+import 'package:hive/hive.dart';
+import 'package:wired_test/services/download_event_outbox.dart';
 
 import 'package:archive/archive.dart';
 import 'package:flutter/material.dart';
@@ -164,6 +167,48 @@ void main() {
     }
     expect(catalog.Animation.fromJson({'id': '42'}).id, 42);
   });
+  for (final fails in [false, true]) {
+    testWidgets('outbox records only published animations; failure=$fails',
+        (tester) async {
+      final outbox = (await tester.runAsync(() async {
+        Hive.init(root.path);
+        return DownloadEventOutbox(
+          await Hive.openBox<String>(DownloadEventOutbox.boxName),
+          endpoint: Uri.parse('https://example.invalid/api/downloads'),
+          enabled: true,
+          client: MockClient((_) async => http.Response('', 200)),
+        );
+      }))!;
+      DownloadEventOutbox.current = outbox;
+      addTearDown(() async {
+        DownloadEventOutbox.current = null;
+        outbox.dispose();
+        await Hive.close();
+      });
+      installer = service(fail: fails);
+      await mount(tester);
+      await start(tester);
+      await waitFor(
+          tester,
+          fails
+              ? 'Download could not be completed. Please try again.'
+              : 'Downloaded');
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 30));
+      });
+      expect(statistics.ids, isEmpty); // legacy sender never also runs
+      expect(outbox.box.length, fails ? 0 : 1);
+      if (!fails) {
+        final record = jsonDecode(outbox.box.values.single) as Map;
+        final payload = jsonDecode(record['payload_json'] as String) as Map;
+        expect(payload['module_id'], 42);
+        expect(payload['latitude'], null);
+        // Same installed animation cannot generate another event on revisit.
+        await mount(tester);
+        expect(outbox.box.length, 1);
+      }
+    });
+  }
   for (final id in [null, 0, -1, 'invalid']) {
     testWidgets('catalog refuses navigation for ID $id', (tester) async {
       dotenv.loadFromString(envString: 'API_BASE_URL=https://example.invalid');

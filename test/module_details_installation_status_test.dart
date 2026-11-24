@@ -1,4 +1,9 @@
 import 'dart:io';
+import 'dart:convert';
+import 'package:hive/hive.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:wired_test/services/download_event_outbox.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -165,7 +170,22 @@ void main() {
       (tester) async {
     final root = (await tester.runAsync(
         () => Directory.systemTemp.createTemp('details_publication_')))!;
-    addTearDown(() async => root.delete(recursive: true));
+    final outbox = (await tester.runAsync(() async {
+      Hive.init(root.path);
+      return DownloadEventOutbox(
+        await Hive.openBox<String>(DownloadEventOutbox.boxName),
+        endpoint: Uri.parse('https://example.invalid/api/downloads'),
+        enabled: true,
+        client: MockClient((_) async => http.Response('', 200)),
+      );
+    }))!;
+    DownloadEventOutbox.current = outbox;
+    addTearDown(() async {
+      DownloadEventOutbox.current = null;
+      outbox.dispose();
+      await Hive.close();
+      await root.delete(recursive: true);
+    });
     final entry = File('${root.path}/index.html');
     await tester.runAsync(() => entry.writeAsString('working offline content'));
     SharedPreferences.setMockInitialValues(
@@ -179,12 +199,13 @@ void main() {
           format: 'compiler',
           contentDirectory: root.path,
           entryPointPath: entry.path,
+          publicationKey: 'instructional:42:2026-11-22T00:00:00.000Z',
           trackingOutcome: InstructionalTrackingOutcome.failed,
           trackingError: StateError('registry unavailable'),
           cleanupWarnings: [const FileSystemException('cleanup failed')]);
     await mount(tester, status, installer);
     await tester.ensureVisible(find.text('Download Module'));
-    await tester.tap(find.text('Download Module'));
+    await tester.runAsync(() => tester.tap(find.text('Download Module')));
     for (var attempt = 0; attempt < 100; attempt++) {
       await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 10)));
@@ -201,8 +222,65 @@ void main() {
     expect(find.byType(SnackBar), findsOneWidget);
     expect(installer.calls, 1);
     expect(status.calls, 2);
+    // Explicit location decline still creates exactly one anonymous event.
+    for (var i = 0; i < 100 && outbox.box.isEmpty; i++) {
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)));
+      await tester.pump();
+    }
+    expect(outbox.box.length, 1);
+    expect(
+        outbox.box
+            .containsKey('event:instructional:42:2026-11-22T00:00:00.000Z'),
+        isTrue);
+    final queued = jsonDecode(outbox.box.values.single) as Map;
+    final payload = jsonDecode(queued['payload_json'] as String) as Map;
+    expect(payload['module_id'], 42); // database ID, not content ID 1565
+    expect(payload['latitude'], null);
+    expect(payload['longitude'], null);
+    expect(payload.containsKey('user_id'), false);
     expect(
         await tester.runAsync(entry.readAsString), 'working offline content');
+  });
+
+  testWidgets('failed publication verification queues no event',
+      (tester) async {
+    final root = (await tester.runAsync(
+        () => Directory.systemTemp.createTemp('details_failed_publication_')))!;
+    final outbox = (await tester.runAsync(() async {
+      Hive.init(root.path);
+      return DownloadEventOutbox(
+        await Hive.openBox<String>(DownloadEventOutbox.boxName),
+        endpoint: Uri.parse('https://example.invalid/api/downloads'),
+        enabled: true,
+        client: MockClient((_) async => http.Response('', 200)),
+      );
+    }))!;
+    DownloadEventOutbox.current = outbox;
+    addTearDown(() async {
+      DownloadEventOutbox.current = null;
+      outbox.dispose();
+      await Hive.close();
+      await root.delete(recursive: true);
+    });
+    final installer = _Installer()
+      ..result = InstructionalInstallationResult(
+          format: 'compiler',
+          contentDirectory: root.path,
+          entryPointPath: '${root.path}/missing.html',
+          trackingOutcome: InstructionalTrackingOutcome.skipped);
+    await mount(tester, _Status([InstructionalInstallationState.notInstalled]),
+        installer);
+    await tester.ensureVisible(find.text('Download Module'));
+    await tester.runAsync(() => tester.tap(find.text('Download Module')));
+    for (var i = 0; i < 20; i++) {
+      await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)));
+      await tester.pump();
+    }
+    expect(outbox.box.isEmpty, true);
+    expect(find.textContaining('Installation could not be completed.'),
+        findsOneWidget);
   });
 
   testWidgets(
