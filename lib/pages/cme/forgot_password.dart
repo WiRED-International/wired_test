@@ -41,6 +41,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
   Future<void> _submitResetRequest() async {
     if (_isSubmitting) return;
 
+    final email = _emailController.text.trim();
     if (!_formKey.currentState!.validate()) {
       return;
     }
@@ -63,7 +64,7 @@ class _ForgotPasswordState extends State<ForgotPassword> {
           'Content-Type': 'application/json',
         },
         body: json.encode({
-          'email': _emailController.text.trim(),
+          'email': email,
           'client': 'mobile',
         }),
       );
@@ -267,8 +268,12 @@ class _ForgotPasswordState extends State<ForgotPassword> {
                   border: OutlineInputBorder(),
                 ),
                 validator: (value) {
+                  value = value?.trim();
                   if (value == null || value.isEmpty) {
                     return "Please enter your email";
+                  }
+                  if (RegExp(r"\s").hasMatch(value)) {
+                    return "Please enter a valid email";
                   }
                   return null;
                 },
