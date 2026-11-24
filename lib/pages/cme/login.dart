@@ -51,9 +51,10 @@ class _LoginState extends State<Login> {
     final apiEndpoint = '/auth/login';
     final url = Uri.parse("$apiBaseUrl$apiEndpoint");
 
+    final email = _emailController.text.trim();
     if (_formKey.currentState!.validate()) {
       // Validate the email and password fields
-      if (_emailController.text.isEmpty) {
+      if (email.isEmpty) {
         if (mounted) _showErrorAlert("Please enter your email");
         return null;
       }
@@ -63,7 +64,6 @@ class _LoginState extends State<Login> {
       }
 
       // Collect form data
-      final email = _emailController.text.trim();
       final password = _passwordController.text.trim();
 
       try {
@@ -322,8 +322,12 @@ class _LoginState extends State<Login> {
       label: "Email",
       hintText: "Enter your email",
       validator: (value) {
+        value = value?.trim();
         if (value == null || value.isEmpty) {
           return "Please enter your email";
+        }
+        if (RegExp(r"\s").hasMatch(value)) {
+          return "Please enter a valid email";
         }
         return null;
       },

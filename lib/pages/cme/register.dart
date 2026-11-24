@@ -219,8 +219,10 @@ class _RegisterState extends State<Register> {
 
     final apiEndpoint = '/auth/register';
 
+    final email = _emailController.text.trim();
+
     // Validate the email field first
-    if (_emailController.text.isEmpty || _validateEmail(_emailController.text) != null) {
+    if (email.isEmpty || _validateEmail(email) != null) {
       _showErrorAlert("Please enter a valid email address.");
       return false;
     }
@@ -242,7 +244,7 @@ class _RegisterState extends State<Register> {
     final userData = {
       "first_name": _firstNameController.text.trim(),
       "last_name": _lastNameController.text.trim(),
-      "email": _emailController.text.trim(),
+      "email": email,
       "country_id": _selectedCountry!['id'],
       "city": _cityController.text.trim(),
       "organization_id": _selectedOrganization?['id'],
@@ -763,6 +765,7 @@ Widget _buildTextField({
 // }
 
 String? _validateEmail(String? value) {
+  value = value?.trim();
   if (value == null || value.isEmpty) {
     return "Please enter an email";
   }
