@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:async';
+import '../services/download_installation_reporting.dart';
 import 'package:path/path.dart' as p;
 import 'package:wired_test/pages/home_page.dart';
 import '../providers/auth_guard.dart';
@@ -165,7 +167,10 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
     final prefs = await SharedPreferences.getInstance();
     bool? choice = prefs.getBool('location_permission_choice');
     if (choice == null) {
-      if (!mounted) return;
+      if (!mounted) {
+        await _reportInstallation(null);
+        return;
+      }
       choice = await showDialog<bool>(
             context: context,
             barrierDismissible: false,
@@ -191,18 +196,35 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
           false;
       await prefs.setBool('location_permission_choice', choice);
     }
-    if (choice && mounted) {
-      final locationService = LocationService();
-      final location = await locationService.getLocation(context);
-      final databaseModuleId = widget.module.id;
+    final location = await optionalDownloadCoordinates(
+      consent: choice && mounted,
+      locate: () => LocationService().getLocation(context),
+    );
+    await _reportInstallation(location);
+  }
 
-      if (databaseModuleId != null) {
-        await locationService.saveDownload(databaseModuleId, location);
+  String _reportKey = '';
+
+  Future<void> _reportInstallation(Map<String, double?>? location) async {
+    final id = widget.module.id;
+    if (id == null) return;
+    await LocationService()
+        .reportSuccessfulInstallation(id, location, publicationKey: _reportKey);
+  }
+
+  Future<void> _reportAfterInstallation() async {
+    try {
+      if (mounted) {
+        await _offerOptionalLocationSharing();
       } else {
-        debugPrint(
-          'Download statistics skipped: missing database ID '
-          'for module ${widget.module.moduleId}',
-        );
+        await _reportInstallation(null);
+      }
+    } catch (_) {
+      try {
+        await _reportInstallation(null);
+      } catch (error) {
+        debugPrint('Installed module remains available; download event '
+            'could not be persisted: $error');
       }
     }
   }
@@ -219,6 +241,7 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
     final module = widget.module;
     final url = module.downloadLink;
     if (!_canDownload || url == null || url.isEmpty) return;
+    _reportKey = '';
 
     setState(() {
       _busy = true;
@@ -243,15 +266,22 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
       if (!await _publishedFilesAvailable(result)) {
         throw StateError('Published module paths could not be verified');
       }
+      _reportKey = result.publicationKey ?? '';
       installedSuccessfully = true;
-      if (!mounted) return;
+      if (!mounted) {
+        unawaited(_reportAfterInstallation());
+        return;
+      }
       setState(() {
         _phase = 'Installation complete';
         _progress = 1;
         _publication = result;
       });
       await _refreshInstallation();
-      if (!mounted) return;
+      if (!mounted) {
+        unawaited(_reportAfterInstallation());
+        return;
+      }
       setState(() => _justInstalled = true);
       if (result.hasWarnings) {
         debugPrint('Module installed; tracking: ${result.trackingError}; '
@@ -277,13 +307,7 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
     }
     // Location sharing is entirely optional and must never turn a successful
     // installation into a download failure.
-    if (installedSuccessfully && mounted) {
-      try {
-        await _offerOptionalLocationSharing();
-      } catch (_) {
-        // The installed module remains available even if location fails.
-      }
-    }
+    if (installedSuccessfully) unawaited(_reportAfterInstallation());
   }
 
   Future<void> _open(Widget page) async {
@@ -381,7 +405,9 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
                     ),
                     if (module.creditType == 'cme' &&
                         module.id != null &&
-                        context.watch<CmeAwardProvider>().hasEarnedCredit(module.id!)) ...[
+                        context
+                            .watch<CmeAwardProvider>()
+                            .hasEarnedCredit(module.id!)) ...[
                       const SizedBox(height: 18),
                       Container(
                         padding: const EdgeInsets.all(16),
@@ -414,8 +440,8 @@ class _ModuleDetailsPageState extends State<ModuleDetailsPage> {
                                   SizedBox(height: 6),
                                   Text(
                                     'You have already earned CME credit for this module. '
-                                        'You may review the material again, but additional CME '
-                                        'credit cannot be awarded.',
+                                    'You may review the material again, but additional CME '
+                                    'credit cannot be awarded.',
                                     style: TextStyle(
                                       fontSize: 14,
                                       height: 1.5,

@@ -124,6 +124,9 @@ class ProgramDownloadService {
     Future<void> Function(DownloadableModule module)? onModuleInstalled,
     void Function(
             DownloadableModule module, InstructionalInstallationResult result)?
+        onPublicationConfirmed,
+    void Function(
+            DownloadableModule module, InstructionalInstallationResult result)?
         onInstallationWarning,
   }) async {
     if (modules.isEmpty) {
@@ -250,6 +253,11 @@ class ProgramDownloadService {
         }
       }
 
+      try {
+        onPublicationConfirmed?.call(module, result);
+      } catch (_) {
+        // Reporting observers cannot invalidate publication.
+      }
       if (onModuleInstalled != null) {
         try {
           await onModuleInstalled(module);

@@ -57,6 +57,16 @@ class _Location extends LocationService {
       int moduleId, Map<String, double?>? location) async {}
 }
 
+class _SlowLocation extends LocationService {
+  final release = Completer<void>();
+  int calls = 0;
+  @override
+  Future<void> saveDownload(int moduleId, Map<String, double?>? location) {
+    calls++;
+    return release.future;
+  }
+}
+
 class _Downloader extends ProgramDownloadService {
   int calls = 0;
   Future<void> Function(
@@ -70,6 +80,8 @@ class _Downloader extends ProgramDownloadService {
       {required List<DownloadableModule> modules,
       void Function(ProgramDownloadProgress)? onProgress,
       Future<void> Function(DownloadableModule)? onModuleInstalled,
+      void Function(DownloadableModule, InstructionalInstallationResult)?
+          onPublicationConfirmed,
       void Function(DownloadableModule, InstructionalInstallationResult)?
           onInstallationWarning}) async {
     calls++;
@@ -103,6 +115,7 @@ void main() {
   });
   Future<void> mount(WidgetTester tester, List<DownloadableModule> modules,
       {_ReturningObserver? observer,
+      LocationService? location,
       ModuleInstallationStatusService? inspectionService}) async {
     tester.view.physicalSize = const Size(1100, 950);
     tester.view.devicePixelRatio = 1;
@@ -116,7 +129,7 @@ void main() {
             catalogService: _Catalog(modules),
             installationStatus: inspectionService ?? status,
             programDownloader: downloader,
-            locationService: _Location())));
+            locationService: location ?? _Location())));
     if (inspectionService != null) {
       for (var attempt = 0; attempt < 100; attempt++) {
         await tester.runAsync(
@@ -142,6 +155,28 @@ void main() {
     InstructionalInstallationState.unavailable:
         'Installation status unavailable',
   };
+  testWidgets(
+      'slow statistics cannot block the next program module or completion',
+      (tester) async {
+    final slow = _SlowLocation();
+    addTearDown(() => slow.release.complete());
+    var installedCount = 0;
+    downloader.operation = (modules, progress, installed, warning) async {
+      for (final item in modules) {
+        await installed!(item);
+        installedCount++;
+        status.states[item.id!] = InstructionalInstallationState.confirmed;
+      }
+    };
+    await mount(tester, [module(42), module(43)], location: slow);
+    await tester.tap(find.text('Download Remaining 2 Modules'));
+    await tester.pumpAndSettle();
+    expect(installedCount, 2);
+    expect(slow.calls, 2);
+    expect(slow.release.isCompleted, false);
+    expect(
+        find.text('Program download completed successfully.'), findsOneWidget);
+  });
   testWidgets(
       'real legacy Compiler manifest contributes installed count without a registry',
       (tester) async {

@@ -102,13 +102,21 @@ class _PdfPreviewScreenState extends State<PdfPreviewScreen> {
           ),
         ],
       ),
-      body: SfPdfViewer.file(pdfFile),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(12.0),
-        child: ElevatedButton.icon(
-          icon: Icon(Icons.send),
-          label: Text("Email CME History"),
-          onPressed: _emailBusy || _emailSent ? null : _emailPdf,
+      body: SafeArea(
+        // Scaffold handles the app bar and the separate bottom action area.
+        top: false,
+        bottom: false,
+        child: SfPdfViewer.file(pdfFile),
+      ),
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: ElevatedButton.icon(
+            icon: Icon(Icons.send),
+            label: Text("Email CME History"),
+            onPressed: _emailBusy || _emailSent ? null : _emailPdf,
+          ),
         ),
       ),
     );

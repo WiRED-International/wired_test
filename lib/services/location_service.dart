@@ -5,8 +5,24 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'download_event_outbox.dart';
+import 'download_installation_reporting.dart';
 
 class LocationService {
+  /// Select exactly one reporting path. Queue failure must never fall back to
+  /// legacy POST: the queued event may already have reached durable storage.
+  Future<void> reportSuccessfulInstallation(
+      int moduleId, Map<String, double?>? location,
+      {required String publicationKey}) async {
+    if (downloadEventOutboxEnabled ||
+        DownloadEventOutbox.current?.enabled == true) {
+      await queueInstalledDownload(moduleId, location,
+          publicationKey: publicationKey);
+    } else {
+      await saveDownload(moduleId, location);
+    }
+  }
+
   Future<Map<String, double?>?> getLocation(BuildContext context) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     bool? hasDeniedLocation = prefs.getBool('hasDeniedLocation');
@@ -15,16 +31,16 @@ class LocationService {
 
     if (status.isGranted) {
       return await _getCurrentLocation();
-    } else if (hasDeniedLocation == true) {     
+    } else if (hasDeniedLocation == true) {
       return null;
     } else {
       PermissionStatus newStatus = await Permission.location.request();
       if (newStatus.isGranted) {
         return await _getCurrentLocation();
       } else {
-        await _showPermissionDeniedAlert(context);
+        if (context.mounted) await _showPermissionDeniedAlert(context);
         prefs.setBool('hasDeniedLocation', true);
-        
+
         return null;
       }
     }
@@ -34,7 +50,7 @@ class LocationService {
     // Await the dialog to make sure the code doesn't continue until the user closes it
     return showDialog<void>(
       context: context,
-      barrierDismissible: false,  // Prevent dismissing by tapping outside
+      barrierDismissible: false, // Prevent dismissing by tapping outside
       builder: (context) {
         return AlertDialog(
           title: const Text('Location Permission'),
@@ -67,38 +83,37 @@ class LocationService {
       );
       return {'latitude': position.latitude, 'longitude': position.longitude};
     } catch (e) {
-      print('Error getting location: $e');
+      debugPrint('Error getting location: $e');
       return {'latitude': null, 'longitude': null};
     }
   }
 
- Future<void> saveDownload(int moduleId, Map<String, double?>? location) async {
-  try {
-    final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
-    // final localServer = dotenv.env['LOCAL_SERVER']!;
-    // If location is null, set it to an object with null values
-    location ??= {'latitude': null, 'longitude': null};
+  Future<void> saveDownload(
+      int moduleId, Map<String, double?>? location) async {
+    try {
+      final apiBaseUrl = dotenv.env['API_BASE_URL'] ?? 'http://10.0.2.2:3000';
+      // final localServer = dotenv.env['LOCAL_SERVER']!;
+      // If location is null, set it to an object with null values
+      location ??= {'latitude': null, 'longitude': null};
 
-    var requestBody = {
-      'module_id': moduleId,
-      'latitude': location['latitude'],
-      'longitude': location['longitude'],
-    };
+      var requestBody = {
+        'module_id': moduleId,
+        'latitude': location['latitude'],
+        'longitude': location['longitude'],
+      };
 
-    debugPrint('requestBody: $requestBody');
+      debugPrint('requestBody: $requestBody');
 
-    var response = await http.post(
-      Uri.parse('$apiBaseUrl/api/downloads'),
-      body: jsonEncode(requestBody),
-      headers: {'Content-Type': 'application/json'},
-    );
+      var response = await http.post(
+        Uri.parse('$apiBaseUrl/api/downloads'),
+        body: jsonEncode(requestBody),
+        headers: {'Content-Type': 'application/json'},
+      ).timeout(const Duration(seconds: 15));
 
-    debugPrint('Response code: ${response.statusCode}');
-    debugPrint('Response body: ${response.body}');
-
-  } catch (e) {
-    debugPrint('Error occurred in save download: $e');
+      debugPrint('Response code: ${response.statusCode}');
+      debugPrint('Response body: ${response.body}');
+    } catch (e) {
+      debugPrint('Error occurred in save download: $e');
+    }
   }
-}
-
 }
