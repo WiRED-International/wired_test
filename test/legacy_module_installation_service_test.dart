@@ -13,6 +13,7 @@ import 'package:wired_test/services/module_installation_status_service.dart';
 import 'package:wired_test/services/program_download_service.dart';
 import 'package:wired_test/models/downloadable_module.dart';
 import 'package:hive/hive.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class _FailingRegistry extends ModuleInstallationRegistry {
   final gate = Completer<void>();
@@ -126,7 +127,13 @@ class _FixtureDownloader extends ModuleDownloadService {
   }
 }
 
-Future<File> _zipFixture(Directory root, Map<String, String> files) async {
+Future<File> _zipFixture(Directory root, Map<String, String> files,
+    {String moduleId = '1', bool addManifest = true}) async {
+  files = {
+    if (addManifest && files.containsKey('index.html'))
+      'module.json': '{"module_id":"$moduleId"}',
+    ...files,
+  };
   final source = Directory(p.join(root.path, 'source'));
   await source.create(recursive: true);
   for (final entry in files.entries) {
@@ -145,6 +152,7 @@ Future<File> _zipFixture(Directory root, Map<String, String> files) async {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late Directory root;
 
   setUp(() async {
@@ -164,7 +172,8 @@ void main() {
           root,
           storyline
               ? {'wrapper/story/story.html': 'story'}
-              : {'index.html': 'compiler'});
+              : {'index.html': 'compiler'},
+          moduleId: '1565');
       final registry = ModuleInstallationRegistry();
       final service = LegacyModuleInstallationService(
           downloadService: _FixtureDownloader(root, zip), registry: registry);
@@ -207,7 +216,8 @@ void main() {
           root,
           storyline
               ? {'story/story.html': 'working'}
-              : {'index.html': 'working'});
+              : {'index.html': 'working'},
+          moduleId: '1565');
       final registry = _FailingRegistry();
       final service = LegacyModuleInstallationService(
           downloadService: _FixtureDownloader(root, zip), registry: registry);
@@ -244,7 +254,8 @@ void main() {
         provenance: 'new-install',
         installedAt: '2020-01-01T00:00:00.000Z');
     final old = (await registry.getInstructionalInstallation(42))!;
-    final zip = await _zipFixture(root, {'index.html': 'new publication'});
+    final zip = await _zipFixture(root, {'index.html': 'new publication'},
+        moduleId: '1565');
     final result = await LegacyModuleInstallationService(
             downloadService: _FixtureDownloader(root, zip),
             registry: _FailingRegistry())
@@ -271,6 +282,7 @@ void main() {
     expect(result.cleanupWarnings.single, isA<FileSystemException>());
     expect(result.trackingOutcome, InstructionalTrackingOutcome.skipped);
     expect(await File(result.entryPointPath).readAsString(), 'working');
+    await _zipFixture(root, {'index.html': 'working'}, moduleId: '2');
     final next = await service.downloadAndInstallWithResult(
         moduleId: '2',
         moduleName: 'Two',
@@ -311,7 +323,7 @@ void main() {
             downloadUrl: 'https://example.com/module.zip'),
         throwsFormatException);
     expect(await registry.getInstructionalInstallation(42), isNull);
-    await _zipFixture(root, {'index.html': 'working'});
+    await _zipFixture(root, {'index.html': 'working'}, moduleId: '2');
     await service.downloadAndInstall(
         databaseId: 42,
         moduleId: '2',
@@ -366,7 +378,8 @@ void main() {
     registry.gate.complete();
     expect(
         (await pending).trackingOutcome, InstructionalTrackingOutcome.failed);
-    final replacement = await _zipFixture(root, {'index.html': 'next'});
+    final replacement =
+        await _zipFixture(root, {'index.html': 'next'}, moduleId: '2');
     await LegacyModuleInstallationService(
             downloadService: _FixtureDownloader(root, replacement))
         .downloadAndInstall(
@@ -379,7 +392,8 @@ void main() {
       'program continues after tracking failure using real publication and status',
       () async {
     final registry = _FailingRegistry();
-    final zip = await _zipFixture(root, {'index.html': 'working'});
+    final zip =
+        await _zipFixture(root, {'index.html': 'working'}, moduleId: '142');
     // Keep the fixture ZIP so both sequential modules can use it.
     final downloader = _FixtureDownloader(root, _DeleteFailFile(zip));
     final warnings = <int?>[];
@@ -412,6 +426,9 @@ void main() {
           expect(publications[module.id],
               startsWith('instructional:${module.id}:'));
           completed.add(module.id);
+          if (module.id == 42) {
+            await _zipFixture(root, {'index.html': 'working'}, moduleId: '143');
+          }
         });
     expect(completed, [42, 43]);
     expect(warnings, [42, 43]);
@@ -475,7 +492,8 @@ void main() {
         File(p.join(root.path, 'modules', 'Existing', 'index.html'));
     await existing.parent.create(recursive: true);
     await existing.writeAsString('original');
-    final zip = await _zipFixture(root, {'index.html': 'replacement'});
+    final zip = await _zipFixture(root, {'index.html': 'replacement'},
+        moduleId: '1002');
     final service = LegacyModuleInstallationService(
       downloadService: _FixtureDownloader(root, zip),
     );
@@ -495,9 +513,12 @@ void main() {
   });
 
   test('module title with colon and slash installs safely', () async {
-    final zip = await _zipFixture(root, {
-      'index.html': '<html>Compiler</html>',
-    });
+    final zip = await _zipFixture(
+        root,
+        {
+          'index.html': '<html>Compiler</html>',
+        },
+        moduleId: '1010');
     final service = LegacyModuleInstallationService(
       downloadService: _FixtureDownloader(root, zip),
     );
@@ -513,6 +534,99 @@ void main() {
         await File(p.join(root.path, 'modules', folder, 'index.html')).exists(),
         isTrue);
   });
+
+  final invalidPackages = <String, Map<String, String>>{
+    'missing module.json': {'index.html': 'compiler'},
+    'invalid module.json': {'index.html': 'compiler', 'module.json': '{'},
+    'invalid manifest structure': {
+      'index.html': 'compiler',
+      'module.json': '[]'
+    },
+    'expected 1565, found 9999': {
+      'index.html': 'compiler',
+      'module.json': '{"module_id":9999}',
+    },
+    'expected 1565, found null': {
+      'index.html': 'compiler',
+      'module.json': '{}',
+    },
+    'valid index.html': {'module.json': '{"module_id":1565}'},
+    'empty index': {'index.html': '', 'module.json': '{"module_id":1565}'},
+    'Storyline asset cannot bypass identity': {
+      'index.html': 'compiler',
+      'module.json': '{"module_id":9999}',
+      'assets/story.html': 'asset',
+    },
+  };
+  for (final invalid in invalidPackages.entries) {
+    test('rejects compiler package: ${invalid.key}; same identity can retry',
+        () async {
+      final existing =
+          File(p.join(root.path, 'modules', 'Offline', 'index.html'));
+      await existing.parent.create(recursive: true);
+      await existing.writeAsString('existing offline module');
+      final registry = ModuleInstallationRegistry();
+      await registry.saveInstructionalInstallation(
+        databaseId: 99,
+        moduleId: '99',
+        format: 'compiler',
+        contentDirectory: existing.parent.path,
+        entryPointPath: existing.path,
+        provenance: 'new-install',
+      );
+      final records = await Hive.openBox(ModuleInstallationRegistry.boxName);
+      final before = records.toMap();
+      const scores = {
+        'pending_quiz_scores': '{"1565":{"score":80,"module_name":"Title"}}',
+        'module_id': '1565',
+        'module_name': 'Title',
+      };
+      FlutterSecureStorage.setMockInitialValues(scores);
+      final zip = await _zipFixture(root, invalid.value, addManifest: false);
+      final downloader = _FixtureDownloader(root, zip);
+      final service = LegacyModuleInstallationService(
+        downloadService: downloader,
+        registry: registry,
+      );
+      await expectLater(
+        service.downloadAndInstallWithResult(
+          databaseId: 42,
+          moduleId: '1565',
+          moduleName: 'Title',
+          downloadUrl: 'https://example.com/module.zip',
+        ),
+        throwsA(isA<FormatException>().having(
+          (e) => e.message,
+          'explanation',
+          contains(invalid.key == 'empty index'
+              ? 'valid index.html'
+              : invalid.key == 'Storyline asset cannot bypass identity'
+                  ? 'expected 1565, found 9999'
+                  : invalid.key),
+        )),
+      );
+      expect(records.toMap(), before);
+      expect(await const FlutterSecureStorage().readAll(), scores);
+      expect(await existing.readAsString(), 'existing offline module');
+      expect(await Directory(p.join(root.path, 'modules', 'Title')).exists(),
+          isFalse);
+      expect(await Directory(p.join(root.path, 'files')).exists(), isFalse);
+      expect(await (await downloader.getStagingDirectory('1565')).exists(),
+          isFalse);
+      await _zipFixture(root, {'index.html': 'corrected'}, moduleId: '1565');
+      final installed = await service.downloadAndInstallWithResult(
+        databaseId: 42,
+        moduleId: '1565',
+        moduleName: 'Title',
+        downloadUrl: 'https://example.com/module.zip',
+      );
+      expect(await File(installed.entryPointPath).readAsString(), 'corrected');
+      expect(installed.trackingOutcome, InstructionalTrackingOutcome.saved);
+      expect(await registry.getInstructionalInstallation(99),
+          before['instructional-db:99']);
+      expect(await const FlutterSecureStorage().readAll(), scores);
+    });
+  }
 
   test('unknown ZIP format fails without installing an empty module', () async {
     final zip = await _zipFixture(root, {'readme.txt': 'not a module'});
