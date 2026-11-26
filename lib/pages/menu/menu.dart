@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:provider/provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../providers/auth_guard.dart';
 import '../../providers/auth_provider.dart';
@@ -33,6 +34,7 @@ class Menu extends StatefulWidget {
 
 class _MenuState extends State<Menu> {
   late Future<User> userData;
+  late final Future<String?> _installedVersion;
   final _storage = const FlutterSecureStorage();
   bool _isLoggingOut = false;
   bool _isDeletingAccount = false;
@@ -73,6 +75,61 @@ class _MenuState extends State<Menu> {
   void initState() {
     super.initState();
     userData = fetchUserData();
+    _installedVersion = _loadInstalledVersion();
+  }
+
+  Future<String?> _loadInstalledVersion() async {
+    try {
+      final info = await PackageInfo.fromPlatform();
+      final version = info.version.trim();
+      final build = info.buildNumber.trim();
+      if (version.isEmpty || build.isEmpty) return null;
+      return 'Version $version ($build)';
+    } catch (_) {
+      // Package metadata is optional and must not interrupt the menu.
+      return null;
+    }
+  }
+
+  Widget _buildVersionFooter() {
+    return FutureBuilder<String?>(
+      future: _installedVersion,
+      builder: (context, snapshot) {
+        final version = snapshot.data;
+        if (version == null) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Center(
+            child: Text(
+              version,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontSize: 12,
+                    // AppLayout retains its light gradient in both themes.
+                    color: Colors.black54,
+                  ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildStatusContent(Widget content) {
+    // Keep local package information accessible even without a user response.
+    return Center(
+      child: SingleChildScrollView(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: content,
+            ),
+            _buildVersionFooter(),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<String?> getAuthToken() async {
@@ -234,11 +291,12 @@ class _MenuState extends State<Menu> {
         future: userData,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return _buildStatusContent(const CircularProgressIndicator());
           } else if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
+            return _buildStatusContent(
+                Text('Error: ${snapshot.error}', textAlign: TextAlign.center));
           } else if (!snapshot.hasData) {
-            return const Center(child: Text('No data available'));
+            return _buildStatusContent(const Text('No data available'));
           }
 
           final user = snapshot.data!;
@@ -655,6 +713,7 @@ class _MenuState extends State<Menu> {
               ),
             ),
             SizedBox(height: sectionSpacing),
+            _buildVersionFooter(),
           ],
         ),
       ),
