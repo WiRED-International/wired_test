@@ -183,7 +183,11 @@ class LegacyModuleInstallationService {
         }
       }
 
-      if (story != null) {
+      // A root manifest identifies a compiler package even if it contains a
+      // story.html asset. Such an asset must not bypass compiler validation.
+      final hasCompilerManifest =
+          await File(p.join(staging.path, 'module.json')).exists();
+      if (story != null && !hasCompilerManifest) {
         final storyFolder = story.parent;
         final folderName = p.basename(storyFolder.path);
         final filesDir = Directory(p.join(baseDir.path, 'files'));
@@ -224,7 +228,14 @@ class LegacyModuleInstallationService {
         contentDirectory = destination.path;
         entryPointPath = p.join(destination.path, 'story.html');
         launcherPath = launcher.path;
-      } else if (await File(p.join(staging.path, 'index.html')).exists()) {
+      } else if (hasCompilerManifest ||
+          await File(p.join(staging.path, 'index.html')).exists()) {
+        // Validate identity and required files while everything is temporary.
+        // Failure reaches staging cleanup without publishing or tracking.
+        await _downloads.validateExtractedModule(
+          moduleId: moduleId,
+          stagingDirectory: staging,
+        );
         final destination =
             Directory(p.join(modulesDir.path, folderNameForCompiler));
         if (await destination.exists()) {
